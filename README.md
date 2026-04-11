@@ -15,6 +15,8 @@ Rentero je interní reporting tool pro měsíční vyúčtování jednotlivých 
 - denně synchronizovat Hostify snapshot pro 5 měsíců (předchozí + aktuální + 3 dopředu)
 - spravovat klienty, expense categories, expenses a manual overrides
 - mapovat více Hostify child listing nicknames na jeden objekt, včetně Marriott / `HVMB`
+- spravovat uživatelské účty se třemi rolemi (admin / manager / client) a přiřazovat klientům přístup k jednotlivým objektům
+- zobrazovat plně responzivní mobilní rozhraní: bottom bar, sheet overlays, HTMX SPA navigace, light/dark téma
 
 ## Quick Start
 
@@ -53,18 +55,23 @@ Na Windows je preferovaný launcher:
 
 ## Web Runtime
 
-Web vrstva používá cookie session auth. Produkční minimum:
+Web vrstva používá cookie session auth s RBAC (Role-Based Access Control).
 
-- `RENTERO_USERNAME`
-- `RENTERO_PASSWORD`
-- `RENTERO_SESSION_SECRET`
+### Env vars (produkce)
+
+| Proměnná | Popis |
+|---|---|
+| `RENTERO_SESSION_SECRET` | tajný klíč pro cookie signing |
+| `RENTERO_ALLOW_INSECURE_DEFAULTS=1` | pouze lokální vývoj |
+
+> `RENTERO_USERNAME` / `RENTERO_PASSWORD` se používají pouze pro seed prvního admin účtu při prázdné tabulce `users`.
 
 Pouze pro lokální vývoj lze povolit fallback:
 
 - `RENTERO_ALLOW_INSECURE_DEFAULTS=1`
 
 `start_web.bat` / `start_web.ps1` umí tento localhost fallback zapnout automaticky, pokud v `.env`
-chybí `RENTERO_SESSION_SECRET`, `RENTERO_USERNAME` nebo `RENTERO_PASSWORD`.
+chybí `RENTERO_SESSION_SECRET`.
 
 Výchozí Windows launcher spouští web na pozadí a zapisuje logy do:
 
@@ -76,6 +83,31 @@ Pokud je potřeba debug session s živými logy v konzoli, lze před spuštění
 - `RENTERO_SHOW_LOGS=1`
 
 Všechny `POST` routes jsou chráněné session-based CSRF tokenem.
+
+### Uživatelé a role
+
+| Role | Dashboard | Property pages | Finance/Audit | Zdroje/Logy | Mutace | Správa uživatelů |
+|---|---|---|---|---|---|---|
+| `admin` | vše | vše | vše | ano | ano | ano |
+| `manager` | vše | vše | vše | ano | ano | ne |
+| `client` | přiřazené | přiřazené | přiřazené | ne | ne | ne |
+
+Správa uživatelů je dostupná na `/admin/users` (pouze `admin` role).
+
+### Produkční deployment (Hetzner)
+
+```bash
+./deploy.sh
+```
+
+Nebo manuálně:
+
+```bash
+git push origin main
+ssh rentero@204.168.216.181 "cd ~/rentero && git pull origin main && source venv/bin/activate && pip install -r requirements.txt -q && sudo systemctl restart rentero"
+```
+
+Služba běží jako systemd unit `rentero`. Status: `systemctl status rentero`.
 
 ## Architektura
 
@@ -107,7 +139,7 @@ SQLite persisted state + web UI
 - `report/web.py`
   Thin FastAPI entrypoint: app setup, auth, CSRF, dependency wiring, route registration, spouštění sync loopu.
 - `report/routes/`
-  HTTP routes rozdělené po doménách: auth, dashboard, property, sources, operations.
+  HTTP routes rozdělené po doménách: auth, dashboard, property, sources, operations, reconciliation, bank, logs, audit, admin.
 - `report/web_support.py`
   Web orchestration helpers a view-model assembly mimo route handlery.
 - `report/db.py`
@@ -116,6 +148,8 @@ SQLite persisted state + web UI
   Month lifecycle a background generation jobs.
 - `report/db_admin.py`
   Report objects, aliases, clients, expenses, overrides.
+- `report/db_users.py`
+  User accounts: password hashing (SHA-256 + salt), CRUD, property assignments.
 - `report/config.py`
   Runtime config loader a JSON/DB sync logika.
 - `report/source_registry.py`
@@ -144,9 +178,13 @@ report/web.py
 report/routes/
   ├─ auth.py
   ├─ dashboard.py
-  ├─ sources.py
   ├─ property_routes.py
-  └─ operations.py
+  ├─ operations.py
+  ├─ sources.py
+  ├─ reconciliation.py
+  ├─ logs.py
+  ├─ audit_routes.py
+  └─ admin.py          ← RBAC user management (admin only)
 
 report/web_support.py
   ├─ dashboard view models
@@ -244,6 +282,7 @@ Klíčové tabulky:
 - `override_events`
 - `payout_batches`, `payout_batch_items`
 - `bank_transactions`, `payout_batch_bank_matches`
+- `users`, `user_properties`   ← RBAC
 
 ## Dokumentace
 

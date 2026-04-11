@@ -6,6 +6,73 @@ It is not a plan.
 
 It describes the delivered architecture after the completed work in Phase 1, Phase 2, Phase 3, and the hardening pass completed today.
 
+## 2026-04-11
+
+### RBAC — Multi-user access control
+
+- New `users` and `user_properties` tables added to SQLite schema via `_run_migrations()`.
+- `report/db_users.py` — new module: password hashing (SHA-256 + secrets salt), `authenticate_user()`, `create_user()`, `update_user()`, `change_password()`, `delete_user()`, `get_user_property_slugs()`, `set_user_properties()`.
+- Three roles: `admin` (full access + user management), `manager` (full access, no user management), `client` (read-only, assigned properties only).
+- `report/web.py` rewired: `require_auth()` now loads user from DB by `session["user_id"]`; new dependency helpers `require_admin()`, `require_admin_or_manager()`, `require_write_access()`, `check_property_access()`, `get_accessible_properties()`.
+- `report/routes/admin.py` (new) — admin-only CRUD for users and property assignments.
+- `report/routes/auth.py` — login now uses `authenticate_user()` against DB; session stores `user_id` and `user_role`.
+- Dashboard and property routes filter properties via `get_accessible_properties()` for client-role users.
+- Sources, logs, reconciliation routes require `admin` or `manager`.
+- All POST mutation routes require `require_write_access` (denied for `client`).
+- Template layer: sidebar and mobile sheet hide restricted nav items by role; mutation buttons/forms hidden for `client` role.
+- Migration seed: if `users` table is empty on startup, admin user is created from env vars.
+
+### Dashboard performance optimization
+
+- `_build_dashboard_maps()` in `report/web_support.py` replaced an N×M loop (one `get_report_rows()` call per property × month) with two bulk SQL queries.
+- History query: subquery with `MAX(generated_at)` returns only the latest report per slug/month (~370 rows instead of 11 K+).
+- Rows aggregation: single `json_extract()`-based `GROUP BY` query computes payout sums, cena_ubytovani sums, provize sums, and all verification status counts in SQL.
+- Three composite indexes added via migration: `idx_report_history_slug_month`, `idx_report_rows_slug_month`, `idx_report_month_notifications_slug_month`.
+- `_latest_month_notification_map()` now filters by month range (was loading all notifications).
+- Production result: dashboard latency dropped from ~5 s to ~67 ms avg for 62 properties × 6 months.
+
+### HTMX sidebar navigation fix
+
+- Sidebar objects accordion and mobile objects sheet both load content via `fetch()` + `innerHTML`.
+- Content injected via `innerHTML` is not processed by HTMX automatically.
+- Fix: `htmx.process(el)` called after each `innerHTML` assignment so HTMX registers `hx-boost` and `hx-get` attributes on dynamically loaded links.
+
+### Responsive redesign (mobile-first)
+
+Full mobile UI pass across all templates and partials:
+
+- Design tokens moved to OKLCH color space (`base_styles.html`).
+- Geist font loaded via CDN.
+- HTMX 2.0.4 with `hx-boost="true"` on `<body>` for SPA-style navigation without full reloads.
+- Mobile bottom bar (Přehled / Objekty / Více) with sheet overlays.
+- Tablet sidebar: collapsed to 60 px icon strip.
+- Responsive breakpoints: `< 640 px` (mobile), `640–1024 px` (tablet), `> 1024 px` (desktop).
+- KPI cards: 2-column grid on mobile via `!important` override of inline `grid-template-columns`.
+- `data-table.responsive-cards` CSS pattern: tables render as labeled-field card stacks on mobile; `recon-detail` and `drilldown-row` rows are explicitly excluded from flex layout via `:not()` selectors.
+- Filter forms stack vertically on mobile.
+- Bank drilldown cards stack vertically on mobile.
+- Expenses two-column layout collapses to single column on mobile.
+- Form inputs: `font-size: 16px` on mobile and tablet to prevent iOS Safari auto-zoom on focus.
+- Mobile month strip (sticky bar inside `#content`) re-initialized after every `htmx:afterSwap` since HTMX replaces innerHTML and destroys event handlers.
+- Bottom bar active state updated client-side after each HTMX navigation (was server-rendered once, never updated).
+- Page transition progress bar: 2 px primary-colored bar at the top, animates on `htmx:beforeRequest`, completes and fades on `htmx:afterSwap`.
+
+### Objekty mobile sheet redesign
+
+- Header with title + current month badge.
+- Search input with client-side instant filtering (no re-fetch).
+- Spinner loading state and empty-state fallback.
+- Health badges (`✓` green / `!` amber) per item.
+- Larger touch targets (11 px padding) in sheet context via `#obj-sheet-list .sb-obj-item` override.
+- Active item highlighted in `--color-primary`.
+- `data-name` attribute on each item for case-insensitive search.
+
+### Default light theme
+
+- `localStorage` key `rentero_theme` defaults to `'light'` in both `base.html` inline script and `base_scripts.html` theme IIFE.
+- Login page (`login.html`) also defaults to `'light'` on first visit.
+- Existing saved preferences are preserved.
+
 ## 2026-04-10
 Recent operational/documented changes
 
