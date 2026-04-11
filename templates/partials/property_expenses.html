@@ -7,9 +7,10 @@
       <span style="font-size:12px;color:var(--text-muted);">{{ expenses|length }} položek · <span class="num" style="color:var(--red);">{{ money(summary.expenses_total_czk) }}</span></span>
       {% endif %}
     </div>
+    {% set _user = get_current_user(request) %}
     {% if month_state.status == 'LOCKED' %}
     <span style="font-size:12px;color:var(--text-muted);">Uzamčeno</span>
-    {% else %}
+    {% elif _user and _user.role != 'client' %}
     <button onclick="document.getElementById('add-expense-form').style.display = document.getElementById('add-expense-form').style.display === 'none' ? 'block' : 'none'"
             class="btn btn-sm btn-primary" style="font-size:12px;">
       + Přidat výdaj
@@ -18,7 +19,7 @@
   </div>
 
   <div id="expenses-body">
-    {% if month_state.status != 'LOCKED' %}
+    {% if month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
     <div id="add-expense-form" style="display:none;padding:16px 20px;border-bottom:1px solid var(--border);background:rgba(91,106,249,0.04);">
       <form method="post" action="/expenses/add"
             style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;"
@@ -91,7 +92,7 @@
           </td>
           <td style="text-align:right;" class="num num-neg" style="font-weight:600;">{{ money(e.amount_czk) }}</td>
           <td style="text-align:right;">
-            {% if month_state.status != 'LOCKED' %}
+            {% if month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
             <div style="display:flex;justify-content:flex-end;gap:8px;opacity:0;transition:opacity 0.13s;" class="expense-actions">
               <button onclick="toggleEditExpense({{ e.id }})"
                       style="font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:2px;">Upravit</button>
@@ -106,7 +107,7 @@
             {% endif %}
           </td>
         </tr>
-        {% if month_state.status != 'LOCKED' %}
+        {% if month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
         <tr id="edit-expense-{{ e.id }}" style="display:none;">
           <td colspan="5" style="padding:12px 16px;background:rgba(91,106,249,0.04);border-bottom:1px solid var(--border);">
             <form method="post" action="/expenses/{{ e.id }}/edit"

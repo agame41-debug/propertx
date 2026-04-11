@@ -20,7 +20,8 @@
 </div>
 
 {# KPI summary #}
-<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);">
+
   <div class="kpi-card">
     <div class="kpi-label">Transakce</div>
     <div class="kpi-value" style="font-size:22px;">{{ all_rows_count }}</div>
@@ -92,7 +93,7 @@
   </div>
   {% if rows %}
   <div style="overflow-x:auto;">
-    <table class="data-table" style="border-collapse:collapse;" data-enhanced="true" data-table-id="bank">
+    <table class="data-table responsive-cards" style="border-collapse:collapse;" data-enhanced="true" data-table-id="bank">
       <thead>
         <tr>
           <th data-col="expand" data-sortable="false" style="width:40px;padding-left:16px;"></th>

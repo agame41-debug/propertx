@@ -250,7 +250,8 @@
 </div>
 
 {# ── Akce ─────────────────────────────────────────────────────────────────── #}
-{% if month_state and month_state.status != 'LOCKED' %}
+{% set _user = get_current_user(request) %}
+{% if month_state and month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
 <div class="drawer-section">
   <div class="drawer-section-head">
     <div class="drawer-section-title">Akce</div>

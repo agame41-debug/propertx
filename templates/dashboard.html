@@ -4,13 +4,13 @@
 {% block content %}
 
 {% if flash %}
-<div class="notify {% if flash.level == 'error' %}notify-error{% elif flash.level == 'info' %}notify-info{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
+<div class="notify {% if flash.level == 'error' %}notify-error{% elif flash.level == 'info' %}notify-info{% else %}notify-success{% endif %}" style="margin-bottom:var(--space-lg);">
   <div style="flex:1;">
     <div style="font-weight:600;">{{ flash.message }}</div>
     {% if flash.detail %}
     <details style="margin-top:6px;">
-      <summary style="cursor:pointer;font-size:12px;opacity:0.75;">Detaily</summary>
-      <pre style="margin-top:6px;font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-x:auto;opacity:0.8;">{{ flash.detail }}</pre>
+      <summary style="cursor:pointer;font-size:var(--text-sm);opacity:0.75;">Detaily</summary>
+      <pre style="margin-top:6px;font-size:var(--text-xs);line-height:1.6;white-space:pre-wrap;overflow-x:auto;opacity:0.8;">{{ flash.detail }}</pre>
     </details>
     {% endif %}
   </div>
@@ -18,34 +18,30 @@
 {% endif %}
 
 {# ── Page heading ── #}
-<div style="margin-bottom:24px;">
-  <h1 style="font-size:20px;font-weight:700;color:var(--text-100);letter-spacing:-0.02em;">Přehled portfolia</h1>
-  <div style="font-size:13px;color:var(--text-300);margin-top:3px;">{{ dashboard_summary.current_month_label }} · {{ dashboard_summary.property_count }} objekt{{ dashboard_summary.property_suffix }}</div>
+<div style="margin-bottom:var(--space-xl);">
+  <h1 style="font-size:var(--text-xl);font-weight:700;color:var(--text-100);letter-spacing:-0.02em;">Přehled portfolia</h1>
+  <div style="font-size:var(--text-sm);color:var(--text-300);margin-top:3px;">{{ dashboard_summary.current_month_label }} · {{ dashboard_summary.property_count }} objekt{{ dashboard_summary.property_suffix }}</div>
 </div>
 
 {# ── KPI Summary Bar ── #}
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;">
+<div class="kpi-grid">
 
   {# Total payout #}
   <div class="kpi-card kpi-card-green">
     <div class="kpi-label">Celková výplata</div>
-    <div class="kpi-value" style="color:var(--color-green);font-size:24px;">
+    <div class="kpi-value" style="color:var(--color-green);font-size:24px;" id="kpi-payout">
       {{ "{:,.0f}".format(dashboard_summary.total_payout_czk).replace(",", "\u00a0") }} Kč
     </div>
-    <div class="kpi-sub">platformy → klienti · {{ dashboard_summary.current_month_label }}</div>
+    <div class="kpi-sub" id="kpi-payout-sub">platformy → klienti · {{ dashboard_summary.current_month_label }}</div>
   </div>
 
   {# Total reservations with sparkline #}
   <div class="kpi-card kpi-card-blue">
     <div class="kpi-label">Celkem rezervací</div>
-    <div class="kpi-value" style="font-size:24px;">
+    <div class="kpi-value" style="font-size:24px;" id="kpi-reservations">
       {{ dashboard_summary.total_reservations }}
       {% set d = dashboard_summary.reservations_delta %}
-      {% if d > 0 %}
-      <span class="kpi-delta kpi-delta-pos">+{{ d }}</span>
-      {% elif d < 0 %}
-      <span class="kpi-delta kpi-delta-neg">{{ d }}</span>
-      {% endif %}
+      <span id="kpi-delta" class="kpi-delta {% if d > 0 %}kpi-delta-pos{% elif d < 0 %}kpi-delta-neg{% endif %}" {% if d == 0 %}style="display:none;"{% endif %}>{{ '+' if d > 0 else '' }}{{ d }}</span>
     </div>
     <div class="kpi-sub">
       {% set pts = dashboard_summary.sparkline_points %}
@@ -56,7 +52,7 @@
         {% set bx = loop.index0 * 14 %}
         <rect x="{{ bx }}" y="{{ 24 - bh }}" width="10" height="{{ bh }}"
               rx="2"
-              fill="{% if loop.last %}var(--color-blue){% else %}rgba(59,130,246,0.3){% endif %}"/>
+              fill="{% if loop.last %}var(--color-blue){% else %}oklch(0.65 0.15 250 / 0.3){% endif %}"/>
         {% endfor %}
       </svg>
       vs minulý měsíc
@@ -66,36 +62,38 @@
   {# Active objects #}
   <div class="kpi-card kpi-card-primary">
     <div class="kpi-label">Aktivní objekty</div>
-    <div class="kpi-value" style="font-size:24px;">
+    <div class="kpi-value" style="font-size:24px;" id="kpi-active">
       {{ dashboard_summary.total_with_data }}
-      <span style="font-size:16px;font-weight:400;color:var(--text-300);">/ {{ dashboard_summary.property_count }}</span>
+      <span style="font-size:var(--text-lg);font-weight:400;color:var(--text-300);" id="kpi-total">/ {{ dashboard_summary.property_count }}</span>
     </div>
     <div class="kpi-sub">s daty v aktuálním měsíci</div>
   </div>
 
   {# Portfolio health #}
-  <div class="kpi-card {% if dashboard_summary.issues > 0 %}kpi-card-red{% else %}kpi-card-green{% endif %}">
+  <div class="kpi-card" id="kpi-health-card">
     <div class="kpi-label">Stav portfolia</div>
+    <div id="kpi-health-value">
     {% if dashboard_summary.issues > 0 %}
     <div class="kpi-value" style="font-size:24px;color:var(--color-red);">{{ dashboard_summary.issues }}</div>
     <div class="kpi-sub">objekt{{ 'y' if dashboard_summary.issues > 1 else '' }} s problémy</div>
     {% else %}
-    <div class="kpi-value" style="font-size:20px;color:var(--color-green);">Vše OK</div>
+    <div class="kpi-value" style="font-size:var(--text-xl);color:var(--color-green);">Vše OK</div>
     <div class="kpi-sub">žádné nesrovnalosti</div>
     {% endif %}
+    </div>
   </div>
 
 </div>
 
 {# ── Section divider ── #}
-<div class="section-divider" style="margin-top:8px;">
+<div class="section-divider" style="margin-top:var(--space-sm);">
   <span class="section-divider-label">Objekty</span>
   <div class="section-divider-line"></div>
 </div>
 
 {# ── Filter row ── #}
-<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-md);margin-bottom:var(--space-lg);flex-wrap:wrap;">
+  <div style="display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap;">
     <div class="filter-tabs" id="dashboard-filter-tabs">
       <button class="filter-tab active" data-filter="all" onclick="filterCards('all',this)">Vše</button>
       {% if dashboard_summary.issues > 0 %}
@@ -111,43 +109,69 @@
     </div>
   </div>
 
-  <div style="position:relative;">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-300)" stroke-width="2" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;">
-      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-    </svg>
-    <input type="text" id="card-search" placeholder="Hledat objekt..."
-           oninput="searchCards(this.value)"
-           style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:8px;padding:6px 12px 6px 32px;font-size:13px;color:var(--text-100);font-family:inherit;width:220px;">
+  <div style="display:flex;align-items:center;gap:var(--space-sm);">
+    {# Owner filter dropdown #}
+    <select id="owner-filter" onchange="filterByOwner(this.value)" class="form-input" style="width:auto;max-width:220px;cursor:pointer;">
+      <option value="">Všichni vlastníci</option>
+      {% for name in owner_names %}
+      <option value="{{ name }}">{{ name }}</option>
+      {% endfor %}
+    </select>
+
+    <div style="position:relative;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-300)" stroke-width="2" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="card-search" placeholder="Hledat objekt..."
+             oninput="searchCards(this.value)"
+             class="form-input" style="padding-left:32px;width:220px;">
+    </div>
   </div>
 </div>
 
 {# ── Property List ── #}
 {% if dashboard_rows %}
-<div id="property-grid">
-  {# Header row #}
-  <div style="display:grid;grid-template-columns:2fr 140px 120px 80px 20px;gap:16px;
-              padding:4px 16px 8px;font-size:10px;font-weight:600;letter-spacing:.08em;
+<div id="property-grid" class="stagger-list">
+  {# Header row (desktop only) #}
+  <div class="desktop-only" style="display:grid;grid-template-columns:2fr 150px 130px 100px 100px 80px 20px;gap:var(--space-md);
+              padding:4px var(--space-lg) var(--space-sm);font-size:10px;font-weight:600;letter-spacing:.08em;
               text-transform:uppercase;color:var(--text-300);">
     <div>Objekt</div>
+    <div style="text-align:right;">Výplata / Ubytování</div>
+    <div style="text-align:right;" class="pr-hide-tablet">Odměna Rentero</div>
     <div>Obsazenost</div>
     <div>Stav</div>
-    <div>Zdraví</div>
+    <div class="pr-hide-tablet">Zdraví</div>
     <div></div>
   </div>
 
   {% for row in dashboard_rows %}
   {% set cur_cell = row.cells | selectattr('is_current') | first %}
+  {% set prev_cell = row.cells[-2] if row.cells | length >= 2 else None %}
   {% set issues_count = (cur_cell.rozdil or 0) + (cur_cell.ke_kontrole or 0) + (cur_cell.chybi_hostify or 0) + (cur_cell.chybi_csv or 0) if cur_cell else 0 %}
   {% set is_locked = cur_cell.is_locked if cur_cell else false %}
   {% set has_new = cur_cell.has_new if cur_cell else false %}
   {% set rez_count = cur_cell.rows_count if cur_cell else 0 %}
+  {% set payout = cur_cell.payout_sum_czk|default(0) if cur_cell else 0 %}
+  {% set cena_ubyt = cur_cell.cena_ubytovani_sum_czk|default(0) if cur_cell else 0 %}
+  {% set provize = cur_cell.provize_sum_czk|default(0) if cur_cell else 0 %}
+  {% set has_data = 1 if (cur_cell and cur_cell.kind in ['report', 'generate', 'locked']) else 0 %}
+  {% set rez_prev = prev_cell.rows_count|default(0) if prev_cell else 0 %}
 
   <a href="{% if cur_cell %}/property/{{ row.slug }}/{{ cur_cell.year }}/{{ cur_cell.month }}{% else %}/{% endif %}"
      class="prop-row"
      data-health="{{ row.health }}"
      data-has-new="{{ 'true' if has_new else 'false' }}"
      data-locked="{{ 'true' if is_locked else 'false' }}"
-     style="--i:{{ loop.index0 }};animation:fadeSlideUp 250ms ease both;animation-delay:calc(var(--i)*30ms);">
+     data-owner="{{ row.owner_name }}"
+     data-is-rentero="{{ '1' if row.is_rentero else '0' }}"
+     data-payout="{{ payout }}"
+     data-cena-ubyt="{{ cena_ubyt }}"
+     data-provize="{{ provize }}"
+     data-rez="{{ rez_count }}"
+     data-rez-prev="{{ rez_prev }}"
+     data-has-data="{{ has_data }}"
+     data-issues="{{ issues_count }}">
 
     {# Col 1: status dot + name #}
     <div class="pr-name">
@@ -164,24 +188,52 @@
       </div>
     </div>
 
-    {# Col 2: mini bar + rez count #}
-    <div class="pr-occ">
+    {# Col 2: Financial — Výplata klientovi or Cena ubytování #}
+    <div class="pr-financial" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
       {% if cur_cell and cur_cell.kind == 'report' %}
-      {% set occ_pct = [((rez_count / 31) * 100) | round | int, 100] | min %}
-      <div class="pr-bar"><div class="pr-bar-fill" style="width:{{ occ_pct }}%;"></div></div>
-      <span class="pr-occ-lbl">{{ rez_count }} rez. · {{ dashboard_summary.current_month_label }}</span>
-      {% elif cur_cell and cur_cell.kind == 'generate' %}
-      <form method="post" action="{{ cur_cell.generate_href }}" onclick="event.stopPropagation()">
-        {{ csrf_input(request) }}
-        <button type="submit" class="btn btn-primary btn-sm" style="font-size:11px;">Vygenerovat</button>
-      </form>
+        {% if row.is_rentero %}
+        <div style="font-size:var(--text-sm);font-weight:600;color:var(--text-100);">{{ "{:,.0f}".format(cena_ubyt).replace(",", "\u00a0") }} Kč</div>
+        <div style="font-size:10px;color:var(--text-300);">cena ubytování</div>
+        {% else %}
+        <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);">{{ "{:,.0f}".format(payout).replace(",", "\u00a0") }} Kč</div>
+        <div style="font-size:10px;color:var(--text-300);">výplata klientovi</div>
+        {% endif %}
       {% else %}
-      <span class="pr-occ-lbl" style="color:var(--text-300);">Žádná data</span>
+      <span style="color:var(--text-300);font-size:var(--text-xs);">—</span>
       {% endif %}
     </div>
 
-    {# Col 3: stats badges #}
-    <div class="pr-stats">
+    {# Col 3: Odměna Rentero (only for non-rentero) — hidden on mobile & tablet #}
+    <div class="pr-hide-mobile pr-hide-tablet" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
+      {% if cur_cell and cur_cell.kind == 'report' and not row.is_rentero %}
+      <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-blue);">{{ "{:,.0f}".format(provize).replace(",", "\u00a0") }} Kč</div>
+      <div style="font-size:10px;color:var(--text-300);">odměna</div>
+      {% else %}
+      <span style="color:var(--text-300);font-size:var(--text-xs);">—</span>
+      {% endif %}
+    </div>
+
+    {# Col 4: Obsazenost — mini bar + rez count #}
+    <div class="pr-occ pr-hide-mobile">
+      {% if cur_cell and cur_cell.kind == 'report' %}
+      {% set occ_pct = [((rez_count / 31) * 100) | round | int, 100] | min %}
+      <div class="pr-bar"><div class="pr-bar-fill" style="width:{{ occ_pct }}%;"></div></div>
+      <span class="pr-occ-lbl">{{ rez_count }} rez.</span>
+      {% elif cur_cell and cur_cell.kind == 'generate' %}
+      {% set _user = get_current_user(request) %}
+      {% if _user and _user.role != 'client' %}
+      <form method="post" action="{{ cur_cell.generate_href }}" onclick="event.stopPropagation()">
+        {{ csrf_input(request) }}
+        <button type="submit" class="btn btn-primary btn-sm" style="font-size:var(--text-xs);">Vygenerovat</button>
+      </form>
+      {% endif %}
+      {% else %}
+      <span class="pr-occ-lbl" style="color:var(--text-300);">—</span>
+      {% endif %}
+    </div>
+
+    {# Col 5: stats badges #}
+    <div class="pr-stats pr-hide-mobile">
       {% if cur_cell and cur_cell.kind == 'report' %}
         {% if cur_cell.matched %}
         <span class="badge badge-green" style="font-size:10px;">
@@ -198,8 +250,8 @@
       {% endif %}
     </div>
 
-    {# Col 4: health #}
-    <div class="pr-issues">
+    {# Col 6: health — hidden on mobile & tablet #}
+    <div class="pr-issues pr-hide-mobile pr-hide-tablet">
       {% if issues_count > 0 %}
       <span class="badge badge-red" style="font-size:10px;">&#x2717;{{ issues_count }}</span>
       {% elif cur_cell and cur_cell.kind == 'report' %}
@@ -207,7 +259,7 @@
       {% endif %}
     </div>
 
-    {# Col 5: arrow #}
+    {# Col 7: arrow #}
     <div class="pr-arrow">›</div>
 
   </a>
@@ -215,29 +267,98 @@
 </div>
 
 {% else %}
-<div class="card" style="padding:56px 20px;text-align:center;">
-  <div style="color:var(--text-300);font-size:14px;margin-bottom:8px;">Žádné objekty nenalezeny.</div>
-  <div style="font-size:12px;color:var(--text-300);">Zkontrolujte <code>config/properties.json</code></div>
+<div class="card" style="padding:var(--space-4xl) var(--space-xl);text-align:center;">
+  <div style="color:var(--text-300);font-size:var(--text-base);margin-bottom:var(--space-sm);">Žádné objekty nenalezeny.</div>
+  <div style="font-size:var(--text-sm);color:var(--text-300);">Zkontrolujte <code>config/properties.json</code></div>
 </div>
 {% endif %}
 
 <script>
+var _activeTab = 'all';
+var _activeOwner = '';
+var _searchQuery = '';
+
+function _formatNumber(n) {
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+}
+
+function _applyFilters() {
+  var totalPayout = 0, totalCenaUbyt = 0, totalProvize = 0;
+  var totalRez = 0, totalRezPrev = 0, withData = 0, propCount = 0, issues = 0;
+  var hasRentero = false, hasClient = false;
+
+  document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
+    var show = true;
+    if (_activeTab === 'issues') show = row.dataset.health === 'issues';
+    else if (_activeTab === 'new') show = row.dataset.hasNew === 'true';
+    else if (_activeTab === 'locked') show = row.dataset.locked === 'true';
+    if (show && _activeOwner) show = row.dataset.owner === _activeOwner;
+    if (show && _searchQuery) show = row.textContent.toLowerCase().includes(_searchQuery);
+    row.style.display = show ? '' : 'none';
+
+    if (show) {
+      propCount++;
+      var isRentero = row.dataset.isRentero === '1';
+      if (isRentero) hasRentero = true; else hasClient = true;
+      totalPayout += parseFloat(row.dataset.payout) || 0;
+      totalCenaUbyt += parseFloat(row.dataset.cenaUbyt) || 0;
+      totalProvize += parseFloat(row.dataset.provize) || 0;
+      totalRez += parseInt(row.dataset.rez) || 0;
+      totalRezPrev += parseInt(row.dataset.rezPrev) || 0;
+      if (parseInt(row.dataset.hasData)) withData++;
+      if (parseInt(row.dataset.issues) > 0) issues++;
+    }
+  });
+
+  var kpiPayout = document.getElementById('kpi-payout');
+  if (kpiPayout) kpiPayout.innerHTML = _formatNumber(totalPayout) + ' Kč';
+
+  var kpiPayoutSub = document.getElementById('kpi-payout-sub');
+  if (kpiPayoutSub) {
+    if (hasRentero && !hasClient) kpiPayoutSub.textContent = 'cena ubytování celkem';
+    else if (!hasRentero && hasClient) kpiPayoutSub.textContent = 'výplata klientům celkem';
+    else kpiPayoutSub.textContent = 'platformy → klienti';
+  }
+
+  var kpiRez = document.getElementById('kpi-reservations');
+  if (kpiRez) {
+    var delta = totalRez - totalRezPrev;
+    var deltaHtml = '';
+    if (delta > 0) deltaHtml = ' <span class="kpi-delta kpi-delta-pos">+' + delta + '</span>';
+    else if (delta < 0) deltaHtml = ' <span class="kpi-delta kpi-delta-neg">' + delta + '</span>';
+    kpiRez.innerHTML = totalRez + deltaHtml;
+  }
+
+  var kpiActive = document.getElementById('kpi-active');
+  if (kpiActive) kpiActive.innerHTML = withData + ' <span style="font-size:var(--text-lg);font-weight:400;color:var(--text-300);" id="kpi-total">/ ' + propCount + '</span>';
+
+  var kpiHealthCard = document.getElementById('kpi-health-card');
+  var kpiHealthVal = document.getElementById('kpi-health-value');
+  if (kpiHealthVal) {
+    if (issues > 0) {
+      kpiHealthCard.className = 'kpi-card kpi-card-red';
+      var suffix = issues > 1 ? 'y' : '';
+      kpiHealthVal.innerHTML = '<div class="kpi-value" style="font-size:24px;color:var(--color-red);">' + issues + '</div><div class="kpi-sub">objekt' + suffix + ' s problémy</div>';
+    } else {
+      kpiHealthCard.className = 'kpi-card kpi-card-green';
+      kpiHealthVal.innerHTML = '<div class="kpi-value" style="font-size:var(--text-xl);color:var(--color-green);">Vše OK</div><div class="kpi-sub">žádné nesrovnalosti</div>';
+    }
+  }
+}
+
 function filterCards(type, btn) {
   document.querySelectorAll('#dashboard-filter-tabs .filter-tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-  document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
-    var show = true;
-    if (type === 'issues') show = row.dataset.health === 'issues';
-    if (type === 'new')    show = row.dataset.hasNew === 'true';
-    if (type === 'locked') show = row.dataset.locked === 'true';
-    row.style.display = show ? '' : 'none';
-  });
+  _activeTab = type;
+  _applyFilters();
+}
+function filterByOwner(owner) {
+  _activeOwner = owner;
+  _applyFilters();
 }
 function searchCards(q) {
-  q = q.toLowerCase();
-  document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
-    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
+  _searchQuery = q.toLowerCase();
+  _applyFilters();
 }
 </script>
 

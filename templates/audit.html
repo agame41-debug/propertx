@@ -17,9 +17,7 @@
   <form method="get" action="/audit" style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
     <div style="display:flex;flex-direction:column;gap:4px;">
       <label style="font-size:11px;color:var(--text-300);font-weight:500;text-transform:uppercase;letter-spacing:.04em;">Objekt</label>
-      <select name="slug" onchange="this.form.submit()"
-              style="background:var(--bg-3);border:1px solid var(--border-subtle);color:var(--text-100);
-                     border-radius:6px;padding:6px 10px;font-size:13px;min-width:180px;cursor:pointer;">
+      <select name="slug" onchange="this.form.submit()" class="form-input" style="min-width:180px;cursor:pointer;">
         <option value="" {% if not filter_slug %}selected{% endif %}>Všechny objekty</option>
         {% for p in props %}
         <option value="{{ p.slug }}" {% if p.slug == filter_slug %}selected{% endif %}>
@@ -31,9 +29,7 @@
 
     <div style="display:flex;flex-direction:column;gap:4px;">
       <label style="font-size:11px;color:var(--text-300);font-weight:500;text-transform:uppercase;letter-spacing:.04em;">Rok</label>
-      <select name="year" onchange="this.form.submit()"
-              style="background:var(--bg-3);border:1px solid var(--border-subtle);color:var(--text-100);
-                     border-radius:6px;padding:6px 10px;font-size:13px;cursor:pointer;">
+      <select name="year" onchange="this.form.submit()" class="form-input" style="cursor:pointer;">
         <option value="0" {% if not filter_year %}selected{% endif %}>Všechny roky</option>
         {% for y in range(current_year, current_year - 3, -1) %}
         <option value="{{ y }}" {% if y == filter_year %}selected{% endif %}>{{ y }}</option>
@@ -43,9 +39,7 @@
 
     <div style="display:flex;flex-direction:column;gap:4px;">
       <label style="font-size:11px;color:var(--text-300);font-weight:500;text-transform:uppercase;letter-spacing:.04em;">Měsíc</label>
-      <select name="month" onchange="this.form.submit()"
-              style="background:var(--bg-3);border:1px solid var(--border-subtle);color:var(--text-100);
-                     border-radius:6px;padding:6px 10px;font-size:13px;cursor:pointer;">
+      <select name="month" onchange="this.form.submit()" class="form-input" style="cursor:pointer;">
         <option value="0" {% if not filter_month %}selected{% endif %}>Všechny měsíce</option>
         {% for m in range(1, 13) %}
         <option value="{{ m }}" {% if m == filter_month %}selected{% endif %}>
@@ -66,7 +60,7 @@
   {# ── Table ─────────────────────────────────────────────────────────────── #}
   {% if events %}
   <div class="card">
-    <table class="data-table">
+    <table class="data-table responsive-cards">
       <thead>
         <tr>
           <th style="width:120px;">Typ</th>

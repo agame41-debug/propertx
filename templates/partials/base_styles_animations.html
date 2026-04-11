@@ -1,0 +1,107 @@
+<style>
+  /* ═══════════════════════════════════════════════════════════════════════
+     ANIMATIONS — Keyframes, transitions, stagger system, reduced motion
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* ── Keyframes ── */
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes rowIn {
+    from { opacity: 0; transform: translateY(-3px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  @keyframes copyFlash {
+    0%   { background: oklch(0.55 0.15 280 / 0.18); }
+    100% { background: transparent; }
+  }
+
+  @keyframes pulse-ring {
+    0%   { box-shadow: 0 0 0 0 oklch(0.72 0.12 180 / 0.4); }
+    70%  { box-shadow: 0 0 0 6px oklch(0.72 0.12 180 / 0); }
+    100% { box-shadow: 0 0 0 0 oklch(0.72 0.12 180 / 0); }
+  }
+
+  @keyframes sheetSlideUp {
+    from { transform: translate3d(0, 100%, 0); }
+    to   { transform: translate3d(0, 0, 0); }
+  }
+
+  /* ── Utility classes ── */
+  .animate-spin { animation: spin 1.2s linear infinite; }
+  .animate-fade-in { animation: fadeIn var(--duration-normal) var(--ease-out) both; }
+  .animate-slide-up { animation: fadeSlideUp var(--duration-normal) var(--ease-out-expo) both; }
+
+  /* ── Stagger system for lists ── */
+  .stagger-list > * {
+    animation: fadeSlideUp var(--duration-normal) var(--ease-out-expo) both;
+  }
+  .stagger-list > *:nth-child(1)  { animation-delay: 0ms; }
+  .stagger-list > *:nth-child(2)  { animation-delay: 40ms; }
+  .stagger-list > *:nth-child(3)  { animation-delay: 80ms; }
+  .stagger-list > *:nth-child(4)  { animation-delay: 120ms; }
+  .stagger-list > *:nth-child(5)  { animation-delay: 160ms; }
+  .stagger-list > *:nth-child(6)  { animation-delay: 200ms; }
+  .stagger-list > *:nth-child(7)  { animation-delay: 240ms; }
+  .stagger-list > *:nth-child(8)  { animation-delay: 280ms; }
+  .stagger-list > *:nth-child(9)  { animation-delay: 320ms; }
+  .stagger-list > *:nth-child(10) { animation-delay: 360ms; }
+  .stagger-list > *:nth-child(n+11) { animation-delay: 400ms; }
+
+  /* ── Accordion expand (grid-rows trick) ── */
+  .accordion-content {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--duration-normal) var(--ease-out-expo);
+  }
+  .accordion-content.expanded {
+    grid-template-rows: 1fr;
+  }
+  .accordion-content > * {
+    overflow: hidden;
+  }
+
+  /* ── Click-to-copy flash ── */
+  td.copyable { cursor: copy; position: relative; }
+  td.copyable:hover { color: var(--text-100); }
+  td.copy-flash { animation: copyFlash 0.4s ease forwards; }
+
+  /* ── Badge pulse ── */
+  .badge-teal.pulse { animation: pulse-ring 2s ease-out infinite; }
+
+  /* ── View Transitions ── */
+  @view-transition {
+    navigation: auto;
+  }
+  ::view-transition-old(root) {
+    animation: fadeIn var(--duration-fast) var(--ease-out) reverse;
+  }
+  ::view-transition-new(root) {
+    animation: fadeIn var(--duration-fast) var(--ease-out);
+  }
+
+  /* ── Reduced motion ── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    .stagger-list > * { animation: none; opacity: 1; transform: none; }
+    ::view-transition-old(root),
+    ::view-transition-new(root) { animation: none; }
+  }
+</style>

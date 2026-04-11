@@ -227,7 +227,8 @@
           </td>
         </tr>
 
-        {% if month_state.status != 'LOCKED' %}
+        {% set _user = get_current_user(request) %}
+        {% if month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
         <tr id="override-form-{{ idx }}" style="display:none;">
           <td colspan="10" style="padding:14px 16px;background:rgba(245,161,74,0.05);border-top:1px solid rgba(245,161,74,0.15);border-bottom:1px solid rgba(245,161,74,0.15);">
             <form method="post"

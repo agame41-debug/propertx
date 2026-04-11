@@ -10,10 +10,10 @@
 {% endif %}
 
 <div style="margin-bottom:24px;">
-  <div style="font-size:12px;color:var(--text-300);margin-bottom:6px;">
-    <a href="/inventory" style="color:var(--text-300);text-decoration:none;" onmouseover="this.style.color='var(--text-200)'" onmouseout="this.style.color='var(--text-300)'">Inventory</a>
+  <div class="prop-breadcrumb">
+    <a href="/inventory">Inventory</a>
     <span style="opacity:0.4;margin:0 4px;">/</span>
-    <a href="/clients" style="color:var(--text-300);text-decoration:none;" onmouseover="this.style.color='var(--text-200)'" onmouseout="this.style.color='var(--text-300)'">Klienti</a>
+    <a href="/clients">Klienti</a>
     <span style="opacity:0.4;margin:0 4px;">/</span>
     <span>{{ prop.display_name or prop.listing_nickname }}</span>
   </div>
@@ -23,13 +23,14 @@
   <div style="font-size:12px;color:var(--text-300);margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
     <span>{{ slug }}</span>
     {% if prop.active %}
-    <span style="font-size:10px;font-weight:700;color:#b7f5c3;background:rgba(38,181,96,0.16);border:1px solid rgba(38,181,96,0.28);padding:3px 6px;border-radius:999px;">ACTIVE</span>
+    <span class="badge badge-green">ACTIVE</span>
     {% else %}
-    <span style="font-size:10px;font-weight:700;color:#ffd79a;background:rgba(194,124,39,0.16);border:1px solid rgba(194,124,39,0.28);padding:3px 6px;border-radius:999px;">DRAFT</span>
+    <span class="badge badge-amber">DRAFT</span>
     {% endif %}
   </div>
 </div>
 
+{% set _user = get_current_user(request) %}
 <div style="max-width:920px;">
   <form method="post" action="/clients/{{ slug }}/save" style="display:flex;flex-direction:column;gap:16px;">
     {{ csrf_input(request) }}
@@ -174,7 +175,9 @@
     {% endif %}
 
     <div style="display:flex;gap:10px;align-items:center;">
+      {% if _user and _user.role != 'client' %}
       <button type="submit" class="btn btn-primary">Uložit objekt</button>
+      {% endif %}
       <a href="/inventory" class="btn btn-secondary">Zpět do inventory</a>
     </div>
   </form>

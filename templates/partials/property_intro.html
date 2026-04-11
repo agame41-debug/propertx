@@ -172,6 +172,8 @@
         {{ client.name or "Klient" }}
       </a>
 
+      {% set _user = get_current_user(request) %}
+      {% if _user and _user.role != 'client' %}
       {% if month_state.status == 'LOCKED' %}
       <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/unlock">
         {{ csrf_input(request) }}
@@ -188,6 +190,7 @@
           Uzamknout měsíc
         </button>
       </form>
+      {% endif %}
       {% endif %}
     </div>
   </div>

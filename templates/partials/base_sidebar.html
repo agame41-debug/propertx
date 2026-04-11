@@ -1,4 +1,6 @@
 <!-- ── Sidebar ─────────────────────────────────────────── -->
+{% set current_user = get_current_user(request) %}
+{% set user_role = current_user.role if current_user else 'client' %}
 <aside class="sidebar">
   <div class="sidebar-logo">
     <div class="sidebar-logo-icon">
@@ -57,6 +59,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
       Banka
     </a>
+    {% if user_role != 'client' %}
     <a href="/reconciliation" data-month-aware="1" class="nav-item {% if '/reconciliation' in request.url.path %}active{% endif %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M8 7l-4 4 4 4"/><path d="M16 7l4 4-4 4"/></svg>
       Srovnání
@@ -65,17 +68,38 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
       Zdroje
     </a>
+    {% endif %}
     <a href="/audit" class="nav-item {% if '/audit' in request.url.path %}active{% endif %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       Změny
     </a>
+    {% if user_role != 'client' %}
     <a href="/logs" class="nav-item {% if '/logs' in request.url.path %}active{% endif %}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="14" x2="17" y2="14"/><line x1="3" y1="18" x2="17" y2="18"/></svg>
       Logy
     </a>
+    {% endif %}
+    {% if user_role == 'admin' %}
+    <div class="sidebar-section-label" style="margin-top:8px;">Admin</div>
+    <a href="/admin/users" class="nav-item {% if '/admin/users' in request.url.path %}active{% endif %}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Uživatelé
+    </a>
+    {% endif %}
   </nav>
 
   <div style="padding:10px;border-top:1px solid var(--border-subtle);">
+    {% if current_user %}
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;margin-bottom:6px;">
+      <div style="width:24px;height:24px;border-radius:50%;background:{% if user_role == 'admin' %}#7c6dff{% elif user_role == 'manager' %}#3b82f6{% else %}#6b7280{% endif %};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0;">
+        {{ current_user.username[0]|upper }}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-200);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ current_user.display_name or current_user.username }}</div>
+        <div style="font-size:10px;color:var(--text-300);text-transform:uppercase;">{{ user_role }}</div>
+      </div>
+    </div>
+    {% endif %}
     <button type="button" class="theme-toggle-btn" id="theme-toggle-btn" onclick="window.RenteroTheme && window.RenteroTheme.toggle()" title="Přepnout téma">
       <svg id="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
       <svg id="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>

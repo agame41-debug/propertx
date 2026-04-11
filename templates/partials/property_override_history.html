@@ -40,7 +40,8 @@
             {% endif %}
           </td>
           <td style="text-align:right;">
-            {% if ev.is_active and month_state.status != 'LOCKED' %}
+            {% set _user = get_current_user(request) %}
+            {% if ev.is_active and month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
             <form method="post"
                   action="/property/{{ slug }}/{{ year }}/{{ month }}/override/{{ ev.id }}/revert"
                   onsubmit="return confirm('Obnovit původní hodnotu?')" style="display:inline;">

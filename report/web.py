@@ -35,6 +35,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from report.config import (
@@ -54,6 +55,11 @@ from report.engine import run_generation_background
 from report.routes import register_all as register_route_modules
 from report.db import (
     get_connection,
+    # users (RBAC)
+    authenticate_user, get_user_by_id, get_user_by_username,
+    list_users, create_user, update_user_record, change_password, delete_user,
+    get_user_property_slugs, set_user_properties, get_users_for_property,
+    ROLE_ADMIN, ROLE_MANAGER, ROLE_CLIENT,
     # clients
     get_all_clients, get_client, save_client,
     # expenses
@@ -195,6 +201,31 @@ app.add_middleware(
     secret_key=os.environ.get("RENTERO_SESSION_SECRET") or _FALLBACK_SESSION_SECRET,
 )
 
+
+class HTMXPartialMiddleware(BaseHTTPMiddleware):
+    """When HTMX requests a boosted page, strip the shell and return only <main> content."""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if (
+            request.headers.get("HX-Request") == "true"
+            and request.headers.get("HX-Boosted") == "true"
+            and hasattr(response, "body")
+            and response.headers.get("content-type", "").startswith("text/html")
+        ):
+            body = response.body.decode("utf-8")
+            import re as _re
+            m = _re.search(r'<main[^>]*id="content"[^>]*>(.*?)</main>', body, _re.DOTALL)
+            if m:
+                inner = m.group(1)
+                tm = _re.search(r'<title>(.*?)</title>', body)
+                title_tag = f'<title>{tm.group(1)}</title>' if tm else ''
+                new_body = title_tag + inner
+                return HTMLResponse(content=new_body, status_code=response.status_code)
+        return response
+
+
+app.add_middleware(HTMXPartialMiddleware)
+
 templates = Jinja2Templates(directory=_TEMPLATES_DIR)
 
 
@@ -332,6 +363,59 @@ def _get_actor_username(request: Request | None = None) -> str:
 def require_auth(request: Request):
     if not request.session.get("authenticated"):
         raise HTTPException(status_code=302, headers={"Location": "/login"})
+    user_id = request.session.get("user_id")
+    if not user_id:
+        request.session.clear()
+        raise HTTPException(status_code=302, headers={"Location": "/login"})
+    conn = get_connection()
+    try:
+        user = get_user_by_id(conn, int(user_id))
+    finally:
+        conn.close()
+    if not user or not user.get("is_active"):
+        request.session.clear()
+        raise HTTPException(status_code=302, headers={"Location": "/login"})
+    request.state.user = user
+
+
+def require_admin(request: Request, _=Depends(require_auth)):
+    if request.state.user["role"] != ROLE_ADMIN:
+        raise HTTPException(status_code=403, detail="Nedostatečná oprávnění")
+
+
+def require_admin_or_manager(request: Request, _=Depends(require_auth)):
+    if request.state.user["role"] not in (ROLE_ADMIN, ROLE_MANAGER):
+        raise HTTPException(status_code=403, detail="Nedostatečná oprávnění")
+
+
+def require_write_access(request: Request, _=Depends(require_auth)):
+    if request.state.user["role"] == ROLE_CLIENT:
+        raise HTTPException(status_code=403, detail="Klient nemá oprávnění k zápisu")
+
+
+def check_property_access(request: Request, slug: str, conn) -> None:
+    user = request.state.user
+    if user["role"] in (ROLE_ADMIN, ROLE_MANAGER):
+        return
+    allowed = get_user_property_slugs(conn, user["id"])
+    if slug not in allowed:
+        raise HTTPException(status_code=403, detail="Nemáte přístup k tomuto objektu")
+
+
+def get_accessible_properties(request: Request, config: dict, conn) -> list[dict]:
+    all_props = _get_active_properties(config)
+    user = request.state.user
+    if user["role"] in (ROLE_ADMIN, ROLE_MANAGER):
+        return all_props
+    allowed = set(get_user_property_slugs(conn, user["id"]))
+    return [p for p in all_props if p["slug"] in allowed]
+
+
+def get_current_user(request: Request) -> dict | None:
+    return getattr(request.state, "user", None)
+
+
+templates.env.globals["get_current_user"] = get_current_user
 
 
 def get_db():

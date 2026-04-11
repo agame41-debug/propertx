@@ -19,7 +19,7 @@
   <div style="font-size:13px;color:var(--text-300);margin-top:3px;">Informace o vlastnících objektů</div>
 </div>
 
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
   {% for item in merged %}
   {% set prop = item.prop %}
   {% set client = item.client %}
@@ -36,9 +36,9 @@
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         {% if prop.active %}
-        <span style="font-size:10px;font-weight:700;color:#b7f5c3;background:rgba(38,181,96,0.16);border:1px solid rgba(38,181,96,0.28);padding:3px 6px;border-radius:999px;">ACTIVE</span>
+        <span class="badge badge-green">ACTIVE</span>
         {% else %}
-        <span style="font-size:10px;font-weight:700;color:#ffd79a;background:rgba(194,124,39,0.16);border:1px solid rgba(194,124,39,0.28);padding:3px 6px;border-radius:999px;">DRAFT</span>
+        <span class="badge badge-amber">DRAFT</span>
         {% endif %}
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-300)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
       </div>

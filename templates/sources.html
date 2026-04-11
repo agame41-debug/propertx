@@ -67,7 +67,7 @@
   <div class="card-header"><span class="card-title">Archiválie</span></div>
   {% if source_files %}
   <div style="overflow-x:auto;">
-    <table class="data-table">
+    <table class="data-table responsive-cards">
       <thead>
         <tr>
           <th>Typ</th>
@@ -80,16 +80,16 @@
       <tbody>
         {% for sf in source_files %}
         <tr>
-          <td>
+          <td data-label="Typ">
             <span class="badge badge-neutral" style="font-size:10px;">{{ source_type_label(sf.source_type) }}</span>
           </td>
-          <td style="font-size:12px;color:var(--text-200);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          <td data-label="Soubor" style="font-size:12px;color:var(--text-200);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             {{ sf.original_name }}
           </td>
-          <td class="num" style="font-size:12px;color:var(--text-300);">
+          <td data-label="Importováno" class="num" style="font-size:12px;color:var(--text-300);">
             {{ sf.imported_at[:16].replace('T',' ') if sf.imported_at else '—' }}
           </td>
-          <td>
+          <td data-label="Stav">
             {% if sf.is_active %}
             <span class="badge badge-green" style="font-size:10px;">Aktivní</span>
             {% else %}
@@ -130,7 +130,7 @@
 <div class="card">
   <div class="card-header"><span class="card-title">Posledních 30 importů</span></div>
   <div style="overflow-x:auto;">
-    <table class="data-table">
+    <table class="data-table responsive-cards">
       <thead>
         <tr>
           <th>Čas</th>
@@ -141,9 +141,9 @@
       <tbody>
         {% for run in import_runs %}
         <tr>
-          <td class="num" style="font-size:12px;color:var(--text-300);">{{ run.imported_at[:16].replace('T',' ') if run.imported_at else '—' }}</td>
-          <td style="font-size:12px;color:var(--text-200);">{{ run.source_file_name or '—' }}</td>
-          <td>
+          <td data-label="Čas" class="num" style="font-size:12px;color:var(--text-300);">{{ run.imported_at[:16].replace('T',' ') if run.imported_at else '—' }}</td>
+          <td data-label="Soubor" style="font-size:12px;color:var(--text-200);">{{ run.source_file_name or '—' }}</td>
+          <td data-label="Výsledek">
             {% if run.summary and run.summary.is_duplicate %}
             <span class="badge badge-amber" style="font-size:10px;">Duplikát</span>
             {% else %}

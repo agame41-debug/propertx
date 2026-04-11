@@ -71,7 +71,7 @@
       </div>
       {% if expenses %}
       <div style="overflow-x:auto;">
-        <table class="data-table">
+        <table class="data-table responsive-cards">
           <thead>
             <tr>
               <th>Datum</th>
@@ -85,30 +85,33 @@
           <tbody>
             {% for exp in expenses %}
             <tr>
-              <td class="num" style="color:var(--text-300);font-size:12px;">
+              <td class="num" data-label="Datum" style="color:var(--text-300);font-size:12px;">
                 {{ exp.date_str or ("%02d/%d"|format(exp.month, exp.year)) }}
               </td>
-              <td style="font-size:12px;color:var(--text-200);">
+              <td data-label="Objekt" style="font-size:12px;color:var(--text-200);">
                 {{ exp.property_display_name or exp.property_slug or "—" }}
               </td>
-              <td style="color:var(--text-100);">{{ exp.description }}</td>
-              <td>
+              <td data-label="Popis" style="color:var(--text-100);">{{ exp.description }}</td>
+              <td data-label="Kategorie">
                 {% if exp.category_name %}
                 <span class="badge badge-neutral" style="font-size:10px;">{{ exp.category_name }}</span>
                 {% else %}
                 <span style="color:var(--text-300);font-size:12px;">—</span>
                 {% endif %}
               </td>
-              <td class="num num-neg text-right" style="font-size:13px;font-weight:600;">
+              <td class="num num-neg text-right" data-label="Částka" style="font-size:13px;font-weight:600;">
                 {{ fmt_czk(exp.amount_czk) }}
               </td>
               <td style="text-align:right;">
+                {% set _user = get_current_user(request) %}
+                {% if _user and _user.role != 'client' %}
                 <form method="post" action="/expenses/{{ exp.id }}/delete"
                       onsubmit="return confirm('Smazat výdaj?')"
                       style="display:inline;">
                   {{ csrf_input(request) }}
                   <button type="submit" class="btn btn-destructive btn-sm" style="font-size:11px;">Smazat</button>
                 </form>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}
@@ -133,6 +136,8 @@
   {# Right: add expense + categories #}
   <div style="display:flex;flex-direction:column;gap:16px;">
 
+    {% set _user = get_current_user(request) %}
+    {% if _user and _user.role != 'client' %}
     {# Add expense form #}
     <div class="card">
       <div class="card-header"><span class="card-title">Přidat výdaj</span></div>
@@ -220,6 +225,7 @@
         </form>
       </div>
     </div>
+    {% endif %}
   </div>
 
 </div>

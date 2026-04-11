@@ -19,6 +19,8 @@
     <h1 style="font-size:22px;font-weight:700;color:var(--text-100);letter-spacing:-0.02em;">Hostify Inventory</h1>
     <div style="font-size:13px;color:var(--text-300);margin-top:3px;">Draft onboarding a aktivace objektů z Hostify</div>
   </div>
+  {% set _user = get_current_user(request) %}
+  {% if _user and _user.role != 'client' %}
   <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
     <form method="post" action="/months/generate-all" id="inventory-generate-all-form" class="card" style="padding:10px 12px;display:flex;align-items:center;gap:10px;">
       {{ csrf_input(request) }}
@@ -37,6 +39,7 @@
       <button type="submit" class="btn btn-primary">Synchronizovat z Hostify</button>
     </form>
   </div>
+  {% endif %}
 </div>
 
 {% if bulk_run %}
@@ -73,26 +76,26 @@
 </div>
 {% endif %}
 
-<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:18px;">
-  <div class="card" style="padding:16px;">
-    <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Celkem</div>
-    <div style="font-size:24px;font-weight:700;color:var(--text-100);margin-top:8px;">{{ summary.total }}</div>
+<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);">
+  <div class="kpi-card">
+    <div class="kpi-label">Celkem</div>
+    <div class="kpi-value">{{ summary.total }}</div>
   </div>
-  <div class="card" style="padding:16px;">
-    <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Aktivní</div>
-    <div style="font-size:24px;font-weight:700;color:var(--text-100);margin-top:8px;">{{ summary.active_count }}</div>
+  <div class="kpi-card kpi-card-green">
+    <div class="kpi-label">Aktivní</div>
+    <div class="kpi-value" style="color:var(--color-green);">{{ summary.active_count }}</div>
   </div>
-  <div class="card" style="padding:16px;">
-    <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Draft</div>
-    <div style="font-size:24px;font-weight:700;color:var(--text-100);margin-top:8px;">{{ summary.draft_count }}</div>
+  <div class="kpi-card kpi-card-amber">
+    <div class="kpi-label">Draft</div>
+    <div class="kpi-value" style="color:var(--color-amber);">{{ summary.draft_count }}</div>
   </div>
-  <div class="card" style="padding:16px;">
-    <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Bez klienta</div>
-    <div style="font-size:24px;font-weight:700;color:var(--text-100);margin-top:8px;">{{ summary.missing_client_count }}</div>
+  <div class="kpi-card">
+    <div class="kpi-label">Bez klienta</div>
+    <div class="kpi-value">{{ summary.missing_client_count }}</div>
   </div>
-  <div class="card" style="padding:16px;">
-    <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Potřebují review</div>
-    <div style="font-size:24px;font-weight:700;color:var(--text-100);margin-top:8px;">{{ summary.review_needed_count }}</div>
+  <div class="kpi-card {% if summary.review_needed_count > 0 %}kpi-card-red{% endif %}">
+    <div class="kpi-label">Potřebují review</div>
+    <div class="kpi-value">{{ summary.review_needed_count }}</div>
   </div>
 </div>
 
@@ -115,12 +118,12 @@
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <div style="font-size:16px;font-weight:700;color:var(--text-100);">{{ row.display_name }}</div>
           {% if row.active %}
-          <span style="font-size:11px;font-weight:700;color:#b7f5c3;background:rgba(38,181,96,0.16);border:1px solid rgba(38,181,96,0.28);padding:3px 7px;border-radius:999px;">ACTIVE</span>
+          <span class="badge badge-green">ACTIVE</span>
           {% else %}
-          <span style="font-size:11px;font-weight:700;color:#ffd79a;background:rgba(194,124,39,0.16);border:1px solid rgba(194,124,39,0.28);padding:3px 7px;border-radius:999px;">DRAFT</span>
+          <span class="badge badge-amber">DRAFT</span>
           {% endif %}
           {% if row.needs_review %}
-          <span style="font-size:11px;font-weight:700;color:#f7c3c3;background:rgba(215,90,90,0.14);border:1px solid rgba(215,90,90,0.24);padding:3px 7px;border-radius:999px;">REVIEW</span>
+          <span class="badge badge-red">REVIEW</span>
           {% endif %}
         </div>
         <div style="margin-top:6px;font-size:12px;color:var(--text-300);display:flex;gap:14px;flex-wrap:wrap;">
@@ -181,7 +184,7 @@
     {% if row.issue_labels %}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
       {% for issue in row.issue_labels %}
-      <span style="font-size:11px;color:#f7c3c3;background:rgba(215,90,90,0.14);border:1px solid rgba(215,90,90,0.24);padding:4px 8px;border-radius:999px;">{{ issue }}</span>
+      <span class="badge badge-red">{{ issue }}</span>
       {% endfor %}
     </div>
     {% endif %}

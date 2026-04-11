@@ -50,7 +50,7 @@
 </div>
 
 {# KPI summary #}
-<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+<div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);">
   <div class="kpi-card">
     <div class="kpi-label">Celkem párů</div>
     <div class="kpi-value" style="font-size:22px;">{{ total_pairs }}</div>
@@ -84,7 +84,7 @@
       <input type="hidden" name="month" value="{{ month }}">
       <div>
         <label class="form-label">Kanál</label>
-        <select name="channel" class="form-select" style="min-width:120px;">
+        <select name="channel" class="form-input" style="min-width:120px;">
           <option value="">Vše</option>
           <option value="airbnb" {% if selected_channel == 'airbnb' %}selected{% endif %}>Airbnb</option>
           <option value="booking" {% if selected_channel == 'booking' %}selected{% endif %}>Booking</option>
@@ -92,7 +92,7 @@
       </div>
       <div>
         <label class="form-label">Status</label>
-        <select name="status" class="form-select" style="min-width:140px;">
+        <select name="status" class="form-input" style="min-width:140px;">
           <option value="">Vše</option>
           <option value="MATCHED" {% if selected_status == 'MATCHED' %}selected{% endif %}>Matched</option>
           <option value="PARTIAL" {% if selected_status == 'PARTIAL' %}selected{% endif %}>Partial</option>
@@ -115,7 +115,7 @@
     <span class="card-title">Výsledky srovnání ({{ rows|length }})</span>
   </div>
   <div style="overflow-x:auto;">
-    <table class="data-table" style="width:100%;">
+    <table class="data-table responsive-cards" style="width:100%;">
       <thead>
         <tr>
           <th style="width:28px;"></th>
@@ -217,21 +217,7 @@
 
 {% block head %}
 <style>
-  .badge-blue { background: rgba(59,130,246,0.15); color: rgb(59,130,246); }
-  .badge-purple { background: rgba(139,92,246,0.15); color: rgb(139,92,246); }
-  .badge-green { background: rgba(34,197,94,0.15); color: rgb(34,197,94); }
-  .badge-amber { background: rgba(245,158,11,0.15); color: rgb(245,158,11); }
-  .badge-red { background: rgba(239,68,68,0.15); color: rgb(239,68,68); }
-  .badge-gray { background: rgba(156,163,175,0.15); color: rgb(156,163,175); }
-  .badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-  }
-  .kpi-card-red { border-left: 3px solid rgb(239,68,68); }
+  .badge-purple { background: oklch(0.55 0.15 290 / 0.15); color: oklch(0.65 0.15 290); }
   .recon-row:hover { background: var(--bg-200); }
 </style>
 {% endblock %}
