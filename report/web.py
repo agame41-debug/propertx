@@ -234,6 +234,11 @@ class HTMXPartialMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(HTMXPartialMiddleware)
 
+# Static files (favicon, etc.)
+_STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+if os.path.isdir(_STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
 templates = Jinja2Templates(directory=_TEMPLATES_DIR)
 
 
