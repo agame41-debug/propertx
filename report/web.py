@@ -206,22 +206,30 @@ class HTMXPartialMiddleware(BaseHTTPMiddleware):
     """When HTMX requests a boosted page, strip the shell and return only <main> content."""
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        if (
+        is_htmx_boost = (
             request.headers.get("HX-Request") == "true"
             and request.headers.get("HX-Boosted") == "true"
-            and hasattr(response, "body")
             and response.headers.get("content-type", "").startswith("text/html")
-        ):
-            body = response.body.decode("utf-8")
-            import re as _re
-            m = _re.search(r'<main[^>]*id="content"[^>]*>(.*?)</main>', body, _re.DOTALL)
-            if m:
-                inner = m.group(1)
-                tm = _re.search(r'<title>(.*?)</title>', body)
-                title_tag = f'<title>{tm.group(1)}</title>' if tm else ''
-                new_body = title_tag + inner
-                return HTMLResponse(content=new_body, status_code=response.status_code)
-        return response
+        )
+        if not is_htmx_boost:
+            return response
+        # Read body from streaming response
+        body_chunks = []
+        async for chunk in response.body_iterator:
+            if isinstance(chunk, bytes):
+                body_chunks.append(chunk)
+            else:
+                body_chunks.append(chunk.encode("utf-8"))
+        body = b"".join(body_chunks).decode("utf-8")
+        import re as _re
+        m = _re.search(r'<main[^>]*id="content"[^>]*>(.*)</main>', body, _re.DOTALL)
+        if m:
+            inner = m.group(1)
+            tm = _re.search(r'<title>(.*?)</title>', body)
+            title_tag = f'<title>{tm.group(1)}</title>' if tm else ''
+            new_body = title_tag + inner
+            return HTMLResponse(content=new_body, status_code=response.status_code)
+        return HTMLResponse(content=body, status_code=response.status_code)
 
 
 app.add_middleware(HTMXPartialMiddleware)

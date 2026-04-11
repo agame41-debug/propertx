@@ -1,0 +1,18 @@
+[Unit]
+Description=Propertx Web (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=rentero
+Group=rentero
+WorkingDirectory=/home/rentero/rentero
+EnvironmentFile=/home/rentero/rentero/.env
+ExecStart=/home/rentero/rentero/venv/bin/python run_web.py --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
