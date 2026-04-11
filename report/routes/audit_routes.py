@@ -28,13 +28,30 @@ def register(app, state) -> None:
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
-        props = state["_get_active_properties"](config)
+        props = state["get_accessible_properties"](request, config, conn)
         # Normalize empty params
         slug = slug.strip() or ""
         year = year or 0
         month = month or 0
 
         events = _load_events(conn, slug=slug, year=year, month=month)
+
+        # Filter events for client role
+        user = state["get_current_user"](request)
+        if user and user["role"] == state["ROLE_CLIENT"]:
+            accessible_slugs = {p["slug"] for p in props}
+            filtered = []
+            for ev in events:
+                ev_type = ev.get("event_type")
+                if ev_type == "override" and ev.get("slug") in accessible_slugs:
+                    filtered.append(ev)
+                elif ev_type == "move" and ev.get("slug") in accessible_slugs:
+                    filtered.append(ev)
+                elif ev_type == "import":
+                    ev_slugs = set(ev.get("affected_slugs") or [])
+                    if ev_slugs & accessible_slugs:
+                        filtered.append(ev)
+            events = filtered
 
         return state["templates"].TemplateResponse(
             request,

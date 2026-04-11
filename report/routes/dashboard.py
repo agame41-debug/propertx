@@ -19,7 +19,7 @@ def register(app, state) -> None:
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
-        properties = state["_get_active_properties"](config)
+        properties = state["get_accessible_properties"](request, config, conn)
         active_slug = ""
         current_year = year
         current_month = month
@@ -89,6 +89,7 @@ def register(app, state) -> None:
         props = {p["slug"]: p for p in state["_get_active_properties"](config)}
         if slug not in props:
             raise HTTPException(status_code=404)
+        state["check_property_access"](request, slug, conn)
         rows = state["get_report_rows"](conn, slug=slug, year=year, month=month)
         rows = state["apply_overrides_to_rows"](conn, rows, slug, year, month)
         row = next((item for item in rows if item.get("confirmation_code") == code), None)
@@ -176,10 +177,19 @@ def register(app, state) -> None:
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
-        properties = state["_get_active_properties"](config)
+        properties = state["get_accessible_properties"](request, config, conn)
         today = date.today()
         selected_year = int(year) if int(year or 0) > 0 else today.year
         selected_month = int(month) if 1 <= int(month or 0) <= 12 else today.month
+
+        # Build slug → owner_name map for owner filter
+        all_clients = state["get_all_clients"](conn)
+        client_map = {c["property_slug"]: c["name"] for c in all_clients if c.get("name")}
+        RENTERO_LABEL = "Rentero Property s.r.o."
+        for prop in properties:
+            slug = prop["slug"]
+            if slug not in client_map:
+                client_map[slug] = RENTERO_LABEL
 
         months = []
         y, m = selected_year, selected_month
@@ -203,6 +213,14 @@ def register(app, state) -> None:
             notification_map,
         )
 
+        # Attach owner_name and is_rentero flag to each dashboard row
+        for row in dashboard_rows:
+            row["owner_name"] = client_map.get(row["slug"], RENTERO_LABEL)
+            row["is_rentero"] = row["owner_name"] == RENTERO_LABEL
+
+        # Unique sorted owner names for the filter dropdown
+        owner_names = sorted({row["owner_name"] for row in dashboard_rows})
+
         return state["templates"].TemplateResponse(
             request,
             "dashboard.html",
@@ -210,6 +228,7 @@ def register(app, state) -> None:
                 "dashboard_summary": dashboard_summary,
                 "dashboard_months": dashboard_months,
                 "dashboard_rows": dashboard_rows,
+                "owner_names": owner_names,
                 "flash": state["_pop_flash"](request),
             },
         )

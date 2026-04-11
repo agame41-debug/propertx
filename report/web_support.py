@@ -451,6 +451,12 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
                     "payout_sum_czk": round(
                         sum(float(r.get("payout_czk") or 0) for r in rows), 0
                     ),
+                    "cena_ubytovani_sum_czk": round(
+                        sum(float(r.get("cena_ubytovani_czk") or 0) for r in rows), 0
+                    ),
+                    "provize_sum_czk": round(
+                        sum(float(r.get("provize_czk") or 0) for r in rows), 0
+                    ),
                 }
             )
 
@@ -625,6 +631,9 @@ def _build_dashboard_view_model(
                     "change_summary": _notification_change_summary(note),
                     "change_lines": _notification_change_lines(note),
                     "rows_count": (h or {}).get("rows_count", 0),
+                    "payout_sum_czk": (h or {}).get("payout_sum_czk", 0) or 0,
+                    "cena_ubytovani_sum_czk": (h or {}).get("cena_ubytovani_sum_czk", 0) or 0,
+                    "provize_sum_czk": (h or {}).get("provize_sum_czk", 0) or 0,
                     "matched": (h or {}).get("matched", 0),
                     "rozdil": (h or {}).get("rozdil", 0),
                     "ke_kontrole": (h or {}).get("ke_kontrole", 0),

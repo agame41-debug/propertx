@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 def register(app, state) -> None:
     require_auth = state["require_auth"]
+    require_admin_or_manager = state["require_admin_or_manager"]
     get_db = state["get_db"]
 
     @app.get("/reconciliation", response_class=HTMLResponse)
@@ -15,7 +16,7 @@ def register(app, state) -> None:
         month: int = 0,
         channel: str = "",
         status: str = "",
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
         conn=Depends(get_db),
     ):
         today = date.today()
@@ -67,7 +68,7 @@ def register(app, state) -> None:
 
     @app.get("/api/stredisko")
     async def api_stredisko_list(
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
         conn=Depends(get_db),
     ):
         from report.db import list_stredisko_entries
@@ -77,7 +78,7 @@ def register(app, state) -> None:
     @app.post("/api/stredisko")
     async def api_stredisko_upsert(
         request: Request,
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
         conn=Depends(get_db),
     ):
         from report.db import upsert_stredisko_entry
@@ -92,7 +93,7 @@ def register(app, state) -> None:
     @app.delete("/api/stredisko/{zkratka:path}")
     async def api_stredisko_delete(
         zkratka: str,
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
         conn=Depends(get_db),
     ):
         from report.db import delete_stredisko_entry

@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 def register(app, state) -> None:
     require_auth = state["require_auth"]
+    require_write_access = state["require_write_access"]
     require_csrf = state["require_csrf"]
     get_db = state["get_db"]
     get_config = state["get_config"]
@@ -21,6 +22,19 @@ def register(app, state) -> None:
         config=Depends(get_config),
     ):
         summary, rows = state["_build_inventory_view"](conn, config, status_filter=status)
+        # Filter inventory rows for client role
+        user = state["get_current_user"](request)
+        if user and user["role"] == state["ROLE_CLIENT"]:
+            accessible_slugs = {p["slug"] for p in state["get_accessible_properties"](request, config, conn)}
+            rows = [r for r in rows if r.get("slug") in accessible_slugs]
+            # Recalculate summary counts from filtered rows
+            summary = {
+                "total": len(rows),
+                "active_count": sum(1 for r in rows if r.get("active")),
+                "draft_count": sum(1 for r in rows if not r.get("active")),
+                "missing_client_count": sum(1 for r in rows if not r.get("client_name")),
+                "review_needed_count": sum(1 for r in rows if r.get("needs_review")),
+            }
         bulk_run = state["_resolve_inventory_bulk_run"](conn, bulk_run_id=bulk_run_id)
         return state["templates"].TemplateResponse(
             request,
@@ -39,6 +53,7 @@ def register(app, state) -> None:
         request: Request,
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
     ):
         try:
@@ -58,6 +73,7 @@ def register(app, state) -> None:
         redirect_to: str = Form("/inventory"),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -77,6 +93,7 @@ def register(app, state) -> None:
         redirect_to: str = Form("/inventory"),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -96,7 +113,7 @@ def register(app, state) -> None:
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
-        properties = state["get_all_properties"](config)
+        properties = state["get_accessible_properties"](request, config, conn)
         client_map = {client["property_slug"]: client for client in state["get_all_clients"](conn)}
         merged = []
         for prop in properties:
@@ -120,6 +137,7 @@ def register(app, state) -> None:
         props = {p["slug"]: p for p in state["get_all_properties"](config)}
         if slug not in props:
             raise HTTPException(404, "Objekt nenalezen")
+        state["check_property_access"](request, slug, conn)
         prop = props[slug]
         client = state["get_client"](conn, slug)
         aliases = state["get_report_object_aliases"](conn, slug, include_inactive=True)
@@ -164,6 +182,7 @@ def register(app, state) -> None:
         rentero_commission: str = Form(""),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -257,12 +276,24 @@ def register(app, state) -> None:
         q: str = "",
         _=Depends(require_auth),
         conn=Depends(get_db),
+        config=Depends(get_config),
     ):
         today = date.today()
         y = year or today.year
         m = month or today.month
 
         all_rows = state["_load_bank_rows_with_drilldown"](conn, year=y, month=m)
+        # Filter bank rows for client role — only show transactions linked to their properties
+        user = state["get_current_user"](request)
+        if user and user["role"] == state["ROLE_CLIENT"]:
+            accessible_slugs = {p["slug"] for p in state["get_accessible_properties"](request, config, conn)}
+            def _bank_row_matches(row):
+                for batch in row.get("drilldown_batches") or []:
+                    for item in batch.get("reservations") or batch.get("items") or []:
+                        if item.get("slug") in accessible_slugs:
+                            return True
+                return False
+            all_rows = [r for r in all_rows if _bank_row_matches(r)]
         rows = state["_filter_bank_rows"](
             all_rows,
             channel=channel,

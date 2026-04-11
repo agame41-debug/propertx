@@ -41,6 +41,7 @@ def _resolve_expense_amount_czk(
 def register(app, state) -> None:
     require_auth = state["require_auth"]
     require_csrf = state["require_csrf"]
+    require_write_access = state["require_write_access"]
     get_db = state["get_db"]
     get_config = state["get_config"]
 
@@ -57,6 +58,7 @@ def register(app, state) -> None:
         props = {p["slug"]: p for p in state["_get_active_properties"](config)}
         if slug not in props:
             raise HTTPException(404, "Objekt nenalezen")
+        state["check_property_access"](request, slug, conn)
         prop = props[slug]
 
         raw_rows = state["get_report_rows"](conn, slug, year, month)
@@ -102,6 +104,7 @@ def register(app, state) -> None:
         props = {p["slug"]: p for p in state["_get_active_properties"](config)}
         if slug not in props:
             raise HTTPException(404, "Objekt nenalezen")
+        state["check_property_access"](request, slug, conn)
         prop = props[slug]
         month_state = state["get_report_month_state"](conn, slug, year, month)
         audit_rows = state["list_checkin_match_audit"](conn, slug=slug, year=year, month=month, limit=1000)
@@ -150,7 +153,8 @@ def register(app, state) -> None:
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
-        properties = state["_get_active_properties"](config)
+        properties = state["get_accessible_properties"](request, config, conn)
+        accessible_slugs = {p["slug"] for p in properties}
         categories = state["get_expense_categories"](conn)
         expenses = state["get_expenses"](
             conn,
@@ -158,6 +162,10 @@ def register(app, state) -> None:
             year=year or None,
             month=month or None,
         )
+        # Filter expenses to only accessible properties for client role
+        user = state["get_current_user"](request)
+        if user and user["role"] == state["ROLE_CLIENT"]:
+            expenses = [e for e in expenses if e.get("property_slug") in accessible_slugs]
         return state["templates"].TemplateResponse(
             request,
             "expenses.html",
@@ -185,6 +193,7 @@ def register(app, state) -> None:
         vat_rate: str = Form(""),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -228,6 +237,7 @@ def register(app, state) -> None:
         vat_rate: str = Form(""),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -263,6 +273,7 @@ def register(app, state) -> None:
         expense_id: int,
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -288,6 +299,7 @@ def register(app, state) -> None:
         month: int = Form(...),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -372,6 +384,7 @@ def register(app, state) -> None:
         _=Depends(require_auth),
         conn=Depends(get_db),
     ):
+        state["check_property_access"](request, slug, conn)
         latest_report = state["_latest_report_for_month"](conn, slug, year, month)
         if not latest_report:
             state["_set_flash"](
@@ -405,6 +418,7 @@ def register(app, state) -> None:
         month: int,
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
     ):
         state["set_report_month_locked"](
@@ -425,6 +439,7 @@ def register(app, state) -> None:
         month: int,
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -454,6 +469,7 @@ def register(app, state) -> None:
         reason: str = Form(""),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -504,6 +520,7 @@ def register(app, state) -> None:
         event_id: int,
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -528,6 +545,7 @@ def register(app, state) -> None:
         reason: str = Form(""),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -568,6 +586,7 @@ def register(app, state) -> None:
         code: str,
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -598,6 +617,7 @@ def register(app, state) -> None:
         reason: str = Form(""),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -624,6 +644,7 @@ def register(app, state) -> None:
         code: str,
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
@@ -644,6 +665,7 @@ def register(app, state) -> None:
         name: str = Form(...),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
     ):
         state["add_expense_category"](conn, name)
@@ -656,6 +678,7 @@ def register(app, state) -> None:
         category_id: int,
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
+        _w=Depends(require_write_access),
         conn=Depends(get_db),
     ):
         state["delete_expense_category"](conn, category_id)

@@ -17,11 +17,14 @@ def register(app, state) -> None:
         username: str = Form(...),
         password: str = Form(...),
         _csrf=Depends(require_csrf),
+        conn=Depends(state["get_db"]),
     ):
-        expected_username, expected_password = state["_get_auth_credentials"]()
-        if username == expected_username and password == expected_password:
+        user = state["authenticate_user"](conn, username, password)
+        if user:
             request.session["authenticated"] = True
-            request.session["username"] = username
+            request.session["username"] = user["username"]
+            request.session["user_id"] = user["id"]
+            request.session["user_role"] = user["role"]
             return RedirectResponse("/", status_code=302)
         return state["templates"].TemplateResponse(
             request, "login.html", {"error": "Nesprávné přihlašovací údaje"}

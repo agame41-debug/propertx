@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 def register(app, state) -> None:
     require_auth = state["require_auth"]
+    require_admin_or_manager = state["require_admin_or_manager"]
     require_csrf = state["require_csrf"]
     get_db = state["get_db"]
 
@@ -11,7 +12,7 @@ def register(app, state) -> None:
     async def sources_page(
         request: Request,
         source_type: str = "",
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
         conn=Depends(get_db),
     ):
         selected_type = ""
@@ -45,7 +46,7 @@ def register(app, state) -> None:
         upload: UploadFile | None = File(None),
         file: UploadFile | None = File(None),
         _csrf=Depends(require_csrf),
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
         conn=Depends(get_db),
         config=Depends(state["get_config"]),
     ):
@@ -137,7 +138,7 @@ def register(app, state) -> None:
         file_id: int,
         source_type: str = Form(""),
         _csrf=Depends(require_csrf),
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
         conn=Depends(get_db),
         config=Depends(state["get_config"]),
     ):
@@ -164,7 +165,7 @@ def register(app, state) -> None:
         file_id: int,
         source_type: str = Form(""),
         _csrf=Depends(require_csrf),
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
         conn=Depends(get_db),
         config=Depends(state["get_config"]),
     ):
@@ -187,7 +188,7 @@ def register(app, state) -> None:
     @app.get("/sources/{file_id}/download")
     async def source_download(
         file_id: int,
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
         conn=Depends(get_db),
     ):
         row = state["get_source_file"](conn, file_id, include_content=True)

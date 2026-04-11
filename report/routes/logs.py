@@ -15,13 +15,14 @@ import json
 def register(app, state) -> None:
     """Register logging routes."""
     require_auth = state["require_auth"]
+    require_admin_or_manager = state["require_admin_or_manager"]
     templates = state["templates"]
     
     @app.get("/logs", response_class=HTMLResponse)
     async def logs_page(
         request: Request,
         limit: int = 200,
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
     ):
         """Display application logs."""
         from report.logging_service import get_recent_logs
@@ -48,7 +49,7 @@ def register(app, state) -> None:
     async def api_logs(
         limit: int = 200,
         level: str = "",
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
     ):
         """JSON API to fetch application logs."""
         from report.logging_service import get_recent_logs
@@ -63,7 +64,7 @@ def register(app, state) -> None:
     
     @app.post("/api/logs/clear")
     async def api_clear_logs(
-        _=Depends(require_auth),
+        _=Depends(require_admin_or_manager),
     ):
         """Clear log buffer."""
         from report.logging_service import clear_logs

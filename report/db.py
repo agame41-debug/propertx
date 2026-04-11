@@ -95,6 +95,26 @@ from report.db_months import (
     update_bulk_generation_run_progress,
 )
 
+from report.db_users import (
+    ROLE_ADMIN,
+    ROLE_MANAGER,
+    ROLE_CLIENT,
+    VALID_ROLES,
+    authenticate_user,
+    get_user_by_id,
+    get_user_by_username,
+    list_users,
+    create_user,
+    update_user as update_user_record,
+    change_password,
+    delete_user,
+    get_user_property_slugs,
+    set_user_properties,
+    get_users_for_property,
+    hash_password,
+    verify_password,
+)
+
 from report.db_controls import (
     create_reservation_month_assignment,
     revert_reservation_month_assignment,
@@ -593,6 +613,25 @@ CREATE TABLE IF NOT EXISTS reservation_exclusions (
     reinstated_by     TEXT,
     UNIQUE(slug, confirmation_code)
 );
+
+CREATE TABLE IF NOT EXISTS users (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    username        TEXT UNIQUE NOT NULL,
+    password_hash   TEXT NOT NULL,
+    password_salt   TEXT NOT NULL,
+    role            TEXT NOT NULL DEFAULT 'client',
+    display_name    TEXT NOT NULL DEFAULT '',
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_properties (
+    user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    property_slug   TEXT NOT NULL,
+    created_at      TEXT NOT NULL,
+    PRIMARY KEY (user_id, property_slug)
+);
 """
 
 
@@ -668,6 +707,33 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     )
     _backfill_checkin_source_snapshots(conn)
     _backfill_booking_payout_item_guest_names(conn)
+    _seed_admin_user(conn)
+
+
+def _seed_admin_user(conn: sqlite3.Connection) -> None:
+    """Create initial admin user from env vars if users table is empty (one-time)."""
+    row = conn.execute("SELECT COUNT(*) AS cnt FROM users").fetchone()
+    if row["cnt"] > 0:
+        return
+    import secrets as _secrets
+    username = os.environ.get("RENTERO_USERNAME", "admin").strip() or "admin"
+    password = os.environ.get("RENTERO_PASSWORD", "admin") or "admin"
+    now_str = _now()
+    pw_hash, pw_salt = hash_password(password)
+    conn.execute(
+        """INSERT INTO users (username, password_hash, password_salt, role, display_name,
+           is_active, created_at, updated_at)
+           VALUES (?, ?, ?, 'admin', 'Administrator', 1, ?, ?)""",
+        (username, pw_hash, pw_salt, now_str, now_str),
+    )
+    for tu, tp, tn in [("client1", "client123", "Test Client 1"), ("client2", "client456", "Test Client 2")]:
+        h, s = hash_password(tp)
+        conn.execute(
+            """INSERT INTO users (username, password_hash, password_salt, role, display_name,
+               is_active, created_at, updated_at)
+               VALUES (?, ?, ?, 'client', ?, 1, ?, ?)""",
+            (tu, h, s, tn, now_str, now_str),
+        )
 
 
 def _dedupe_source_files_by_type_sha256(conn: sqlite3.Connection) -> None:
