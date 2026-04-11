@@ -3,7 +3,7 @@
 <head>
   <script>
     (function() {
-      var t = localStorage.getItem('rentero_theme') || 'dark';
+      var t = localStorage.getItem('rentero_theme') || 'light';
       document.documentElement.setAttribute('data-theme', t);
     })();
   </script>
@@ -72,7 +72,7 @@
       border: 1px solid var(--border-base);
       border-radius: 6px;
       padding: 8px 12px;
-      font-size: 13px;
+      font-size: 16px; /* prevent iOS auto-zoom on focus */
       color: var(--text-100);
       font-family: inherit;
       transition: border-color 0.13s, box-shadow 0.13s;
