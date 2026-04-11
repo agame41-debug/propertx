@@ -159,6 +159,9 @@
 
 {% include "partials/base_month_picker.html" %}
 
+<!-- Page transition progress bar -->
+<div id="page-progress-bar"></div>
+
 <div id="copy-toast">Zkopírováno ✓</div>
 
 <button id="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Zpět nahoru" aria-label="Zpět nahoru">
@@ -269,6 +272,27 @@
     };
     document.addEventListener('rentero:month-change', updateMobileMonth);
     updateMobileMonth();
+  })();
+
+  /* Page transition progress bar */
+  (function() {
+    var bar = document.getElementById('page-progress-bar');
+    var _timer = null;
+    document.body.addEventListener('htmx:beforeRequest', function() {
+      if (!bar) return;
+      clearTimeout(_timer);
+      bar.classList.remove('done');
+      bar.classList.add('loading');
+    });
+    function finishBar() {
+      if (!bar) return;
+      bar.classList.remove('loading');
+      bar.classList.add('done');
+      _timer = setTimeout(function() { bar.classList.remove('done'); bar.style.width = ''; }, 450);
+    }
+    document.body.addEventListener('htmx:afterSwap', finishBar);
+    document.body.addEventListener('htmx:responseError', finishBar);
+    document.body.addEventListener('htmx:sendError', finishBar);
   })();
 
   /* Close sheets on navigation (HTMX) */

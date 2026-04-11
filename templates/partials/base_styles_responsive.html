@@ -32,17 +32,19 @@
     .kpi-value { font-size: var(--text-xl); }
     .kpi-label { font-size: 9px; margin-bottom: var(--space-sm); }
 
-    /* Dashboard prop rows — stack as cards */
+    /* Dashboard prop rows — single flex row on mobile */
     .prop-row {
-      grid-template-columns: 1fr auto !important;
-      grid-template-rows: auto auto;
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
       gap: var(--space-sm) !important;
-      padding: var(--space-md) var(--space-lg);
+      padding: 11px var(--space-lg) !important;
     }
-    .prop-row .pr-name { grid-column: 1; }
-    .prop-row .pr-arrow { grid-column: 2; grid-row: 1; }
-    .prop-row .pr-financial { grid-column: 1 / -1; }
-    .prop-row .pr-hide-mobile { display: none; }
+    .prop-row .pr-name    { flex: 1; min-width: 0; }
+    .prop-row .pr-financial { flex-shrink: 0; text-align: right !important; }
+    .prop-row .pr-financial > div { justify-content: flex-end; }
+    .prop-row .pr-arrow   { flex-shrink: 0; font-size: 14px; }
+    .prop-row .pr-hide-mobile { display: none !important; }
 
     /* Tables → card layout (exclude detail/drilldown expansion rows) */
     .data-table.responsive-cards thead { display: none; }
