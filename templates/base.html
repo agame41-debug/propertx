@@ -235,6 +235,47 @@
         old.replaceWith(s);
       });
     }
+    /* Re-init mobile month strip buttons (they live inside #content, handlers lost on swap) */
+    (function() {
+      var prevBtn = document.getElementById('mobile-month-prev');
+      var nextBtn = document.getElementById('mobile-month-next');
+      var labelBtn = document.getElementById('mobile-month-label');
+      if (prevBtn) prevBtn.onclick = function() {
+        var c = window.RenteroMonthNav.getCurrent(), m = c.m - 1, y = c.y;
+        if (m < 1) { m = 12; y--; }
+        window.RenteroMonthNav.goToMonth(y, m);
+      };
+      if (nextBtn) nextBtn.onclick = function() {
+        var c = window.RenteroMonthNav.getCurrent(), m = c.m + 1, y = c.y;
+        if (m > 12) { m = 1; y++; }
+        window.RenteroMonthNav.goToMonth(y, m);
+      };
+      if (labelBtn) {
+        labelBtn.onclick = function() {
+          if (window.RenteroMonthNav) window.RenteroMonthNav.openPicker();
+        };
+        /* Update display from current state */
+        var ym = window.RenteroMonthNav ? window.RenteroMonthNav.getCurrent() : null;
+        if (ym) labelBtn.textContent = ('0'+ym.m).slice(-2) + '/' + ym.y;
+      }
+    })();
+    /* Update bottom bar active state based on current URL */
+    (function() {
+      var path = window.location.pathname;
+      var items = document.querySelectorAll('.bottom-bar-item');
+      items.forEach(function(item) { item.classList.remove('active'); });
+      var prehled = document.querySelector('.bottom-bar-item[href="/"]');
+      if (path === '/' && prehled) {
+        prehled.classList.add('active');
+      } else if (path.startsWith('/property/')) {
+        var objBtn = document.getElementById('bb-objekty');
+        if (objBtn) objBtn.classList.add('active');
+      } else {
+        /* Více pages: expenses, bank, clients, reconciliation, sources, logs, audit, admin, inventory */
+        var viceBtn = document.getElementById('bb-vice');
+        if (viceBtn) viceBtn.classList.add('active');
+      }
+    })();
   });
 
   /* Swipe-to-close for sheets */

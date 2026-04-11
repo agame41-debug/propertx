@@ -101,6 +101,68 @@
 
     /* Hide elements marked desktop-only */
     .desktop-only { display: none !important; }
+
+    /* Prevent iOS auto-zoom on input focus (requires font-size >= 16px) */
+    .form-input, select.form-input, input.form-input, textarea.form-input {
+      font-size: 16px !important;
+    }
+
+    /* Filter forms — stack vertically on mobile */
+    .card form[style*="display:flex"] {
+      flex-direction: column !important;
+      align-items: stretch !important;
+    }
+    .card form[style*="display:flex"] > div { width: 100% !important; }
+    .card form[style*="display:flex"] .form-input { width: 100% !important; min-width: unset !important; box-sizing: border-box; }
+    .card form[style*="display:flex"] .btn { width: 100%; }
+
+    /* Bank drilldown cards — stack content vertically */
+    .drilldown-row td > div > div > div {
+      flex-wrap: wrap;
+    }
+    .drilldown-row td [style*="align-items:center;gap:16px"] {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+    }
+    .drilldown-row td [style*="text-align:right;flex-shrink:0"] {
+      text-align: left !important;
+    }
+    .drilldown-row td [style*="padding:16px 20px 16px 56px"] {
+      padding: 12px 16px 12px 16px !important;
+    }
+    .drilldown-row td .btn { width: 100%; justify-content: center; }
+
+    /* Reconciliation detail tables — scroll horizontal */
+    .recon-detail td > div { overflow-x: auto; }
+
+    /* Two-column page layouts (e.g. expenses) — stack vertically */
+    div[style*="grid-template-columns:1fr 320px"] {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* Page headers with flex — wrap tightly */
+    div[style*="justify-content:space-between"] {
+      gap: 8px !important;
+    }
+
+    /* Page titles — smaller on mobile */
+    h1[style*="font-size:22px"] {
+      font-size: 18px !important;
+    }
+
+    /* Card 2-column grids — single column on mobile */
+    .card div[style*="grid-template-columns:1fr 1fr"] {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* Card padding — tighter on mobile */
+    .card div[style*="padding:16px 20px"],
+    .card div[style*="padding:14px 20px"] {
+      padding: 12px 14px !important;
+    }
+
+    /* Badge font — slightly larger for touch targets */
+    .filter-tab { padding: 6px 14px !important; font-size: 12px !important; }
   }
 
   /* ── Tablet (640px – 1024px) ────────────────────────────────────────── */
@@ -125,6 +187,16 @@
     .prop-row .pr-hide-tablet { display: none; }
 
     .kpi-grid { gap: var(--space-sm); }
+
+    /* Two-column page layouts — reduce right column */
+    div[style*="grid-template-columns:1fr 320px"] {
+      grid-template-columns: 1fr 260px !important;
+    }
+
+    /* Form inputs — prevent iOS zoom on tablets too */
+    .form-input, select.form-input, input.form-input {
+      font-size: 16px !important;
+    }
   }
 
   /* ── Desktop (> 1024px) ─────────────────────────────────────────────── */
