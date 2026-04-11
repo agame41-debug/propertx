@@ -180,7 +180,7 @@
       if (ym) url += '?year=' + ym.y + '&month=' + ym.m;
       fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(function(r) { return r.text(); })
-        .then(function(html) { document.getElementById('obj-sheet-list').innerHTML = html; })
+        .then(function(html) { var el = document.getElementById('obj-sheet-list'); el.innerHTML = html; htmx.process(el); })
         .catch(function() { document.getElementById('obj-sheet-list').innerHTML = '<div style="color:var(--text-300);">Chyba načítání</div>'; });
     }
   }
