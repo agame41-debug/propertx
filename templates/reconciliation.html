@@ -130,25 +130,25 @@
       <tbody>
         {% for row in rows %}
         <tr class="recon-row" style="cursor:pointer;" onclick="toggleReconDetail(this)">
-          <td style="text-align:center;color:var(--text-300);font-size:11px;">&#9654;</td>
-          <td style="font-weight:600;">
+          <td data-label="" style="text-align:center;color:var(--text-300);font-size:11px;" class="recon-arrow-col">&#9654;</td>
+          <td data-label="Objekt" style="font-weight:600;">
             {% if row.status == 'NO_SOURCE' %}
               {{ row.objekt_315 or '—' }}
             {% else %}
               {{ row.objekt_src or '—' }}
             {% endif %}
           </td>
-          <td>
+          <td data-label="Kanál">
             <span class="badge {% if row.channel == 'Airbnb' %}badge-blue{% else %}badge-purple{% endif %}">
               {{ row.channel or '—' }}
             </span>
           </td>
-          <td style="text-align:right;font-variant-numeric:tabular-nums;">{{ money(row.sum_src) }}</td>
-          <td style="text-align:right;font-variant-numeric:tabular-nums;">{{ money(row.sum_315) }}</td>
-          <td style="text-align:right;font-variant-numeric:tabular-nums;{% if row.diff is not none and (row.diff > 1 or row.diff < -1) %}color:var(--color-amber);{% elif row.diff is not none %}color:var(--color-green);{% endif %}">
+          <td data-label="Payout" style="text-align:right;font-variant-numeric:tabular-nums;">{{ money(row.sum_src) }}</td>
+          <td data-label="Účet 315" style="text-align:right;font-variant-numeric:tabular-nums;" class="pr-hide-mobile">{{ money(row.sum_315) }}</td>
+          <td data-label="Rozdíl" style="text-align:right;font-variant-numeric:tabular-nums;{% if row.diff is not none and (row.diff > 1 or row.diff < -1) %}color:var(--color-amber);{% elif row.diff is not none %}color:var(--color-green);{% endif %}">
             {{ money(row.diff) }}
           </td>
-          <td style="text-align:center;">
+          <td data-label="Status" style="text-align:center;">
             {% if row.status == 'MATCHED' %}
               <span class="badge badge-green">MATCHED</span>
             {% elif row.status == 'PARTIAL' %}
@@ -166,7 +166,8 @@
           <td colspan="7" style="padding:12px 20px;background:var(--bg-200);">
             {% if row.detail_315 %}
             <div style="font-size:12px;font-weight:600;color:var(--text-200);margin-bottom:6px;">Dokumenty účtu 315</div>
-            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <div style="overflow-x:auto;">
+            <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:380px;">
               <thead>
                 <tr style="color:var(--text-300);border-bottom:1px solid var(--border-subtle);">
                   <th style="text-align:left;padding:4px 8px;">Datum</th>
@@ -180,14 +181,15 @@
                 {% for d in row.detail_315 %}
                 <tr style="border-bottom:1px solid var(--border-subtle);">
                   <td style="padding:4px 8px;white-space:nowrap;">{{ d.datum or '—' }}</td>
-                  <td style="padding:4px 8px;">{{ d.doc or '—' }}</td>
-                  <td style="padding:4px 8px;">{{ d.doc_type or '—' }}</td>
-                  <td style="padding:4px 8px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ d.popis or '' }}">{{ d.popis or '—' }}</td>
-                  <td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums;">{{ money(d.castka) }}</td>
+                  <td style="padding:4px 8px;white-space:nowrap;">{{ d.doc or '—' }}</td>
+                  <td style="padding:4px 8px;white-space:nowrap;">{{ d.doc_type or '—' }}</td>
+                  <td style="padding:4px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ d.popis or '' }}">{{ d.popis or '—' }}</td>
+                  <td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;">{{ money(d.castka) }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
             </table>
+            </div>
             {% else %}
             <div style="font-size:12px;color:var(--text-300);">Žádné dokumenty 315 pro tento objekt/měsíc.</div>
             {% endif %}
