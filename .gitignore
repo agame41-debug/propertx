@@ -10,3 +10,7 @@ archive/
 .venv/
 .DS_Store
 .claude/
+.agents/
+.impeccable.md
+skills-lock.json
+docs/server.md
