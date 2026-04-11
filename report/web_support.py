@@ -428,17 +428,21 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
     slug_ph = ",".join("?" for _ in slugs)
     month_cond = " OR ".join(f"(year={y} AND month={m})" for y, m in months)
 
-    # 1. History — filtered by slugs+months, one query
+    # 1. History — only latest entry per slug+month (via subquery with MAX)
     history_map: dict[str, dict] = {s: {} for s in slugs}
     history_rows = conn.execute(
-        f"SELECT * FROM report_history WHERE slug IN ({slug_ph}) AND ({month_cond}) ORDER BY generated_at DESC",
+        f"""SELECT h.* FROM report_history h
+            INNER JOIN (
+                SELECT slug, year, month, MAX(generated_at) as max_gen
+                FROM report_history
+                WHERE slug IN ({slug_ph}) AND ({month_cond})
+                GROUP BY slug, year, month
+            ) latest ON h.slug = latest.slug AND h.year = latest.year
+                    AND h.month = latest.month AND h.generated_at = latest.max_gen""",
         slugs,
     ).fetchall()
     for row in history_rows:
-        slug = row["slug"]
-        key = (row["year"], row["month"])
-        if slug in history_map and key not in history_map[slug]:
-            history_map[slug][key] = dict(row)
+        history_map[row["slug"]][(row["year"], row["month"])] = dict(row)
 
     # 2. Aggregates from report_rows via SQL json_extract — replaces N×M loop
     agg_rows = conn.execute(
