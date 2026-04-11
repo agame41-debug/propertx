@@ -1,10 +1,17 @@
 {% for p in properties %}
 {% set h = health_map.get(p.slug, 'empty') %}
+{% set name = p.display_name or p.listing_nickname or p.slug %}
 <a href="/property/{{ p.slug }}/{{ current_year }}/{{ current_month }}"
    class="sb-obj-item {% if p.slug == active_slug %}sb-current{% endif %}"
-   title="{{ p.display_name or p.listing_nickname or p.slug }}">
+   data-name="{{ name|lower }}"
+   title="{{ name }}">
   <span class="sb-obj-dot" data-h="{{ h }}"></span>
-  {{ p.display_name or p.listing_nickname or p.slug }}
+  <span class="sb-obj-name">{{ name }}</span>
+  {% if h == 'issues' %}
+  <span class="sb-obj-badge sb-obj-badge-issues">!</span>
+  {% elif h == 'ok' %}
+  <span class="sb-obj-badge sb-obj-badge-ok">✓</span>
+  {% endif %}
 </a>
 {% else %}
 <div style="padding:8px 16px;font-size:11px;color:var(--text-300);">Žádné objekty</div>

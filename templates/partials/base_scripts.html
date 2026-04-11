@@ -19,14 +19,14 @@
   }
 
   function toggle() {
-    var cur   = document.documentElement.getAttribute('data-theme') || 'dark';
+    var cur   = document.documentElement.getAttribute('data-theme') || 'light';
     var next  = cur === 'dark' ? 'light' : 'dark';
     localStorage.setItem('rentero_theme', next);
     applyTheme(next);
   }
 
   document.addEventListener('DOMContentLoaded', function() {
-    var saved = localStorage.getItem('rentero_theme') || 'dark';
+    var saved = localStorage.getItem('rentero_theme') || 'light';
     applyTheme(saved);
   });
 

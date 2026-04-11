@@ -122,7 +122,13 @@
 
   /* ── Reset ── */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Prevent iOS Safari from zooming page when any element overflows */
+    overflow-x: hidden;
+    width: 100%;
+  }
 
   body {
     font-family: 'Geist', system-ui, -apple-system, sans-serif;
@@ -131,6 +137,8 @@
     min-height: 100vh;
     font-size: var(--text-base);
     line-height: 1.5;
+    overflow-x: hidden;
+    width: 100%;
   }
 
   /* ── Scrollbar ── */

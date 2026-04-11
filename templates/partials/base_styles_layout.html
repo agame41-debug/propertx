@@ -374,4 +374,142 @@
   .caret-icon { transition: transform var(--duration-normal) var(--ease-out); flex-shrink: 0; color: var(--text-300); }
   .caret-icon.rotated { transform: rotate(-90deg); }
   .collapsed { display: none !important; }
+
+  /* ── Objects sheet (mobile) enhanced ── */
+  .obj-sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--space-lg) var(--space-md);
+  }
+  .obj-sheet-title {
+    font-size: var(--text-base);
+    font-weight: 700;
+    color: var(--text-100);
+    letter-spacing: -0.01em;
+  }
+  .obj-sheet-month-badge {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text-300);
+    background: oklch(0.50 0 0 / 0.06);
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-full);
+    padding: 3px 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .obj-sheet-search-wrap {
+    position: relative;
+    margin: 0 var(--space-lg) var(--space-md);
+  }
+  .obj-sheet-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-300);
+    pointer-events: none;
+  }
+  .obj-sheet-search-input {
+    width: 100%;
+    background: oklch(0.50 0 0 / 0.06);
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-lg);
+    padding: 10px 12px 10px 36px;
+    font-size: 16px; /* prevent iOS zoom */
+    color: var(--text-100);
+    font-family: inherit;
+    outline: none;
+    -webkit-appearance: none;
+    transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+  }
+  .obj-sheet-search-input:focus {
+    border-color: oklch(0.55 0.18 280 / 0.5);
+    box-shadow: 0 0 0 3px oklch(0.55 0.18 280 / 0.12);
+  }
+  .obj-sheet-search-input::placeholder { color: var(--text-300); }
+  .obj-sheet-list {
+    padding: 0 var(--space-sm) calc(var(--space-xl) + env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    max-height: 55vh;
+  }
+  .obj-sheet-loading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xl) var(--space-md);
+    font-size: var(--text-sm);
+    color: var(--text-300);
+  }
+  .obj-sheet-spinner {
+    animation: obj-spin 0.9s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes obj-spin { to { transform: rotate(360deg); } }
+  .obj-sheet-no-results {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-2xl) var(--space-md);
+    font-size: var(--text-sm);
+    color: var(--text-300);
+  }
+  .obj-sheet-no-results svg { opacity: 0.35; }
+
+  /* ── Objects in mobile sheet — bigger touch targets, card style ── */
+  #obj-sheet-list .sb-obj-item {
+    padding: 11px 14px;
+    margin: 2px 0;
+    border-radius: var(--radius-md);
+    font-size: var(--text-base);
+    justify-content: flex-start;
+    gap: 12px;
+  }
+  #obj-sheet-list .sb-obj-dot {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+  }
+  #obj-sheet-list .sb-obj-name {
+    flex: 1;
+    font-weight: 500;
+    color: var(--text-200);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #obj-sheet-list .sb-obj-item:hover .sb-obj-name,
+  #obj-sheet-list .sb-obj-item.sb-current .sb-obj-name {
+    color: var(--text-100);
+  }
+  #obj-sheet-list .sb-obj-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+    letter-spacing: 0.02em;
+  }
+  #obj-sheet-list .sb-obj-badge-issues {
+    background: oklch(0.75 0.15 75 / 0.15);
+    color: var(--color-amber);
+    border: 1px solid oklch(0.75 0.15 75 / 0.25);
+  }
+  #obj-sheet-list .sb-obj-badge-ok {
+    background: oklch(0.70 0.18 155 / 0.12);
+    color: var(--color-green);
+    border: 1px solid oklch(0.70 0.18 155 / 0.2);
+  }
+  #obj-sheet-list .sb-obj-item.sb-current {
+    background: oklch(0.55 0.15 280 / 0.1);
+  }
+  #obj-sheet-list .sb-obj-item.sb-current .sb-obj-name {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  /* Desktop sidebar: hide new badge elements (sidebar is compact) */
+  #sb-obj-panel .sb-obj-name { flex: 1; }
+  #sb-obj-panel .sb-obj-badge { display: none; }
 </style>

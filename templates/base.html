@@ -3,7 +3,7 @@
 <head>
   <script>
     (function() {
-      var t = localStorage.getItem('rentero_theme') || 'dark';
+      var t = localStorage.getItem('rentero_theme') || 'light';
       document.documentElement.setAttribute('data-theme', t);
     })();
   </script>
@@ -137,9 +137,23 @@
 <div class="sheet-backdrop" id="obj-sheet-backdrop" onclick="closeObjSheet()"></div>
 <div class="sheet" id="obj-sheet">
   <div class="sheet-handle"></div>
-  <div style="padding:0 var(--space-lg) var(--space-xl);">
-    <div style="font-size:var(--text-sm);font-weight:700;color:var(--text-100);margin-bottom:var(--space-md);">Objekty</div>
-    <div id="obj-sheet-list" style="font-size:var(--text-sm);color:var(--text-300);">Načítám...</div>
+  <div class="obj-sheet-header">
+    <span class="obj-sheet-title">Objekty</span>
+    <span class="obj-sheet-month-badge" id="obj-sheet-month-badge"></span>
+  </div>
+  <div class="obj-sheet-search-wrap">
+    <svg class="obj-sheet-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="obj-sheet-search" class="obj-sheet-search-input" placeholder="Hledat objekt…" autocomplete="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div id="obj-sheet-list" class="obj-sheet-list">
+    <div class="obj-sheet-loading">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="obj-sheet-spinner"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+      Načítám…
+    </div>
+  </div>
+  <div id="obj-sheet-no-results" class="obj-sheet-no-results" style="display:none;">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <span>Žádný objekt nenalezen</span>
   </div>
 </div>
 
@@ -173,15 +187,29 @@
     document.getElementById('obj-sheet-backdrop').classList.add('open');
     document.getElementById('obj-sheet').classList.add('open');
     document.body.style.overflow = 'hidden';
+    /* Clear search on open */
+    var si = document.getElementById('obj-sheet-search');
+    if (si) { si.value = ''; _objSheetFilter(''); }
+    /* Update month badge */
+    var ym = (window.RenteroMonthNav && window.RenteroMonthNav.getCurrent) ? window.RenteroMonthNav.getCurrent() : null;
+    var badge = document.getElementById('obj-sheet-month-badge');
+    if (badge && ym) badge.textContent = ('0'+ym.m).slice(-2) + '/' + ym.y;
     if (!_objSheetLoaded) {
       _objSheetLoaded = true;
-      var ym = (window.RenteroMonthNav && window.RenteroMonthNav.getCurrent) ? window.RenteroMonthNav.getCurrent() : null;
       var url = '/sidebar/objects';
       if (ym) url += '?year=' + ym.y + '&month=' + ym.m;
       fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(function(r) { return r.text(); })
-        .then(function(html) { var el = document.getElementById('obj-sheet-list'); el.innerHTML = html; htmx.process(el); })
-        .catch(function() { document.getElementById('obj-sheet-list').innerHTML = '<div style="color:var(--text-300);">Chyba načítání</div>'; });
+        .then(function(html) {
+          var el = document.getElementById('obj-sheet-list');
+          el.innerHTML = html;
+          htmx.process(el);
+          _objSheetFilter('');
+        })
+        .catch(function() {
+          document.getElementById('obj-sheet-list').innerHTML =
+            '<div style="padding:16px;font-size:13px;color:var(--text-300);">Chyba načítání</div>';
+        });
     }
   }
   function closeObjSheet() {
@@ -189,9 +217,31 @@
     document.getElementById('obj-sheet').classList.remove('open');
     document.body.style.overflow = '';
   }
+  /* Search filter */
+  function _objSheetFilter(q) {
+    var items = document.querySelectorAll('#obj-sheet-list .sb-obj-item');
+    var noRes = document.getElementById('obj-sheet-no-results');
+    var visible = 0;
+    items.forEach(function(item) {
+      var name = (item.dataset.name || item.textContent).toLowerCase();
+      var show = !q || name.includes(q);
+      item.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    if (noRes) noRes.style.display = (items.length > 0 && visible === 0) ? '' : 'none';
+  }
+  document.addEventListener('input', function(e) {
+    if (e.target.id !== 'obj-sheet-search') return;
+    _objSheetFilter(e.target.value.toLowerCase().trim());
+  });
   /* Reload objects on month change */
   document.addEventListener('rentero:month-change', function() {
     _objSheetLoaded = false;
+    var badge = document.getElementById('obj-sheet-month-badge');
+    if (badge) {
+      var ym = window.RenteroMonthNav ? window.RenteroMonthNav.getCurrent() : null;
+      if (ym) badge.textContent = ('0'+ym.m).slice(-2) + '/' + ym.y;
+    }
   });
 
   /* Mobile month strip */
