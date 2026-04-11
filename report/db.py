@@ -705,6 +705,19 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         """CREATE UNIQUE INDEX IF NOT EXISTS idx_source_files_type_sha256_unique
            ON source_files(source_type, sha256)"""
     )
+    # Performance indexes for dashboard queries
+    conn.execute(
+        """CREATE INDEX IF NOT EXISTS idx_report_history_slug_month
+           ON report_history(slug, year, month, generated_at DESC)"""
+    )
+    conn.execute(
+        """CREATE INDEX IF NOT EXISTS idx_report_rows_slug_month
+           ON report_rows(slug, year, month)"""
+    )
+    conn.execute(
+        """CREATE INDEX IF NOT EXISTS idx_report_month_notifications_slug_month
+           ON report_month_notifications(slug, year, month, created_at DESC)"""
+    )
     _backfill_checkin_source_snapshots(conn)
     _backfill_booking_payout_item_guest_names(conn)
     _seed_admin_user(conn)

@@ -366,12 +366,12 @@ def _latest_month_notification_map(conn, properties: list[dict], months: list[tu
     slugs = [str(prop["slug"]) for prop in properties if str(prop.get("slug") or "").strip()]
     if not slugs:
         return {}
-    month_pairs = {(int(year), int(month)) for year, month in months}
     slug_placeholders = ",".join("?" for _ in slugs)
+    month_cond = " OR ".join(f"(year={int(y)} AND month={int(m)})" for y, m in months)
     rows = conn.execute(
         f"""SELECT *
               FROM report_month_notifications
-             WHERE slug IN ({slug_placeholders})
+             WHERE slug IN ({slug_placeholders}) AND ({month_cond})
              ORDER BY created_at DESC, id DESC""",
         slugs,
     ).fetchall()
@@ -379,7 +379,7 @@ def _latest_month_notification_map(conn, properties: list[dict], months: list[tu
     for row in rows:
         item = dict(row)
         key = (str(item.get("slug") or ""), int(item.get("year") or 0), int(item.get("month") or 0))
-        if (key[1], key[2]) not in month_pairs or key in latest:
+        if key in latest:
             continue
         try:
             item["payload"] = json.loads(item.get("payload_json") or "{}")
@@ -420,45 +420,66 @@ def _prepare_rows_for_display(rows: list[dict]) -> list[dict]:
 
 
 def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, int]]) -> tuple[dict, dict, dict, dict]:
-    history_map: dict[str, dict] = {p["slug"]: {} for p in properties}
-    all_history = conn.execute(
-        "SELECT * FROM report_history ORDER BY generated_at DESC"
+    slugs = [p["slug"] for p in properties]
+    if not slugs or not months:
+        empty = {s: {} for s in slugs}
+        return empty, dict(empty), dict(empty), {}
+
+    slug_ph = ",".join("?" for _ in slugs)
+    month_cond = " OR ".join(f"(year={y} AND month={m})" for y, m in months)
+
+    # 1. History — filtered by slugs+months, one query
+    history_map: dict[str, dict] = {s: {} for s in slugs}
+    history_rows = conn.execute(
+        f"SELECT * FROM report_history WHERE slug IN ({slug_ph}) AND ({month_cond}) ORDER BY generated_at DESC",
+        slugs,
     ).fetchall()
-    for row in all_history:
+    for row in history_rows:
         slug = row["slug"]
         key = (row["year"], row["month"])
         if slug in history_map and key not in history_map[slug]:
             history_map[slug][key] = dict(row)
 
-    for prop in properties:
-        slug = prop["slug"]
-        for year, month in months:
-            key = (year, month)
-            if key not in history_map.get(slug, {}):
-                continue
-            rows = get_report_rows(conn, slug, year, month)
-            if not rows:
-                continue
-            counts = count_effective_verification_statuses(rows)
-            history_map[slug][key].update(
-                {
-                    "rows_count": len(rows),
-                    "matched": counts.get("MATCHED", 0),
-                    "rozdil": counts.get("ROZDÍL", 0),
-                    "chybi_csv": counts.get("CHYBÍ_V_CSV", 0),
-                    "chybi_hostify": counts.get("CHYBÍ_V_HOSTIFY", 0),
-                    "ke_kontrole": counts.get("KE KONTROLE", 0),
-                    "payout_sum_czk": round(
-                        sum(float(r.get("payout_czk") or 0) for r in rows), 0
-                    ),
-                    "cena_ubytovani_sum_czk": round(
-                        sum(float(r.get("cena_ubytovani_czk") or 0) for r in rows), 0
-                    ),
-                    "provize_sum_czk": round(
-                        sum(float(r.get("provize_czk") or 0) for r in rows), 0
-                    ),
-                }
-            )
+    # 2. Aggregates from report_rows via SQL json_extract — replaces N×M loop
+    agg_rows = conn.execute(
+        f"""SELECT slug, year, month,
+                COUNT(*) as rows_count,
+                ROUND(COALESCE(SUM(CAST(json_extract(data, '$.payout_czk') AS REAL)), 0), 0) as payout_sum_czk,
+                ROUND(COALESCE(SUM(CAST(json_extract(data, '$.cena_ubytovani_czk') AS REAL)), 0), 0) as cena_ubytovani_sum_czk,
+                ROUND(COALESCE(SUM(CAST(json_extract(data, '$.provize_czk') AS REAL)), 0), 0) as provize_sum_czk,
+                SUM(CASE WHEN json_extract(data, '$.verification_status') = 'MATCHED'
+                         AND (NOT json_extract(data, '$.tax_verification_required')
+                              OR (COALESCE(CAST(json_extract(data, '$.checkin_missing_age_guests') AS INTEGER), 0) = 0
+                                  AND json_extract(data, '$.checkin_verified')))
+                    THEN 1 ELSE 0 END) as matched,
+                SUM(CASE WHEN json_extract(data, '$.verification_status') = 'ROZDÍL' THEN 1 ELSE 0 END) as rozdil,
+                SUM(CASE WHEN json_extract(data, '$.verification_status') = 'CHYBÍ_V_CSV' THEN 1 ELSE 0 END) as chybi_csv,
+                SUM(CASE WHEN json_extract(data, '$.verification_status') = 'CHYBÍ_V_HOSTIFY' THEN 1 ELSE 0 END) as chybi_hostify,
+                SUM(CASE WHEN json_extract(data, '$.verification_status') = 'MATCHED'
+                         AND json_extract(data, '$.tax_verification_required')
+                         AND (COALESCE(CAST(json_extract(data, '$.checkin_missing_age_guests') AS INTEGER), 0) > 0
+                              OR NOT json_extract(data, '$.checkin_verified'))
+                    THEN 1 ELSE 0 END) as ke_kontrole
+            FROM report_rows
+            WHERE slug IN ({slug_ph}) AND ({month_cond})
+            GROUP BY slug, year, month""",
+        slugs,
+    ).fetchall()
+    for row in agg_rows:
+        slug = row["slug"]
+        key = (row["year"], row["month"])
+        if slug in history_map and key in history_map[slug]:
+            history_map[slug][key].update({
+                "rows_count": row["rows_count"],
+                "matched": row["matched"] or 0,
+                "rozdil": row["rozdil"] or 0,
+                "chybi_csv": row["chybi_csv"] or 0,
+                "chybi_hostify": row["chybi_hostify"] or 0,
+                "ke_kontrole": row["ke_kontrole"] or 0,
+                "payout_sum_czk": row["payout_sum_czk"] or 0,
+                "cena_ubytovani_sum_czk": row["cena_ubytovani_sum_czk"] or 0,
+                "provize_sum_czk": row["provize_sum_czk"] or 0,
+            })
 
     month_state_map: dict[str, dict] = {p["slug"]: {} for p in properties}
     all_states = get_report_month_states(
