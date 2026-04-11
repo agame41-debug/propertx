@@ -28,6 +28,12 @@
   {% include "partials/base_sidebar.html" %}
 
   <main class="main-content" id="content">
+    <!-- Mobile month strip (sticky top bar on mobile) -->
+    <div class="mobile-month-strip" id="mobile-month-strip">
+      <button class="sb-month-btn" id="mobile-month-prev">&#8249;</button>
+      <button id="mobile-month-label" type="button" style="background:none;border:none;cursor:pointer;font-size:var(--text-sm);font-weight:600;color:var(--text-100);padding:var(--space-xs) var(--space-md);font-family:inherit;">--/----</button>
+      <button class="sb-month-btn" id="mobile-month-next">&#8250;</button>
+    </div>
     {% block content %}{% endblock %}
   </main>
 </div>
@@ -39,10 +45,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>Přehled</span>
     </a>
-    <a href="#" class="bottom-bar-item" id="bb-objekty" onclick="event.preventDefault(); document.getElementById('sb-obj-panel-mobile') && (document.getElementById('sb-obj-panel-mobile').style.display = 'block');">
+    <button class="bottom-bar-item" id="bb-objekty" onclick="openObjSheet()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
       <span>Objekty</span>
-    </a>
+    </button>
     <button class="bottom-bar-item" id="bb-vice" onclick="openSheet()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
       <span>Více</span>
@@ -103,6 +109,12 @@
     </a>
     {% endif %}
   </nav>
+  <div style="padding:var(--space-sm) var(--space-lg);">
+    <button type="button" class="sheet-nav-item" onclick="window.RenteroTheme && window.RenteroTheme.toggle(); closeSheet();">
+      <svg id="sheet-theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+      <span id="sheet-theme-label">Tmavý / Světlý režim</span>
+    </button>
+  </div>
   {% if current_user %}
   <div class="sheet-user">
     <div style="width:28px;height:28px;border-radius:50%;background:var(--color-primary);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;">
@@ -118,6 +130,16 @@
     </form>
   </div>
   {% endif %}
+</div>
+
+<!-- Objects sheet (mobile) -->
+<div class="sheet-backdrop" id="obj-sheet-backdrop" onclick="closeObjSheet()"></div>
+<div class="sheet" id="obj-sheet">
+  <div class="sheet-handle"></div>
+  <div style="padding:0 var(--space-lg) var(--space-xl);">
+    <div style="font-size:var(--text-sm);font-weight:700;color:var(--text-100);margin-bottom:var(--space-md);">Objekty</div>
+    <div id="obj-sheet-list" style="font-size:var(--text-sm);color:var(--text-300);">Načítám...</div>
+  </div>
 </div>
 
 {% include "partials/base_month_picker.html" %}
@@ -143,37 +165,90 @@
     document.getElementById('sheet').classList.remove('open');
     document.body.style.overflow = '';
   }
-  /* Close sheet on navigation (HTMX) */
-  document.body.addEventListener('htmx:afterSwap', function() { closeSheet(); });
 
-  /* Swipe-to-close sheet */
+  /* Objects sheet open/close */
+  var _objSheetLoaded = false;
+  function openObjSheet() {
+    document.getElementById('obj-sheet-backdrop').classList.add('open');
+    document.getElementById('obj-sheet').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    if (!_objSheetLoaded) {
+      _objSheetLoaded = true;
+      var ym = (window.RenteroMonthNav && window.RenteroMonthNav.getCurrent) ? window.RenteroMonthNav.getCurrent() : null;
+      var url = '/sidebar/objects';
+      if (ym) url += '?year=' + ym.y + '&month=' + ym.m;
+      fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r) { return r.text(); })
+        .then(function(html) { document.getElementById('obj-sheet-list').innerHTML = html; })
+        .catch(function() { document.getElementById('obj-sheet-list').innerHTML = '<div style="color:var(--text-300);">Chyba načítání</div>'; });
+    }
+  }
+  function closeObjSheet() {
+    document.getElementById('obj-sheet-backdrop').classList.remove('open');
+    document.getElementById('obj-sheet').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  /* Reload objects on month change */
+  document.addEventListener('rentero:month-change', function() {
+    _objSheetLoaded = false;
+  });
+
+  /* Mobile month strip */
   (function() {
-    var sheet = document.getElementById('sheet');
+    function updateMobileMonth() {
+      var ym = (window.RenteroMonthNav && window.RenteroMonthNav.getCurrent) ? window.RenteroMonthNav.getCurrent() : null;
+      var label = document.getElementById('mobile-month-label');
+      if (label && ym) label.textContent = ('0'+ym.m).slice(-2) + '/' + ym.y;
+    }
+    var prevBtn = document.getElementById('mobile-month-prev');
+    var nextBtn = document.getElementById('mobile-month-next');
+    var labelBtn = document.getElementById('mobile-month-label');
+    if (prevBtn) prevBtn.onclick = function() {
+      var c = window.RenteroMonthNav.getCurrent(), m = c.m - 1, y = c.y;
+      if (m < 1) { m = 12; y--; }
+      window.RenteroMonthNav.goToMonth(y, m);
+    };
+    if (nextBtn) nextBtn.onclick = function() {
+      var c = window.RenteroMonthNav.getCurrent(), m = c.m + 1, y = c.y;
+      if (m > 12) { m = 1; y++; }
+      window.RenteroMonthNav.goToMonth(y, m);
+    };
+    if (labelBtn) labelBtn.onclick = function() {
+      if (window.RenteroMonthNav) window.RenteroMonthNav.openPicker();
+    };
+    document.addEventListener('rentero:month-change', updateMobileMonth);
+    updateMobileMonth();
+  })();
+
+  /* Close sheets on navigation (HTMX) */
+  document.body.addEventListener('htmx:afterSwap', function() { closeSheet(); closeObjSheet(); });
+
+  /* Swipe-to-close for sheets */
+  function initSwipeClose(sheetEl, closeFn) {
     var startY = 0, currentY = 0, dragging = false;
-    sheet.addEventListener('touchstart', function(e) {
+    sheetEl.addEventListener('touchstart', function(e) {
       startY = e.touches[0].clientY;
       dragging = true;
     }, { passive: true });
-    sheet.addEventListener('touchmove', function(e) {
+    sheetEl.addEventListener('touchmove', function(e) {
       if (!dragging) return;
       currentY = e.touches[0].clientY;
       var diff = currentY - startY;
       if (diff > 0) {
-        sheet.style.transform = 'translate3d(0,' + diff + 'px,0)';
-        sheet.style.transition = 'none';
+        sheetEl.style.transform = 'translate3d(0,' + diff + 'px,0)';
+        sheetEl.style.transition = 'none';
       }
     }, { passive: true });
-    sheet.addEventListener('touchend', function() {
+    sheetEl.addEventListener('touchend', function() {
       dragging = false;
-      sheet.style.transition = '';
-      var diff = currentY - startY;
-      if (diff > 80) {
-        closeSheet();
-      }
-      sheet.style.transform = '';
+      sheetEl.style.transition = '';
+      if (currentY - startY > 80) closeFn();
+      sheetEl.style.transform = '';
       currentY = 0;
     });
-  })();
+  }
+  initSwipeClose(document.getElementById('sheet'), closeSheet);
+  initSwipeClose(document.getElementById('obj-sheet'), closeObjSheet);
 </script>
 </body>
 </html>
