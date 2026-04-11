@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Banka {{ "%02d/%d"|format(month, year) }} — Rentero{% endblock %}
+
+{% block content %}
+{% macro money(value) -%}{{ fmt_czk(value) }}{%- endmacro %}
+
+{# Flash #}
+{% if flash %}
+<div class="notify {% if flash.level == 'error' %}notify-error{% elif flash.level == 'info' %}notify-info{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
+  <div style="flex:1;font-weight:600;">{{ flash.message }}</div>
+</div>
+{% endif %}
+
+{# Header #}
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;color:var(--text-100);letter-spacing:-0.02em;">Bankovní transakce</h1>
+    <div style="font-size:13px;color:var(--text-300);margin-top:3px;">Přehled plateb pro {{ "%02d/%d"|format(month, year) }}</div>
+  </div>
+</div>
+
+{# KPI summary #}
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+  <div class="kpi-card">
+    <div class="kpi-label">Transakce</div>
+    <div class="kpi-value" style="font-size:22px;">{{ all_rows_count }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Součet za měsíc</div>
+    <div class="kpi-value" style="font-size:20px;">{{ money(month_total_amount) }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Filtrovaný součet</div>
+    <div class="kpi-value" style="font-size:20px;color:var(--color-blue);">{{ money(filtered_total_amount) }}</div>
+  </div>
+  <div class="kpi-card kpi-card-green">
+    <div class="kpi-label">Spárováno</div>
+    <div class="kpi-value" style="font-size:22px;color:var(--color-green);">{{ matched_total }}</div>
+  </div>
+  <div class="kpi-card {% if unmatched_total > 0 %}kpi-card-amber{% endif %}">
+    <div class="kpi-label">Nespárováno</div>
+    <div class="kpi-value" style="font-size:22px;{% if unmatched_total > 0 %}color:var(--color-amber);{% endif %}">{{ unmatched_total }}</div>
+  </div>
+</div>
+
+{# Filters #}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-header">
+    <span class="card-title">Filtry</span>
+  </div>
+  <div style="padding:14px 20px;">
+    <form method="get" action="/bank" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+      <input type="hidden" name="year" value="{{ year }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <div>
+        <label class="form-label">Platforma</label>
+        <select name="channel" class="form-input" style="width:140px;">
+          <option value="" {% if not selected_channel %}selected{% endif %}>Vše</option>
+          <option value="airbnb"   {% if selected_channel == 'airbnb' %}selected{% endif %}>Airbnb</option>
+          <option value="booking"  {% if selected_channel == 'booking' %}selected{% endif %}>Booking</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Stav</label>
+        <select name="match_state" class="form-input" style="width:160px;">
+          <option value="" {% if not selected_match_state %}selected{% endif %}>Vše</option>
+          <option value="matched"   {% if selected_match_state == 'matched' %}selected{% endif %}>Spárované</option>
+          <option value="unmatched" {% if selected_match_state == 'unmatched' %}selected{% endif %}>Nespárované</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">G-ref / popis</label>
+        <input type="text" name="q" value="{{ search_query or '' }}" placeholder="Hledat..." class="form-input" style="width:200px;">
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Filtrovat</button>
+      {% if selected_channel or selected_match_state or search_query %}
+      <a href="/bank?year={{ year }}&month={{ month }}" class="btn btn-ghost btn-sm">Zrušit</a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+{# Transactions table #}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Transakce</span>
+    <div class="filter-tabs">
+      <a href="/bank?year={{ year }}&month={{ month }}" class="filter-tab {% if not selected_match_state %}active{% endif %}">Všechny</a>
+      <a href="/bank?year={{ year }}&month={{ month }}&match_state=matched" class="filter-tab {% if selected_match_state == 'matched' %}active{% endif %}">Matched</a>
+      <a href="/bank?year={{ year }}&month={{ month }}&match_state=unmatched" class="filter-tab {% if selected_match_state == 'unmatched' %}active{% endif %}">Nespárované</a>
+    </div>
+  </div>
+  {% if rows %}
+  <div style="overflow-x:auto;">
+    <table class="data-table" style="border-collapse:collapse;" data-enhanced="true" data-table-id="bank">
+      <thead>
+        <tr>
+          <th data-col="expand" data-sortable="false" style="width:40px;padding-left:16px;"></th>
+          <th data-col="datum" data-sortable="true">Datum</th>
+          <th data-col="popis" data-sortable="false">Popis</th>
+          <th data-col="castka" data-sortable="true" style="text-align:right;">Částka</th>
+          <th data-col="stav" data-sortable="false">Stav</th>
+          <th data-col="host" data-sortable="false">Host</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        {% set has_drilldown = row.drilldown_batches | length > 0 %}
+        {% set rid = loop.index %}
+
+        {# ── Main transaction row ── #}
+        <tr id="tx-{{ row.tx_key }}" data-rid="{{ rid }}" data-row-id="{{ rid }}"
+            {% if has_drilldown %}onclick="bankToggle({{ rid }})" class="bank-tx-row"{% endif %}
+            style="{% if has_drilldown %}cursor:pointer;{% endif %}">
+          <td data-col="expand" style="padding:12px 6px 12px 16px;width:40px;">
+            {% if has_drilldown %}
+            <div id="caret-{{ rid }}" style="width:20px;height:20px;border-radius:5px;background:rgba(255,255,255,0.04);border:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:center;transition:background 0.12s,border-color 0.12s;">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-300)" stroke-width="2.5" style="transition:transform 0.18s ease;"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            {% endif %}
+          </td>
+          <td data-col="datum" data-val="{{ row.datum or '' }}" class="num" style="color:var(--text-300);font-size:12px;white-space:nowrap;">{{ row.datum or "—" }}</td>
+          <td data-col="popis" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text-200);">{{ row.zprava or "—" }}</td>
+          <td data-col="castka" data-val="{{ row.amount_czk or 0 }}" class="num" style="text-align:right;font-size:13px;font-weight:700;color:var(--color-green);white-space:nowrap;">{{ money(row.amount_czk) }}</td>
+          <td data-col="stav">
+            {% if row.matched_batch_ref %}
+            <span class="badge badge-green" style="font-size:10px;">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              Spárováno
+            </span>
+            {% else %}
+            <span class="badge badge-amber" style="font-size:10px;">Nespárováno</span>
+            {% endif %}
+          </td>
+          <td data-col="host" style="font-size:12px;color:var(--text-200);">{{ row.display_guest_summary or "—" }}</td>
+        </tr>
+
+        {# ── Drilldown panel ── #}
+        {% if has_drilldown %}
+        <tr id="dd-{{ rid }}" class="drilldown-row" style="display:none;">
+          <td colspan="6" style="padding:0;border-bottom:1px solid var(--border-subtle);">
+            <div id="dd-inner-{{ rid }}" style="background:var(--bg-panel);overflow:hidden;">
+              <div style="padding:16px 20px 16px 56px;display:flex;flex-direction:column;gap:10px;">
+
+                {% for batch in row.drilldown_batches %}
+                {% for item in batch.reservations %}
+                {# Per-item reservation card #}
+                {% if batch.channel == 'booking' %}{% set ch_color = '#0053b4' %}{% set ch_label = 'Booking.com' %}{% set ch_class = 'channel-booking' %}
+                {% elif batch.channel == 'airbnb' %}{% set ch_color = '#ff5a5f' %}{% set ch_label = 'Airbnb' %}{% set ch_class = 'channel-airbnb' %}
+                {% else %}{% set ch_color = 'var(--color-primary)' %}{% set ch_label = batch.channel %}{% set ch_class = 'badge-neutral' %}
+                {% endif %}
+
+                <div style="display:flex;align-items:stretch;border-radius:10px;overflow:hidden;border:1px solid var(--border-subtle);background:var(--bg-card);">
+                  {# Left channel accent bar #}
+                  <div style="width:3px;background:{{ ch_color }};flex-shrink:0;"></div>
+
+                  {# Content #}
+                  <div style="flex:1;padding:14px 16px;display:flex;align-items:center;gap:16px;min-width:0;">
+
+                    {# Guest icon #}
+                    <div style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-300)" stroke-width="1.75"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                    </div>
+
+                    {# Main info #}
+                    <div style="flex:1;min-width:0;">
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                        <span style="font-size:14px;font-weight:600;color:var(--text-100);">{{ item.guest_name or "Neznámý host" }}</span>
+                        <span class="badge {{ ch_class }}" style="font-size:10px;">{{ ch_label }}</span>
+                        {% if item.item_type and item.item_type != 'Rezervace' %}
+                        <span class="badge badge-neutral" style="font-size:10px;">{{ item.item_type }}</span>
+                        {% endif %}
+                      </div>
+                      <div style="display:flex;align-items:center;gap:16px;font-size:12px;color:var(--text-300);">
+                        <span style="display:flex;align-items:center;gap:5px;">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                          {{ item.check_in }} &#8211; {{ item.check_out }}
+                        </span>
+                        {% if item.confirmation_code %}
+                        <span style="display:flex;align-items:center;gap:5px;font-family:monospace;font-size:11px;">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 9V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-2"/><path d="M15 13h6m0 0l-3-3m3 3l-3 3"/></svg>
+                          {{ item.confirmation_code }}
+                        </span>
+                        {% endif %}
+                        {% if batch.payout_date %}
+                        <span style="display:flex;align-items:center;gap:5px;">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg>
+                          Výplata {{ batch.payout_date }}
+                        </span>
+                        {% endif %}
+                      </div>
+                    </div>
+
+                    {# Amount #}
+                    <div style="text-align:right;flex-shrink:0;">
+                      <div style="font-size:16px;font-weight:700;color:var(--color-green);font-variant-numeric:tabular-nums;">{{ money(item.amount_czk) }}</div>
+                      {% if item.amount_eur %}
+                      <div style="font-size:11px;color:var(--text-300);margin-top:1px;">{{ "%.2f"|format(item.amount_eur) }} EUR</div>
+                      {% endif %}
+                    </div>
+
+                    {# Link button #}
+                    {% if item.slug and item.report_year and item.report_month %}
+                    <a href="/property/{{ item.slug }}/{{ item.report_year }}/{{ item.report_month }}"
+                       onclick="event.stopPropagation();"
+                       class="btn btn-primary btn-sm"
+                       style="flex-shrink:0;gap:5px;">
+                      Přejít na rezervaci
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </a>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+                {% endfor %}
+
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% endif %}
+
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:48px;text-align:center;color:var(--text-300);font-size:13px;">
+    Žádné transakce pro tento měsíc.
+  </div>
+  {% endif %}
+</div>
+
+<style>
+.bank-tx-row:hover td { background: var(--bg-card-hover) !important; transition: background 100ms; }
+.bank-tx-row.expanded td { background: rgba(124,109,255,0.04) !important; }
+.bank-tx-row.expanded #caret-1,
+.bank-tx-row.expanded [id^="caret-"] { border-color: var(--color-primary) !important; background: rgba(124,109,255,0.1) !important; }
+</style>
+
+<script>
+function bankToggle(rid) {
+  var dd    = document.getElementById('dd-' + rid);
+  var caret = document.querySelector('#caret-' + rid + ' svg');
+  var txRow = document.querySelector('[data-rid="' + rid + '"]');
+  if (!dd) return;
+  var open = dd.style.display !== 'none';
+  dd.style.display = open ? 'none' : 'table-row';
+  if (caret)  caret.style.transform = open ? '' : 'rotate(180deg)';
+  if (txRow)  txRow.classList.toggle('expanded', !open);
+}
+
+// Auto-open row if URL hash matches a tx_key
+(function() {
+  var hash = window.location.hash;
+  if (!hash) return;
+  var txKey = hash.slice(1).replace(/^tx-/, '');
+  var row = document.getElementById('tx-' + txKey);
+  if (!row) return;
+  var rid = row.getAttribute('data-rid');
+  if (rid) bankToggle(parseInt(rid));
+  setTimeout(function() { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80);
+  row.style.transition = 'outline 0.1s';
+  row.style.outline = '2px solid var(--color-primary)';
+  setTimeout(function() { row.style.outline = ''; }, 1800);
+})();
+</script>
+
+{% endblock %}

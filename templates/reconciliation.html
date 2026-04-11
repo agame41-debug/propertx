@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% block title %}Srovnání {{ "%02d/%d"|format(month, year) }} — Rentero{% endblock %}
+
+{% block content %}
+{% macro money(value) -%}{{ fmt_czk(value) }}{%- endmacro %}
+
+{# Header #}
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;color:var(--text-100);letter-spacing:-0.02em;">Srovnání platforem s účetnictvím</h1>
+    <div style="font-size:13px;color:var(--text-300);margin-top:3px;">Payout vs. účet 315 za {{ "%02d/%d"|format(month, year) }}</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <button type="button" class="btn btn-ghost btn-sm" onclick="openStrediskoModal()" title="Nastavení středisek">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Střediska
+    </button>
+  </div>
+</div>
+
+{# Středisko settings modal #}
+<div id="stredisko-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;">
+  <div style="background:var(--bg-2);border:1px solid var(--border-base);border-radius:12px;width:560px;max-width:calc(100vw - 32px);max-height:80vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);">
+    <div style="padding:18px 20px 14px;border-bottom:1px solid var(--border-base);display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--text-100);">Nastavení středisek</div>
+        <div style="font-size:12px;color:var(--text-300);margin-top:2px;">Mapování kódů středisek na názvy objektů</div>
+      </div>
+      <button onclick="closeStrediskoModal()" style="background:none;border:none;cursor:pointer;color:var(--text-300);font-size:18px;line-height:1;padding:4px;">&#10005;</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px 20px;">
+      <div id="stredisko-list" style="margin-bottom:16px;"></div>
+      <div style="border-top:1px solid var(--border-subtle);padding-top:14px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-200);margin-bottom:8px;">Přidat / upravit</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <div style="flex:0 0 110px;">
+            <label class="form-label">Kód střediska</label>
+            <input id="sr-zkratka" class="form-input" placeholder="např. MM" style="width:100%;box-sizing:border-box;">
+          </div>
+          <div style="flex:1;">
+            <label class="form-label">Název objektu</label>
+            <input id="sr-popis" class="form-input" placeholder="např. MyMozart" style="width:100%;box-sizing:border-box;">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveStredisko()" style="white-space:nowrap;margin-bottom:1px;">Uložit</button>
+        </div>
+        <div id="sr-error" style="font-size:12px;color:var(--color-red);margin-top:6px;display:none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# KPI summary #}
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+  <div class="kpi-card">
+    <div class="kpi-label">Celkem párů</div>
+    <div class="kpi-value" style="font-size:22px;">{{ total_pairs }}</div>
+  </div>
+  <div class="kpi-card kpi-card-green">
+    <div class="kpi-label">Matched</div>
+    <div class="kpi-value" style="font-size:22px;color:var(--color-green);">{{ matched }}</div>
+  </div>
+  <div class="kpi-card {% if partial > 0 %}kpi-card-amber{% endif %}">
+    <div class="kpi-label">Partial</div>
+    <div class="kpi-value" style="font-size:22px;{% if partial > 0 %}color:var(--color-amber);{% endif %}">{{ partial }}</div>
+  </div>
+  <div class="kpi-card {% if unmatched + no_source > 0 %}kpi-card-red{% endif %}">
+    <div class="kpi-label">Unmatched / No source</div>
+    <div class="kpi-value" style="font-size:22px;{% if unmatched + no_source > 0 %}color:var(--color-red);{% endif %}">{{ unmatched + no_source }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Celkový rozdíl</div>
+    <div class="kpi-value" style="font-size:18px;{% if total_diff > 1 or total_diff < -1 %}color:var(--color-amber);{% else %}color:var(--color-green);{% endif %}">{{ money(total_diff) }}</div>
+  </div>
+</div>
+
+{# Filters #}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-header">
+    <span class="card-title">Filtry</span>
+  </div>
+  <div style="padding:14px 20px;">
+    <form method="get" action="/reconciliation" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+      <input type="hidden" name="year" value="{{ year }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <div>
+        <label class="form-label">Kanál</label>
+        <select name="channel" class="form-select" style="min-width:120px;">
+          <option value="">Vše</option>
+          <option value="airbnb" {% if selected_channel == 'airbnb' %}selected{% endif %}>Airbnb</option>
+          <option value="booking" {% if selected_channel == 'booking' %}selected{% endif %}>Booking</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Status</label>
+        <select name="status" class="form-select" style="min-width:140px;">
+          <option value="">Vše</option>
+          <option value="MATCHED" {% if selected_status == 'MATCHED' %}selected{% endif %}>Matched</option>
+          <option value="PARTIAL" {% if selected_status == 'PARTIAL' %}selected{% endif %}>Partial</option>
+          <option value="UNMATCHED" {% if selected_status == 'UNMATCHED' %}selected{% endif %}>Unmatched</option>
+          <option value="NO_SOURCE" {% if selected_status == 'NO_SOURCE' %}selected{% endif %}>No source</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Filtrovat</button>
+      {% if selected_channel or selected_status %}
+      <a href="/reconciliation?year={{ year }}&month={{ month }}" class="btn btn-ghost btn-sm">Zrušit filtry</a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+{# Data table #}
+{% if rows %}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Výsledky srovnání ({{ rows|length }})</span>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="data-table" style="width:100%;">
+      <thead>
+        <tr>
+          <th style="width:28px;"></th>
+          <th>Objekt</th>
+          <th>Kanál</th>
+          <th style="text-align:right;">Payout CZK</th>
+          <th style="text-align:right;">Účet 315 CZK</th>
+          <th style="text-align:right;">Rozdíl</th>
+          <th style="text-align:center;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr class="recon-row" style="cursor:pointer;" onclick="toggleReconDetail(this)">
+          <td style="text-align:center;color:var(--text-300);font-size:11px;">&#9654;</td>
+          <td style="font-weight:600;">
+            {% if row.status == 'NO_SOURCE' %}
+              {{ row.objekt_315 or '—' }}
+            {% else %}
+              {{ row.objekt_src or '—' }}
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge {% if row.channel == 'Airbnb' %}badge-blue{% else %}badge-purple{% endif %}">
+              {{ row.channel or '—' }}
+            </span>
+          </td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;">{{ money(row.sum_src) }}</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;">{{ money(row.sum_315) }}</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;{% if row.diff is not none and (row.diff > 1 or row.diff < -1) %}color:var(--color-amber);{% elif row.diff is not none %}color:var(--color-green);{% endif %}">
+            {{ money(row.diff) }}
+          </td>
+          <td style="text-align:center;">
+            {% if row.status == 'MATCHED' %}
+              <span class="badge badge-green">MATCHED</span>
+            {% elif row.status == 'PARTIAL' %}
+              <span class="badge badge-amber">PARTIAL</span>
+            {% elif row.status == 'UNMATCHED' %}
+              <span class="badge badge-red">UNMATCHED</span>
+            {% elif row.status == 'NO_SOURCE' %}
+              <span class="badge badge-gray">NO_SOURCE</span>
+            {% else %}
+              <span class="badge">{{ row.status }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr class="recon-detail" style="display:none;">
+          <td colspan="7" style="padding:12px 20px;background:var(--bg-200);">
+            {% if row.detail_315 %}
+            <div style="font-size:12px;font-weight:600;color:var(--text-200);margin-bottom:6px;">Dokumenty účtu 315</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <thead>
+                <tr style="color:var(--text-300);border-bottom:1px solid var(--border-subtle);">
+                  <th style="text-align:left;padding:4px 8px;">Datum</th>
+                  <th style="text-align:left;padding:4px 8px;">Doklad</th>
+                  <th style="text-align:left;padding:4px 8px;">Typ</th>
+                  <th style="text-align:left;padding:4px 8px;">Popis</th>
+                  <th style="text-align:right;padding:4px 8px;">Částka</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for d in row.detail_315 %}
+                <tr style="border-bottom:1px solid var(--border-subtle);">
+                  <td style="padding:4px 8px;white-space:nowrap;">{{ d.datum or '—' }}</td>
+                  <td style="padding:4px 8px;">{{ d.doc or '—' }}</td>
+                  <td style="padding:4px 8px;">{{ d.doc_type or '—' }}</td>
+                  <td style="padding:4px 8px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ d.popis or '' }}">{{ d.popis or '—' }}</td>
+                  <td style="padding:4px 8px;text-align:right;font-variant-numeric:tabular-nums;">{{ money(d.castka) }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <div style="font-size:12px;color:var(--text-300);">Žádné dokumenty 315 pro tento objekt/měsíc.</div>
+            {% endif %}
+            {% if row.objekt_src and row.objekt_315 and row.objekt_src != row.objekt_315 %}
+            <div style="font-size:11px;color:var(--text-300);margin-top:8px;">
+              Fuzzy match: <strong>{{ row.objekt_src }}</strong> ↔ <strong>{{ row.objekt_315 }}</strong> (score {{ row.score }})
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card" style="padding:40px;text-align:center;">
+  <div style="font-size:14px;color:var(--text-300);">
+    {% if total_pairs == 0 %}
+      Žádná data pro {{ "%02d/%d"|format(month, year) }}. Nahrajte Hlavní knihu CSV přes <a href="/sources">Zdroje</a> (typ: accounting).
+    {% else %}
+      Žádné výsledky pro zvolený filtr.
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% block head %}
+<style>
+  .badge-blue { background: rgba(59,130,246,0.15); color: rgb(59,130,246); }
+  .badge-purple { background: rgba(139,92,246,0.15); color: rgb(139,92,246); }
+  .badge-green { background: rgba(34,197,94,0.15); color: rgb(34,197,94); }
+  .badge-amber { background: rgba(245,158,11,0.15); color: rgb(245,158,11); }
+  .badge-red { background: rgba(239,68,68,0.15); color: rgb(239,68,68); }
+  .badge-gray { background: rgba(156,163,175,0.15); color: rgb(156,163,175); }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .kpi-card-red { border-left: 3px solid rgb(239,68,68); }
+  .recon-row:hover { background: var(--bg-200); }
+</style>
+{% endblock %}
+
+<script>
+function toggleReconDetail(row) {
+  var detail = row.nextElementSibling;
+  if (!detail || !detail.classList.contains('recon-detail')) return;
+  var arrow = row.querySelector('td:first-child');
+  if (detail.style.display === 'none') {
+    detail.style.display = '';
+    arrow.innerHTML = '&#9660;';
+  } else {
+    detail.style.display = 'none';
+    arrow.innerHTML = '&#9654;';
+  }
+}
+
+// ── Středisko modal ──────────────────────────────────────────────────────────
+
+function openStrediskoModal() {
+  document.getElementById('stredisko-modal').style.display = 'flex';
+  loadStrediskoList();
+}
+
+function closeStrediskoModal() {
+  document.getElementById('stredisko-modal').style.display = 'none';
+  document.getElementById('sr-zkratka').value = '';
+  document.getElementById('sr-popis').value = '';
+  document.getElementById('sr-error').style.display = 'none';
+}
+
+document.getElementById('stredisko-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeStrediskoModal();
+});
+
+function loadStrediskoList() {
+  fetch('/api/stredisko').then(r => r.json()).then(function(entries) {
+    var el = document.getElementById('stredisko-list');
+    if (!entries.length) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--text-300);text-align:center;padding:16px 0;">Žádná střediska. Přidejte první.</div>';
+      return;
+    }
+    var html = '<table style="width:100%;font-size:12px;border-collapse:collapse;">';
+    html += '<thead><tr style="color:var(--text-300);border-bottom:1px solid var(--border-subtle);">';
+    html += '<th style="text-align:left;padding:4px 8px;">Kód</th>';
+    html += '<th style="text-align:left;padding:4px 8px;">Objekt</th>';
+    html += '<th style="width:60px;"></th>';
+    html += '</tr></thead><tbody>';
+    entries.forEach(function(e) {
+      html += '<tr style="border-bottom:1px solid var(--border-subtle);">';
+      html += '<td style="padding:5px 8px;font-variant-numeric:tabular-nums;color:var(--text-200);">' + esc(e.zkratka) + '</td>';
+      html += '<td style="padding:5px 8px;">' + esc(e.popis) + '</td>';
+      html += '<td style="padding:5px 8px;text-align:right;">';
+      html += '<button onclick="editStredisko(' + JSON.stringify(e.zkratka) + ',' + JSON.stringify(e.popis) + ')" style="background:none;border:none;cursor:pointer;color:var(--text-300);font-size:11px;padding:2px 6px;" title="Upravit">✏️</button>';
+      html += '<button onclick="deleteStredisko(' + JSON.stringify(e.zkratka) + ')" style="background:none;border:none;cursor:pointer;color:var(--color-red);font-size:11px;padding:2px 6px;" title="Smazat">✕</button>';
+      html += '</td></tr>';
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  });
+}
+
+function editStredisko(zkratka, popis) {
+  document.getElementById('sr-zkratka').value = zkratka;
+  document.getElementById('sr-popis').value = popis;
+  document.getElementById('sr-popis').focus();
+}
+
+function saveStredisko() {
+  var zkratka = document.getElementById('sr-zkratka').value.trim();
+  var popis = document.getElementById('sr-popis').value.trim();
+  var errEl = document.getElementById('sr-error');
+  if (!zkratka || !popis) {
+    errEl.textContent = 'Kód i název jsou povinné.';
+    errEl.style.display = '';
+    return;
+  }
+  errEl.style.display = 'none';
+  fetch('/api/stredisko', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({zkratka: zkratka, popis: popis})
+  }).then(function(r) {
+    if (r.ok) {
+      document.getElementById('sr-zkratka').value = '';
+      document.getElementById('sr-popis').value = '';
+      loadStrediskoList();
+    } else {
+      r.json().then(function(d) {
+        errEl.textContent = d.error || 'Chyba při ukládání.';
+        errEl.style.display = '';
+      });
+    }
+  });
+}
+
+function deleteStredisko(zkratka) {
+  if (!confirm('Smazat středisko "' + zkratka + '"?')) return;
+  fetch('/api/stredisko/' + encodeURIComponent(zkratka), {method: 'DELETE'})
+    .then(function() { loadStrediskoList(); });
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,331 @@
+{% macro money(value) -%}{{ fmt_czk(value) }}{%- endmacro %}
+{% set r = row %}
+{% set src = source_family(r.source) %}
+{% if src == 'airbnb' %}
+  {% set payout_label = 'Výplata od Airbnb' %}
+  {% set payout_note = 'Čistá výplata po provizi platformy' %}
+{% elif src == 'booking' %}
+  {% set payout_label = 'Výplata od Booking' %}
+  {% set payout_note = 'Čistá výplata po provizi platformy' %}
+{% elif src == 'marriott' %}
+  {% set payout_label = 'Výplata od Marriott' %}
+  {% set payout_note = 'Částka použitá pro finanční výpočet' %}
+{% else %}
+  {% set payout_label = 'Výplata od platformy' %}
+  {% set payout_note = 'Částka použitá pro finanční výpočet' %}
+{% endif %}
+
+{# Summary metadata — read by FloatingPanel summary aggregation #}
+<div style="display:none;"
+     data-summary-nights="{{ r.nights or 0 }}"
+     data-summary-payout="{{ r.payout_czk or 0 }}"
+     data-summary-ubytovani="{{ r.cena_ubytovani_czk or 0 }}"
+     data-summary-priprava="{{ r.priprava_pokoje_czk or 0 }}"
+     data-summary-citytax="{{ r.city_tax_czk or 0 }}"
+     data-summary-provize="{{ r.provize_czk or 0 }}"></div>
+
+{# ── Header strip — guest name + channel + stay ──────────────────────────── #}
+{% set src_hdr = source_family(r.source) %}
+<div class="drawer-header {% if src_hdr == 'airbnb' %}drawer-header-airbnb{% elif src_hdr == 'booking' %}drawer-header-booking{% else %}drawer-header-other{% endif %}">
+  <div class="drawer-header-top">
+    <div style="min-width:0;">
+      <div class="drawer-guest-name">{{ r.guest_name or "—" }}</div>
+      {% if r.stay_label %}
+      <div class="drawer-stay-label">{{ r.stay_label }}</div>
+      {% endif %}
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;">
+      {% if src_hdr == "airbnb" %}
+      <span class="badge channel-airbnb" style="font-size:10.5px;font-weight:700;">Airbnb</span>
+      {% elif src_hdr == "booking" %}
+      <span class="badge channel-booking" style="font-size:10.5px;font-weight:700;">Booking</span>
+      {% elif src_hdr == "marriott" %}
+      <span class="badge badge-neutral" style="font-size:10.5px;font-weight:700;">Marriott</span>
+      {% else %}
+      <span class="drawer-code">{{ source_label(r.source) }}</span>
+      {% endif %}
+      {% set vs = r.display_verification_status or r.verification_status or "" %}
+      {% if vs %}
+      <span class="badge {% if vs == 'MATCHED' %}badge-green{% elif vs == 'ROZDÍL' %}badge-orange{% elif vs == 'KE KONTROLE' %}badge-amber{% elif 'CHYBÍ' in vs %}badge-red{% else %}badge-neutral{% endif %}" style="font-size:9.5px;font-weight:700;letter-spacing:0.04em;">{{ vs }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="drawer-header-meta-row">
+    <div class="drawer-meta-item">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      {{ r.nights or 0 }} nocí
+    </div>
+    <div class="drawer-meta-item">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      {{ r.adults or 0 }} dosp.{% if r.children_infants %} / {{ r.children_infants }} dětí{% endif %}
+    </div>
+    <div class="drawer-code">{{ r.confirmation_code or "" }}</div>
+  </div>
+</div>
+
+{# ── EUR Inputs ────────────────────────────────────────────────────────────── #}
+<div class="drawer-section">
+  <div class="drawer-section-head">
+    <div class="drawer-section-title">Vstupy (EUR)</div>
+  </div>
+  <div class="drawer-metric-grid">
+    <div class="drawer-metric" style="grid-column:1/-1;">
+      <span class="drawer-metric-label">{{ payout_label }}</span>
+      <span class="drawer-metric-value drawer-metric-value-strong">{% if r.payout_eur %}{{ "%.2f"|format(r.payout_eur) }} EUR{% else %}—{% endif %}</span>
+      <span class="drawer-metric-sub">{{ payout_note }}</span>
+    </div>
+    <div class="drawer-metric">
+      <span class="drawer-metric-label">Cleaning fee</span>
+      <span class="drawer-metric-value">{% if r.cleaning_fee_eur %}{{ "%.2f"|format(r.cleaning_fee_eur) }} EUR{% else %}—{% endif %}</span>
+    </div>
+    <div class="drawer-metric">
+      <span class="drawer-metric-label">Komise platformy</span>
+      <span class="drawer-metric-value">{% if r.channel_commission_eur %}{{ "%.2f"|format(r.channel_commission_eur) }} EUR{% else %}—{% endif %}</span>
+    </div>
+    <div class="drawer-metric" style="grid-column:1/-1;">
+      <span class="drawer-metric-label">Kurz EUR/CZK</span>
+      <span class="drawer-metric-value">{% if r.kurz %}{{ "%.4f"|format(r.kurz) }}{% else %}—{% endif %} <span style="font-size:10px;color:var(--text-300);font-weight:400;">{{ r.kurz_date or "" }}</span></span>
+    </div>
+  </div>
+  {% if r.checkin_verified %}
+  <div class="drawer-status drawer-status-ok">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    City tax ověřeno Checkin reportem
+    {% if r.checkin_missing_age_guests %}<span style="color:var(--color-amber);">({{ r.checkin_missing_age_guests }} hostů bez věku)</span>{% endif %}
+  </div>
+  {% elif r.tax_verification_required %}
+  <div class="drawer-status drawer-status-warn">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+    City tax neověřeno
+  </div>
+  {% endif %}
+</div>
+
+{# ── CZK Calculation ───────────────────────────────────────────────────────── #}
+<div class="drawer-section">
+  <div class="drawer-section-head">
+    <div class="drawer-section-title">Výpočet (CZK)</div>
+    <div class="drawer-section-note">Částky, které skutečně vstupují do výsledku</div>
+  </div>
+  <div class="drawer-formula">
+    <div class="drawer-anchor">
+      <div class="drawer-anchor-label">Výchozí částka</div>
+      <div class="drawer-anchor-row">
+        <span class="drawer-anchor-value">{% if r.payout_czk is not none %}{{ money(r.payout_czk) }}{% else %}—{% endif %}</span>
+        <span class="drawer-anchor-note">Čistá výplata platformy</span>
+      </div>
+    </div>
+
+    {% if r.provize_czk is not none and r.provize_czk != 0 %}
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 2px;">
+      <span class="drawer-inline-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01"/><path d="M11 12h1v4h1"/></svg>
+        Provize platformy je v výplatě zahrnuta
+      </span>
+      <span style="font-size:11px;color:var(--text-300);font-variant-numeric:tabular-nums;white-space:nowrap;">{{ money(r.provize_czk) }}</span>
+    </div>
+    {% endif %}
+
+    <div class="drawer-flow-block">
+    {% set deductions = [
+      ('− City tax', r.city_tax_czk),
+      ('− DPH z provize', r.dph_provize_czk),
+      ('− Úklid', r.uklid_czk),
+      ('− Balíčky', r.balicky_czk),
+      ('− DPH z přípravy pokoje', r.dph_uklid_balicky_czk),
+    ] %}
+    {% for label, val in deductions %}
+    {% if val is not none and val != 0 %}
+    <div class="drawer-flow-row">
+      <span class="drawer-flow-label">{{ label }}</span>
+      <span class="drawer-flow-value">{{ money(val) }}</span>
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% if r.priprava_pokoje_czk is not none and r.priprava_pokoje_czk != 0 %}
+    <div class="drawer-flow-row">
+      <span class="drawer-flow-label drawer-flow-label-dim">= Příprava pokoje (Úklid + Balíčky)</span>
+      <span class="drawer-flow-value drawer-flow-value-dim">{{ money(r.priprava_pokoje_czk) }}</span>
+    </div>
+    {% endif %}
+    <div class="drawer-flow-row drawer-flow-total">
+      <span class="drawer-flow-label">= Cena ubytování</span>
+      <span class="drawer-flow-value">{% if r.cena_ubytovani_czk is not none %}{{ money(r.cena_ubytovani_czk) }}{% else %}—{% endif %}</span>
+    </div>
+    </div>
+  </div>
+</div>
+
+{# ── Bank Transactions ─────────────────────────────────────────────────────── #}
+<div class="drawer-section">
+  <div class="drawer-section-head">
+    <div class="drawer-section-title">Platby na účet</div>
+  </div>
+
+  {% if bank_txns %}
+    {% set ns = namespace(net=0.0) %}
+    {% for t in bank_txns %}{% set ns.net = ns.net + (t.item_amount_czk or 0) %}{% endfor %}
+
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:{% if bank_txns|length > 1 %}12{% else %}0{% endif %}px;">
+      {% for t in bank_txns %}
+      {% set is_correction = (t.item_amount_czk or 0) < 0 %}
+      {% set dp = t.datum.split('-') if t.datum else [] %}
+      {% set bank_year  = dp[0] if dp|length == 3 else '' %}
+      {% set bank_month = dp[1]|int if dp|length == 3 else 0 %}
+
+      <a href="/bank?year={{ bank_year }}&month={{ bank_month }}#tx-{{ t.tx_key }}"
+         style="display:flex;align-items:stretch;border-radius:9px;overflow:hidden;border:1px solid var(--border-subtle);background:var(--bg-panel);text-decoration:none;transition:border-color 0.12s;"
+         onmouseover="this.style.borderColor='var(--border-active)'"
+         onmouseout="this.style.borderColor='var(--border-subtle)'">
+        <div style="width:3px;flex-shrink:0;background:{% if is_correction %}var(--color-amber){% else %}var(--color-green){% endif %};"></div>
+        <div style="flex:1;padding:10px 12px;min-width:0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:600;color:var(--text-200);font-variant-numeric:tabular-nums;">
+              {% if dp|length == 3 %}{{ dp[2] }}.{{ dp[1] }}.{{ dp[0] }}{% else %}{{ t.datum }}{% endif %}
+            </span>
+            <span style="font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;{% if is_correction %}color:var(--color-amber);{% else %}color:var(--color-green);{% endif %}white-space:nowrap;">
+              {% if not is_correction %}+{% endif %}{{ money(t.item_amount_czk) }}
+            </span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span>
+              {% if is_correction %}
+              <span style="display:inline-flex;align-items:center;gap:3px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:var(--color-amber);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600;">Korekce</span>
+              {% else %}
+              <span style="display:inline-flex;align-items:center;gap:3px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.15);color:var(--color-green);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:600;">Výplata</span>
+              {% endif %}
+            </span>
+            <span style="font-size:11px;color:var(--text-300);display:flex;align-items:center;gap:4px;">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+              Zobrazit transakci
+            </span>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    {% if bank_txns|length > 1 %}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:7px;border:1px solid var(--border-subtle);">
+      <span style="font-size:12px;color:var(--text-300);">Celkem (po korekcích)</span>
+      <span style="font-size:13px;font-weight:700;color:var(--color-green);font-variant-numeric:tabular-nums;">{{ money(ns.net) }}</span>
+    </div>
+    {% endif %}
+
+    {% if r.verification_diff %}
+    <div style="display:flex;justify-content:space-between;margin-top:8px;padding:8px 12px;background:rgba(245,158,11,0.06);border-radius:7px;border:1px solid rgba(245,158,11,0.2);">
+      <span style="font-size:12px;color:var(--color-amber);">Rozdíl CSV / Hostify</span>
+      <span style="font-size:12px;font-weight:600;color:var(--color-amber);font-variant-numeric:tabular-nums;">{{ "%.2f"|format(r.verification_diff) }} EUR</span>
+    </div>
+    {% endif %}
+
+  {% else %}
+    {# Fallback: no transactions yet #}
+    {% set bs = r.bank_status or "" %}
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;justify-content:space-between;">
+        <span style="font-size:12px;color:var(--text-muted);">Stav</span>
+        <span style="font-size:13px;font-weight:600;{% if bs == 'DORAZILO' %}color:var(--green);{% elif bs == 'CHYBÍ' %}color:var(--red);{% else %}color:var(--text-muted);{% endif %}">{{ bs or "—" }}</span>
+      </div>
+      {% if r.bank_datum %}
+      <div style="display:flex;justify-content:space-between;">
+        <span style="font-size:12px;color:var(--text-muted);">Datum</span>
+        <span style="font-size:12px;color:var(--text-secondary);">{{ r.bank_datum }}</span>
+      </div>
+      {% endif %}
+      {% if r.bank_amount_czk %}
+      <div style="display:flex;justify-content:space-between;">
+        <span style="font-size:12px;color:var(--text-muted);">Částka</span>
+        <span style="font-size:12px;color:var(--text-secondary);">{{ money(r.bank_amount_czk) }}</span>
+      </div>
+      {% endif %}
+      {% if r.verification_diff %}
+      <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid rgba(245,161,74,0.2);">
+        <span style="font-size:12px;color:var(--amber);">Rozdíl CSV / Hostify</span>
+        <span style="font-size:12px;font-weight:600;color:var(--amber);">{{ "%.2f"|format(r.verification_diff) }} EUR</span>
+      </div>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{# ── Akce ─────────────────────────────────────────────────────────────────── #}
+{% if month_state and month_state.status != 'LOCKED' %}
+<div class="drawer-section">
+  <div class="drawer-section-head">
+    <div class="drawer-section-title">Akce</div>
+  </div>
+
+  {# ── Move reservation ──────────────────────────────────────── #}
+  {% set prev_m = (month - 1) if month > 1 else 12 %}
+  {% set prev_y = year if month > 1 else (year - 1) %}
+  {% set next_m = (month + 1) if month < 12 else 1 %}
+  {% set next_y = year if month < 12 else (year + 1) %}
+
+  <div style="margin-bottom:14px;">
+    <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-300);margin-bottom:8px;">Přesunout do jiného měsíce</div>
+
+    {% if r.get('_assignment') %}
+    <div style="padding:10px 12px;background:rgba(245,161,74,0.08);border:1px solid rgba(245,161,74,0.2);border-radius:8px;font-size:12px;color:var(--amber);margin-bottom:8px;">
+      ⚠ Přesunuto do {{ "%02d/%d"|format(r._assignment.target_month, r._assignment.target_year) }}
+      {% if r._assignment.reason %} — {{ r._assignment.reason }}{% endif %}
+    </div>
+    <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/move-revert">
+      {{ csrf_input(request) }}
+      <button type="submit" class="btn btn-ghost btn-sm">Vrátit přesun zpět</button>
+    </form>
+    {% else %}
+    <div style="display:flex;gap:8px;">
+      <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/move" style="flex:1;">
+        {{ csrf_input(request) }}
+        <input type="hidden" name="target_year" value="{{ prev_y }}">
+        <input type="hidden" name="target_month" value="{{ prev_m }}">
+        <input type="hidden" name="reason" value="">
+        <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;">← {{ "%02d/%d"|format(prev_m, prev_y) }}</button>
+      </form>
+      <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/move" style="flex:1;">
+        {{ csrf_input(request) }}
+        <input type="hidden" name="target_year" value="{{ next_y }}">
+        <input type="hidden" name="target_month" value="{{ next_m }}">
+        <input type="hidden" name="reason" value="">
+        <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;">{{ "%02d/%d"|format(next_m, next_y) }} →</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Exclude / reinstate ────────────────────────────────────── #}
+  <div>
+    <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-300);margin-bottom:8px;">Výpočet</div>
+    {% if r.is_excluded %}
+    {% set excl = r.get('_exclusion') %}
+    <div style="padding:10px 12px;background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.15);border-radius:8px;font-size:12px;color:var(--red);margin-bottom:8px;">
+      Vyřazeno z výpočtu{% if excl and excl.reason %} — {{ excl.reason }}{% endif %}
+    </div>
+    <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/reinstate">
+      {{ csrf_input(request) }}
+      <button type="submit" class="btn btn-sm" style="background:rgba(34,197,94,0.1);color:var(--green);border-color:rgba(34,197,94,0.2);">Vrátit do výpočtu</button>
+    </form>
+    {% else %}
+    <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/exclude">
+      {{ csrf_input(request) }}
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <div style="flex:1;">
+          <input type="text" name="reason" placeholder="Důvod vyřazení (volitelné)" class="form-input" style="font-size:12px;">
+        </div>
+        <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--red);border-color:rgba(239,68,68,0.2);white-space:nowrap;">Vyřadit z výpočtu</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+
+  {# ── Payout adjustment info ─────────────────────────────────── #}
+  {% if r.is_payout_adjustment %}
+  <div style="margin-top:12px;padding:10px 12px;background:rgba(124,109,255,0.07);border:1px solid rgba(124,109,255,0.2);border-radius:8px;font-size:12px;color:var(--color-primary);">
+    Toto je platební korekce (Doplatek) k rezervaci z {{ "%02d/%d"|format(r.adjustment_original_month, r.adjustment_original_year) if r.adjustment_original_month else "minulého měsíce" }}.
+    Úklid, city tax a balíčky nejsou zahrnuty (již zaúčtováno v původním měsíci).
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}

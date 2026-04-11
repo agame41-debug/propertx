@@ -1,0 +1,63 @@
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-header" style="cursor:pointer;user-select:none;" onclick="toggleSection('breakdown-body', 'caret-bd')">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg id="caret-bd" class="caret-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      <span class="card-title">Finanční přehled</span>
+    </div>
+    <span style="font-size:12px;color:var(--text-muted);">{{ total_res }} rezervací</span>
+  </div>
+  <div id="breakdown-body">
+    <table class="data-table" data-enhanced="true" data-table-id="breakdown">
+      <thead>
+        <tr>
+          <th data-col="kanal" style="width:130px;">Kanál</th>
+          <th data-col="rez" class="text-center" style="width:50px;">Rez.</th>
+          <th data-col="priprava" class="text-right">Příprava pokoje</th>
+          <th data-col="provize" class="text-right">Provize</th>
+          <th data-col="citytax" class="text-right">City tax</th>
+          <th data-col="ubytovani" class="text-right">Ubytování</th>
+          <th data-col="payout" class="text-right" style="width:160px;">Platba platformy</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set channels = [
+          ('airbnb',  'Airbnb',  'channel-airbnb',  pct_airbnb,  row_breakdown.airbnb,  '#ff9295'),
+          ('booking', 'Booking', 'channel-booking',  pct_booking, row_breakdown.booking, '#7bb3ff'),
+        ] %}
+        {% if row_breakdown.other.count > 0 %}
+        {% set channels = channels + [('other', 'Ostatní', 'channel-other', pct_other, row_breakdown.other, 'var(--text-muted)')] %}
+        {% endif %}
+        {% for key, label, badge_cls, pct, bd, bar_color in channels %}
+        {% if bd.count > 0 %}
+        <tr data-row-id="{{ key }}">
+          <td data-col="kanal" data-val="{{ label }}">
+            <span class="badge {{ badge_cls }}">{{ label }}</span>
+            <div class="prop-bar" style="max-width:80px;">
+              <div class="prop-bar-fill" style="width:{{ pct }}%;background:{{ bar_color }};opacity:0.6;"></div>
+            </div>
+          </td>
+          <td data-col="rez" data-val="{{ bd.count }}" style="text-align:center;" class="num">{{ bd.count }}</td>
+          <td data-col="priprava" data-val="{{ bd.priprava_pokoje_czk or 0 }}" style="text-align:right;" class="num copyable">{{ money(bd.priprava_pokoje_czk) }}</td>
+          <td data-col="provize" data-val="{{ bd.provize_czk or 0 }}" style="text-align:right;" class="num copyable">{{ money(bd.provize_czk) }}</td>
+          <td data-col="citytax" data-val="{{ bd.city_tax_czk or 0 }}" style="text-align:right;" class="num copyable">{{ money(bd.city_tax_czk) }}</td>
+          <td data-col="ubytovani" data-val="{{ bd.cena_ubytovani_czk or 0 }}" style="text-align:right;" class="num num-strong copyable">{{ money(bd.cena_ubytovani_czk) }}</td>
+          <td data-col="payout" data-val="{{ bd.payout_czk or 0 }}" style="text-align:right;" class="num copyable">{{ money(bd.payout_czk) }}</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        {% set tot = row_breakdown.total %}
+        <tr>
+          <td style="font-weight:600;color:var(--text-secondary);">Celkem</td>
+          <td style="text-align:center;" class="num num-strong">{{ tot.count }}</td>
+          <td data-val="{{ tot.priprava_pokoje_czk or 0 }}" style="text-align:right;" class="num num-strong copyable">{{ money(tot.priprava_pokoje_czk) }}</td>
+          <td data-val="{{ tot.provize_czk or 0 }}" style="text-align:right;" class="num num-strong copyable">{{ money(tot.provize_czk) }}</td>
+          <td data-val="{{ tot.city_tax_czk or 0 }}" style="text-align:right;" class="num num-strong copyable">{{ money(tot.city_tax_czk) }}</td>
+          <td data-val="{{ tot.cena_ubytovani_czk or 0 }}" style="text-align:right;" class="num num-strong copyable">{{ money(tot.cena_ubytovani_czk) }}</td>
+          <td data-val="{{ tot.payout_czk or 0 }}" style="text-align:right;color:var(--text-100);font-weight:700;" class="num copyable">{{ money(tot.payout_czk) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>

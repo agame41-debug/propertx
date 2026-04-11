@@ -1,0 +1,60 @@
+{% if override_events %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-header" style="cursor:pointer;user-select:none;" onclick="toggleSection('overrides-body', 'caret-ov')">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg id="caret-ov" class="caret-icon rotated" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      <span class="card-title">Historie ručních úprav</span>
+    </div>
+    <span style="font-size:12px;color:var(--text-muted);">{{ override_events|length }} událostí</span>
+  </div>
+  <div id="overrides-body" class="collapsed">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Rezervace</th>
+          <th>Pole</th>
+          <th>Původní → Nová</th>
+          <th>Důvod</th>
+          <th>Datum</th>
+          <th>Stav</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in override_events %}
+        <tr style="{% if not ev.is_active %}opacity:0.5;{% endif %}">
+          <td class="num" style="font-size:12px;color:var(--text-secondary);">{{ ev.scope_id }}</td>
+          <td style="color:var(--text-secondary);">{{ override_field_labels.get(ev.field, ev.field) }}</td>
+          <td>
+            <span style="font-size:11px;color:var(--text-muted);text-decoration:line-through;">{{ ev.old_value or "—" }}</span>
+            <span style="font-size:11px;color:var(--text-muted);margin:0 4px;">→</span>
+            <span style="font-size:12px;font-weight:500;color:var(--text-primary);">{{ ev.new_value or "—" }}</span>
+          </td>
+          <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ ev.reason }}">{{ ev.reason or "—" }}</td>
+          <td style="font-size:11px;white-space:nowrap;" class="num">{{ ev.created_at[:16].replace('T', ' ') }}</td>
+          <td>
+            {% if ev.is_active %}
+            <span class="badge badge-amber" style="font-size:10px;">Aktivní</span>
+            {% else %}
+            <span class="badge badge-neutral" style="font-size:10px;">Obnoveno</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;">
+            {% if ev.is_active and month_state.status != 'LOCKED' %}
+            <form method="post"
+                  action="/property/{{ slug }}/{{ year }}/{{ month }}/override/{{ ev.id }}/revert"
+                  onsubmit="return confirm('Obnovit původní hodnotu?')" style="display:inline;">
+              {{ csrf_input(request) }}
+              <button type="submit" style="font-size:12px;color:var(--red);background:none;border:none;cursor:pointer;">Obnovit</button>
+            </form>
+            {% elif not ev.is_active and ev.reverted_at %}
+            <span style="font-size:11px;color:var(--text-muted);">{{ ev.reverted_at[:10] }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}

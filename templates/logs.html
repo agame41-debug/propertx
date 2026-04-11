@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logy - Rentero</title>
+    <style>
+        :root {
+            --bg: #f5f5f5;
+            --fg: #333;
+            --border: #ddd;
+            --error: #d32f2f;
+            --warning: #ffa500;
+            --info: #1976d2;
+            --success: #388e3c;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--fg);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: white;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin: 0;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #1976d2;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #1565c0;
+        }
+        
+        button.danger {
+            background: #d32f2f;
+        }
+        
+        button.danger:hover {
+            background: #c62828;
+        }
+        
+        input[type="number"] {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 15px;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .stat-label {
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .logs-container {
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        
+        .log-table thead {
+            background: #f9f9f9;
+            border-bottom: 2px solid var(--border);
+        }
+        
+        .log-table th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .log-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        
+        .log-table tbody tr:hover {
+            background: #fafafa;
+        }
+        
+        .log-timestamp {
+            color: #999;
+            white-space: nowrap;
+        }
+        
+        .log-level {
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 3px;
+            white-space: nowrap;
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        .log-level.ERROR {
+            background: #ffebee;
+            color: var(--error);
+        }
+        
+        .log-level.WARNING {
+            background: #fff3e0;
+            color: var(--warning);
+        }
+        
+        .log-level.INFO {
+            background: #e3f2fd;
+            color: var(--info);
+        }
+        
+        .log-level.DEBUG {
+            background: #f5f5f5;
+            color: #999;
+        }
+        
+        .log-level.SUCCESS {
+            background: #e8f5e9;
+            color: var(--success);
+        }
+        
+        .log-message {
+            word-break: break-word;
+            max-width: 600px;
+        }
+        
+        .log-logger {
+            color: #999;
+            font-size: 11px;
+        }
+        
+        .empty-message {
+            padding: 40px;
+            text-align: center;
+            color: #999;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .auto-refresh {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .auto-refresh input[type="checkbox"] {
+            cursor: pointer;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .log-table tbody tr {
+            animation: fadeIn 0.3s ease-in;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 Logy aplikace</h1>
+            <div class="controls">
+                <div class="auto-refresh">
+                    <input type="checkbox" id="autoRefresh" checked>
+                    <label for="autoRefresh">Automatické obnovení</label>
+                </div>
+                <input type="number" id="logLimit" value="200" min="10" max="1000" placeholder="Limit">
+                <button onclick="refreshLogs()">🔄 Obnovit</button>
+                <button onclick="clearLogs()" class="danger">🗑️ Vymazat logy</button>
+            </div>
+        </header>
+        
+        <div class="stats">
+            <div class="stat">
+                <span class="stat-label">Celkem logů:</span>
+                <span class="stat-value" id="totalLogs">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label" style="color: var(--error);">❌ Chyby:</span>
+                <span class="stat-value" id="errorCount" style="color: var(--error);">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label" style="color: var(--warning);">⚠️ Varování:</span>
+                <span class="stat-value" id="warningCount" style="color: var(--warning);">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label" style="color: var(--info);">ℹ️ Info:</span>
+                <span class="stat-value" id="infoCount" style="color: var(--info);">0</span>
+            </div>
+        </div>
+        
+        <div class="logs-container" id="logsContainer">
+            <div class="loading">Načítám logy...</div>
+        </div>
+    </div>
+
+    <script>
+        let autoRefreshEnabled = true;
+        let autoRefreshInterval = null;
+        
+        const autoRefreshCheckbox = document.getElementById('autoRefresh');
+        autoRefreshCheckbox.addEventListener('change', (e) => {
+            autoRefreshEnabled = e.target.checked;
+            if (autoRefreshEnabled) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        });
+        
+        async function refreshLogs() {
+            const limit = parseInt(document.getElementById('logLimit').value) || 200;
+            try {
+                const response = await fetch(`/api/logs?limit=${limit}`);
+                const data = await response.json();
+                const logs = data.logs || [];
+                
+                // Update stats
+                document.getElementById('totalLogs').textContent = logs.length;
+                const levelCounts = {};
+                logs.forEach(log => {
+                    const level = log.level || 'INFO';
+                    levelCounts[level] = (levelCounts[level] || 0) + 1;
+                });
+                
+                document.getElementById('errorCount').textContent = levelCounts['ERROR'] || 0;
+                document.getElementById('warningCount').textContent = levelCounts['WARNING'] || 0;
+                document.getElementById('infoCount').textContent = levelCounts['INFO'] || 0;
+                
+                // Render table
+                if (logs.length === 0) {
+                    document.getElementById('logsContainer').innerHTML = 
+                        '<div class="empty-message">Žádné logy k zobrazení</div>';
+                    return;
+                }
+                
+                const html = `
+                    <table class="log-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 160px;">Čas</th>
+                                <th style="width: 80px;">Úroveň</th>
+                                <th style="width: 250px;">Logger</th>
+                                <th>Zpráva</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${logs.map(log => `
+                                <tr>
+                                    <td class="log-timestamp">${formatTime(log.timestamp)}</td>
+                                    <td><span class="log-level ${log.level}">${log.level}</span></td>
+                                    <td class="log-logger">${escapeHtml(log.logger)}</td>
+                                    <td class="log-message">${escapeHtml(log.message)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                
+                document.getElementById('logsContainer').innerHTML = html;
+            } catch (error) {
+                console.error('Chyba při načítání logů:', error);
+                document.getElementById('logsContainer').innerHTML = 
+                    '<div class="empty-message">Chyba při načítání logů</div>';
+            }
+        }
+        
+        async function clearLogs() {
+            if (confirm('Jste si jisti, že chcete vymazat všechny logy?')) {
+                try {
+                    await fetch('/api/logs/clear', { method: 'POST' });
+                    refreshLogs();
+                } catch (error) {
+                    console.error('Chyba:', error);
+                    alert('Chyba při mazání logů');
+                }
+            }
+        }
+        
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleString('cs-CZ').replace(/^\d+\.\s/, '');
+        }
+        
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+        
+        function startAutoRefresh() {
+            autoRefreshInterval = setInterval(refreshLogs, 3000);
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+        
+        // Initial load
+        refreshLogs();
+        if (autoRefreshEnabled) {
+            startAutoRefresh();
+        }
+    </script>
+</body>
+</html>

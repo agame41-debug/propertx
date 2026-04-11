@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    /* Apply theme before CSS loads to prevent flash */
+    (function() {
+      var t = localStorage.getItem('rentero_theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Rentero{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  {% include "partials/base_styles.html" %}
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<div class="app-layout">
+  {% include "partials/base_sidebar.html" %}
+
+  <!-- ── Main content area ────────────────────────────────── -->
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+</div>
+{% include "partials/base_month_picker.html" %}
+
+<div id="copy-toast">Zkopírováno ✓</div>
+
+<button id="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Zpět nahoru" aria-label="Zpět nahoru">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+</button>
+
+{% include "partials/base_scripts.html" %}
+{% include "partials/base_panel.html" %}
+</body>
+</html>

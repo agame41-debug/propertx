@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}{{ prop.display_name or prop.listing_nickname }} — Klient — Rentero{% endblock %}
+
+{% block content %}
+
+{% if flash %}
+<div class="notify {% if flash.level == 'error' %}notify-error{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
+  <div style="flex:1;font-weight:600;">{{ flash.message }}</div>
+</div>
+{% endif %}
+
+<div style="margin-bottom:24px;">
+  <div style="font-size:12px;color:var(--text-300);margin-bottom:6px;">
+    <a href="/inventory" style="color:var(--text-300);text-decoration:none;" onmouseover="this.style.color='var(--text-200)'" onmouseout="this.style.color='var(--text-300)'">Inventory</a>
+    <span style="opacity:0.4;margin:0 4px;">/</span>
+    <a href="/clients" style="color:var(--text-300);text-decoration:none;" onmouseover="this.style.color='var(--text-200)'" onmouseout="this.style.color='var(--text-300)'">Klienti</a>
+    <span style="opacity:0.4;margin:0 4px;">/</span>
+    <span>{{ prop.display_name or prop.listing_nickname }}</span>
+  </div>
+  <h1 style="font-size:22px;font-weight:700;color:var(--text-100);letter-spacing:-0.02em;">
+    {{ prop.display_name or prop.listing_nickname }}
+  </h1>
+  <div style="font-size:12px;color:var(--text-300);margin-top:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span>{{ slug }}</span>
+    {% if prop.active %}
+    <span style="font-size:10px;font-weight:700;color:#b7f5c3;background:rgba(38,181,96,0.16);border:1px solid rgba(38,181,96,0.28);padding:3px 6px;border-radius:999px;">ACTIVE</span>
+    {% else %}
+    <span style="font-size:10px;font-weight:700;color:#ffd79a;background:rgba(194,124,39,0.16);border:1px solid rgba(194,124,39,0.28);padding:3px 6px;border-radius:999px;">DRAFT</span>
+    {% endif %}
+  </div>
+</div>
+
+<div style="max-width:920px;">
+  <form method="post" action="/clients/{{ slug }}/save" style="display:flex;flex-direction:column;gap:16px;">
+    {{ csrf_input(request) }}
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Informace o klientovi</span></div>
+      <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Jméno / Název firmy</label>
+          <input type="text" name="name" value="{{ client.name or '' }}" placeholder="Jan Novák / Novák s.r.o." class="form-input">
+        </div>
+        <div>
+          <label class="form-label">IČO</label>
+          <input type="text" name="ico" value="{{ client.ico or '' }}" placeholder="12345678" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">DIČ</label>
+          <input type="text" name="dic" value="{{ client.dic or '' }}" placeholder="CZ12345678" class="form-input">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" name="platce_dph" value="1" {% if client.platce_dph %}checked{% endif %}
+                   style="width:14px;height:14px;accent-color:var(--color-primary);">
+            <span style="font-size:13px;color:var(--text-200);">Plátce DPH</span>
+          </label>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" value="{{ client.email or '' }}" placeholder="klient@example.com" class="form-input">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Bankovní účet (pro výplaty)</label>
+          <input type="text" name="bank_account" value="{{ client.bank_account or '' }}" placeholder="CZ00 0000 0000 0000 0000 0000" class="form-input">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Adresa</label>
+          <textarea name="adresa" rows="2" placeholder="Ulice, město, PSČ" class="form-input" style="resize:vertical;">{{ client.adresa or '' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Konfigurace objektu</span></div>
+      <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label class="form-label">Display name</label>
+          <input type="text" name="display_name" value="{{ prop.display_name or '' }}" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Hostify listing ID</label>
+          <input type="text" name="listing_id" value="{{ prop.listing_id or '' }}" class="form-input">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Hostify listing nickname</label>
+          <input type="text" name="listing_nickname" value="{{ prop.listing_nickname or '' }}" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Balíčky / osoba</label>
+          <input type="text" name="balicky_per_person" value="{{ prop.balicky_per_person or '' }}" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">City tax rate</label>
+          <input type="text" name="city_tax_rate" value="{{ prop.city_tax_rate or '' }}" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">VAT rate</label>
+          <input type="text" name="vat_rate" value="{{ prop.vat_rate or '' }}" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Rentero commission (%)</label>
+          <input type="text" name="rentero_commission" value="{{ "%.2f"|format((prop.rentero_commission or 0) * 100) }}" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Config effective from</label>
+          <input type="date" name="config_effective_from" value="" class="form-input">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" name="active" value="1" {% if prop.active %}checked{% endif %}
+                   style="width:14px;height:14px;accent-color:var(--color-primary);">
+            <span style="font-size:13px;color:var(--text-200);">Objekt je aktivní v operational flow</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Source Mapping</span></div>
+      <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Hostify child listing nicknames</label>
+          <textarea name="hostify_listing_names" rows="3" placeholder="Např. Marriott / další Hostify child listings, jeden alias na řádek nebo oddělené čárkou" class="form-input" style="resize:vertical;">{{ (prop.channels.hostify.listing_names if prop.channels and prop.channels.hostify else []) | join('\n') }}</textarea>
+          <div style="margin-top:6px;font-size:12px;color:var(--text-300);">
+            Používá se pro další channel child-listings v Hostify, které nejsou Airbnb ani Booking.
+          </div>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Airbnb listing names</label>
+          <textarea name="airbnb_listing_names" rows="4" placeholder="Jeden alias na řádek nebo oddělené čárkou" class="form-input" style="resize:vertical;">{{ (prop.channels.airbnb.listing_names if prop.channels and prop.channels.airbnb else []) | join('\n') }}</textarea>
+        </div>
+        <div>
+          <label class="form-label">Booking listing nickname</label>
+          <input type="text" name="booking_listing_nickname" value="{{ prop.channels.booking.listing_nickname if prop.channels and prop.channels.booking else '' }}" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Booking property ID</label>
+          <input type="text" name="booking_property_id" value="{{ prop.channels.booking.property_id if prop.channels and prop.channels.booking else '' }}" class="form-input">
+        </div>
+      </div>
+    </div>
+
+    {% if aliases %}
+    <div class="card">
+      <div class="card-header"><span class="card-title">Alias History</span></div>
+      <div style="padding:0 20px 16px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="color:var(--text-300);text-align:left;border-bottom:1px solid var(--border-subtle);">
+              <th style="padding:10px 0;">Channel</th>
+              <th style="padding:10px 0;">Typ</th>
+              <th style="padding:10px 0;">Hodnota</th>
+              <th style="padding:10px 0;">Platné od</th>
+              <th style="padding:10px 0;">Platné do</th>
+              <th style="padding:10px 0;">Stav</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for alias in aliases %}
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+              <td style="padding:10px 0;color:var(--text-200);">{{ alias.channel }}</td>
+              <td style="padding:10px 0;color:var(--text-300);">{{ alias.alias_type }}</td>
+              <td style="padding:10px 0;color:var(--text-100);">{{ alias.alias_value }}</td>
+              <td style="padding:10px 0;color:var(--text-300);">{{ alias.valid_from or '—' }}</td>
+              <td style="padding:10px 0;color:var(--text-300);">{{ alias.valid_to or '—' }}</td>
+              <td style="padding:10px 0;color:var(--text-300);">{{ 'aktivní' if alias.is_active else 'historie' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button type="submit" class="btn btn-primary">Uložit objekt</button>
+      <a href="/inventory" class="btn btn-secondary">Zpět do inventory</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

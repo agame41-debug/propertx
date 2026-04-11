@@ -1,0 +1,295 @@
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-header" style="cursor:pointer;user-select:none;" onclick="toggleSection('reservations-body', 'caret-res')">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg id="caret-res" class="caret-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      <span class="card-title">Rezervace</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;" onclick="event.stopPropagation()">
+      {%- set active_count = rows | rejectattr('is_excluded') | list | length -%}
+      <span style="font-size:12px;color:var(--text-muted);">{{ active_count }} záznamů</span>
+      {% if rows %}
+      <button id="res-expand-all-btn" onclick="toggleAllResExpand()"
+              style="font-size:11px;color:var(--text-300);background:none;border:1px solid rgba(255,255,255,0.08);
+                     border-radius:5px;padding:3px 9px;cursor:pointer;transition:all 0.13s;white-space:nowrap;"
+              onmouseover="this.style.color='var(--text-100)';this.style.borderColor='rgba(255,255,255,0.18)'"
+              onmouseout="this.style.color='var(--text-300)';this.style.borderColor='rgba(255,255,255,0.08)'">
+        Rozbalit vše
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div id="reservations-body">
+  {% if rows %}
+  <div style="overflow-x:auto;">
+    <table class="data-table" data-enhanced="true" data-table-id="reservations">
+      <thead>
+        <tr>
+          <th data-col="nr" data-sortable="false" style="width:32px;">#</th>
+          <th data-col="kanal" style="width:90px;">Kanál</th>
+          <th data-col="host">Host</th>
+          <th data-col="pobyt" style="width:130px;">Pobyt</th>
+          <th data-col="noci" class="text-center" style="width:46px;">Noci</th>
+          <th data-col="stav" style="width:130px;">Stav</th>
+          <th data-col="banka" style="width:130px;">Banka</th>
+          <th data-col="ubytovani" class="text-right" style="width:120px;">Ubytování</th>
+          <th data-col="vyplata" class="text-right" style="width:120px;">Výplata</th>
+          <th data-col="akce" data-sortable="false" style="width:80px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        {% set idx = loop.index %}
+        {% set overridden = r.get('_overridden') or {} %}
+        {% set has_override = overridden|length > 0 %}
+        {% set src = source_family(r.source) %}
+        {% set channel_label = source_label(r.source) %}
+
+        <tr id="res-row-{{ idx }}"
+            class="{% if r.is_excluded %}row-excluded{% endif %}"
+            data-row-id="{{ r.confirmation_code }}"
+            data-idx="{{ idx }}"
+            data-code="{{ r.confirmation_code|e }}"
+            data-slug="{{ slug }}"
+            data-year="{{ year }}"
+            data-month="{{ month }}"
+            data-guest="{{ r.guest_name|e }}"
+            data-channel="{{ channel_label }}"
+            data-stay="{{ r.stay_label|e }}"
+            data-nights="{{ r.nights or 0 }}"
+            onclick="toggleResExpand(this, {{ idx }})"
+            style="cursor:pointer;{% if has_override %}background:rgba(245,161,74,0.04);{% endif %}">
+
+          <td data-col="nr" data-val="{{ r.order or idx }}" style="color:var(--text-muted);font-size:12px;" class="num">{{ r.order or idx }}</td>
+
+          <td data-col="kanal" data-val="{{ channel_label }}">
+            {% if src == "airbnb" %}
+            <span class="badge channel-airbnb" style="font-size:10.5px;">Airbnb</span>
+            {% elif src == "booking" %}
+            <span class="badge channel-booking" style="font-size:10.5px;">Booking</span>
+            {% elif src == "marriott" %}
+            <span class="badge badge-neutral" style="font-size:10.5px;">Marriott</span>
+            {% else %}
+            <span style="font-size:12px;color:var(--text-muted);">{{ channel_label }}</span>
+            {% endif %}
+            {% if r.is_payout_adjustment and r.adjustment_original_month %}
+            <span class="adjustment-sublabel">Doplatek ↗ {{ "%02d/%d"|format(r.adjustment_original_month, r.adjustment_original_year) }}</span>
+            {% endif %}
+          </td>
+
+          <td data-col="host" data-val="{{ r.guest_name or '' }}">
+            <div style="font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">
+              {{ r.guest_name or "—" }}
+              {% if has_override %}<span class="override-badge">upraveno</span>{% endif %}
+              {% if r.is_excluded %}<span class="override-badge" style="background:rgba(239,68,68,0.12);color:var(--red);border-color:rgba(239,68,68,0.2);">Vyřazeno</span>{% endif %}
+            </div>
+            {% if r.comment %}
+            <div style="font-size:11px;color:var(--amber);margin-top:2px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ r.comment }}">
+              ⚠ {{ r.comment }}
+            </div>
+            {% endif %}
+          </td>
+
+          <td data-col="pobyt" data-val="{{ r.stay_label or '' }}" style="font-size:12px;white-space:nowrap;" class="num">{{ r.stay_label or "—" }}</td>
+          <td data-col="noci" data-val="{{ r.nights or 0 }}" style="text-align:center;" class="num">{{ r.nights or "—" }}</td>
+
+          <td data-col="stav">
+            {% set vs = r.display_verification_status or r.verification_status or "" %}
+            <span class="badge
+              {% if vs == 'MATCHED' %}badge-green
+              {% elif vs == 'ROZDÍL' %}badge-orange
+              {% elif vs == 'KE KONTROLE' %}badge-amber
+              {% elif 'CHYBÍ' in vs %}badge-red
+              {% else %}badge-neutral{% endif %}"
+              style="font-size:10px;">
+              {{ vs or "—" }}
+            </span>
+            {% if r.display_verification_note %}
+            <div style="font-size:10px;color:var(--amber);margin-top:3px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ r.display_verification_note }}">{{ r.display_verification_note }}</div>
+            {% endif %}
+            {% if 'verification_status' in overridden %}
+            <div style="font-size:10px;color:var(--text-muted);text-decoration:line-through;margin-top:2px;">{{ overridden.verification_status or "—" }}</div>
+            {% endif %}
+          </td>
+
+          <td data-col="banka" data-val="{{ r.bank_status or '' }}">
+            {% set bs = r.bank_status or "" %}
+            {% if bs == 'DORAZILO' %}
+            <div style="display:flex;align-items:center;gap:4px;color:var(--green);font-size:12px;font-weight:500;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Dorazilo
+            </div>
+            {% if r.bank_datum %}
+            <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px;" class="num">{{ r.bank_datum }}</div>
+            {% endif %}
+            {% elif bs == 'CHYBÍ' %}
+            <span style="font-size:12px;color:var(--red);font-weight:500;">Chybí</span>
+            {% elif bs == 'N/A' %}
+            <span style="font-size:12px;color:var(--text-muted);">N/A</span>
+            {% else %}
+            <span style="font-size:12px;color:var(--text-muted);">{{ bs or "—" }}</span>
+            {% endif %}
+          </td>
+
+          <td data-col="ubytovani" data-val="{{ r.cena_ubytovani_czk or 0 }}" style="text-align:right;" class="num copyable">
+            {% if r.cena_ubytovani_czk is not none %}{{ money(r.cena_ubytovani_czk) }}{% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
+          </td>
+
+          <td data-col="vyplata" data-val="{{ r.payout_czk or 0 }}" style="text-align:right;" class="num num-strong copyable">
+            {% if r.payout_czk is not none %}{{ money(r.payout_czk) }}{% else %}—{% endif %}
+            {% if 'payout_czk' in overridden %}
+            <div style="font-size:10px;color:var(--amber);text-decoration:line-through;font-weight:400;">
+              {% if overridden.payout_czk is not none %}{{ money(overridden.payout_czk) }}{% else %}—{% endif %}
+            </div>
+            {% endif %}
+          </td>
+
+          <td data-col="akce" style="text-align:right;" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;">
+              <button onclick="openDrawerFromRow(document.getElementById('res-row-{{ idx }}'))"
+                      style="font-size:12px;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:5px;transition:all 0.13s;"
+                      onmouseover="this.style.background='rgba(255,255,255,0.06)';this.style.color='var(--text-primary)'"
+                      onmouseout="this.style.background='';this.style.color='var(--text-muted)'"
+                      title="Otevřít v panelu">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </button>
+              {% if month_state.status != 'LOCKED' %}
+              <button onclick="event.stopPropagation(); toggleOverrideForm({{ idx }})"
+                      style="font-size:12px;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:5px;transition:all 0.13s;"
+                      onmouseover="this.style.background='rgba(255,255,255,0.06)';this.style.color='var(--accent)'"
+                      onmouseout="this.style.background='';this.style.color='var(--text-muted)'"
+                      title="Upravit">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+
+        <tr id="res-expand-{{ idx }}" class="res-expand-row drilldown-row" style="display:none;">
+          <td colspan="10" style="padding:0;border-top:none;">
+            {# channel accent colour #}
+            {% set src_exp = source_family(r.source) %}
+            {% if src_exp == "airbnb" %}{% set _accent = "#ff5a5f" %}
+            {% elif src_exp == "booking" %}{% set _accent = "#4f8ef7" %}
+            {% elif src_exp == "marriott" %}{% set _accent = "#8b5cf6" %}
+            {% else %}{% set _accent = "var(--color-primary)" %}{% endif %}
+            <div class="res-compact-strip">
+
+              {# ── spacer pushes everything right ── #}
+              <div style="flex:1;"></div>
+
+              {# ── srážky ── #}
+              {% if r.provize_czk or r.city_tax_czk or r.uklid_czk or r.balicky_czk %}
+              <div class="rcs-group">
+                {% if r.provize_czk %}<div class="rcs-item">
+                  <span class="rcs-label">Provize</span>
+                  <span class="rcs-val rcs-val-sub" data-copy="{{ r.provize_czk|round(2) }}" title="Kopírovat">−{{ money(r.provize_czk) }}</span>
+                </div>{% endif %}
+                {% if r.city_tax_czk %}<div class="rcs-item">
+                  <span class="rcs-label">City tax</span>
+                  <span class="rcs-val rcs-val-sub" data-copy="{{ r.city_tax_czk|round(2) }}" title="Kopírovat">−{{ money(r.city_tax_czk) }}</span>
+                </div>{% endif %}
+                {% if r.uklid_czk %}<div class="rcs-item">
+                  <span class="rcs-label">Úklid</span>
+                  <span class="rcs-val rcs-val-sub" data-copy="{{ r.uklid_czk|round(2) }}" title="Kopírovat">−{{ money(r.uklid_czk) }}</span>
+                </div>{% endif %}
+                {% if r.balicky_czk %}<div class="rcs-item">
+                  <span class="rcs-label">Balíčky</span>
+                  <span class="rcs-val rcs-val-sub" data-copy="{{ r.balicky_czk|round(2) }}" title="Kopírovat">−{{ money(r.balicky_czk) }}</span>
+                </div>{% endif %}
+              </div>
+              {% endif %}
+
+              {# ── kurz ── #}
+              {% if r.kurz %}
+              <div class="rcs-sep"></div>
+              <div class="rcs-group" style="flex:0;">
+                <div class="rcs-item">
+                  <span class="rcs-label">Kurz EUR/CZK</span>
+                  <span class="rcs-val rcs-val-muted" data-copy="{{ "%.4f"|format(r.kurz) }}" title="Kopírovat">{{ "%.4f"|format(r.kurz) }}</span>
+                </div>
+              </div>
+              {% endif %}
+
+              {# ── kód ── #}
+              {% if r.confirmation_code %}
+              <div class="rcs-sep"></div>
+              <div class="rcs-group" style="flex:0;">
+                <div class="rcs-item">
+                  <span class="rcs-label">Kód rezervace</span>
+                  <span class="rcs-val rcs-val-muted" data-copy="{{ r.confirmation_code }}" title="Kopírovat" style="font-family:monospace;font-size:10.5px;letter-spacing:0.02em;">{{ r.confirmation_code }}</span>
+                </div>
+              </div>
+              {% endif %}
+
+            </div>
+          </td>
+        </tr>
+
+        {% if month_state.status != 'LOCKED' %}
+        <tr id="override-form-{{ idx }}" style="display:none;">
+          <td colspan="10" style="padding:14px 16px;background:rgba(245,161,74,0.05);border-top:1px solid rgba(245,161,74,0.15);border-bottom:1px solid rgba(245,161,74,0.15);">
+            <form method="post"
+                  action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/override"
+                  style="display:grid;grid-template-columns:1.5fr 1fr 1.5fr 1.5fr auto;gap:10px;align-items:end;">
+              {{ csrf_input(request) }}
+              <div>
+                <label class="form-label">Pole</label>
+                <select name="field" id="override-field-{{ idx }}"
+                        onchange="updateOverrideCurrentVal({{ idx }}, this)"
+                        class="form-input">
+                  {% for fkey, flabel in override_field_labels.items() %}
+                  <option value="{{ fkey }}"
+                          data-current="{{ r.get(fkey) or '' }}"
+                          data-is-status="{% if fkey == 'verification_status' %}1{% else %}0{% endif %}">
+                    {{ flabel }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Původní hodnota</label>
+                <div id="override-orig-{{ idx }}"
+                     style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text-muted);background:rgba(255,255,255,0.02);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  {{ r.payout_czk or "—" }}
+                </div>
+              </div>
+              <div>
+                <label class="form-label">Nová hodnota</label>
+                <input type="text" name="new_value" id="override-newval-{{ idx }}"
+                       value="{{ r.payout_czk or '' }}"
+                       list="vs-options-{{ idx }}"
+                       required
+                       class="form-input">
+                <datalist id="vs-options-{{ idx }}">
+                  {% for opt in verification_status_options %}<option value="{{ opt }}">{% endfor %}
+                </datalist>
+              </div>
+              <div>
+                <label class="form-label">Důvod *</label>
+                <input type="text" name="reason" required placeholder="Proč měníš tuto hodnotu?"
+                       class="form-input">
+              </div>
+              <div style="display:flex;gap:6px;">
+                <button type="submit" class="btn btn-sm" style="background:var(--amber-dim);color:var(--amber);border-color:rgba(245,161,74,0.25);">Uložit</button>
+                <button type="button" onclick="toggleOverrideForm({{ idx }})" class="btn btn-ghost btn-sm">Zrušit</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:48px 20px;text-align:center;">
+    <div style="color:var(--text-muted);font-size:13px;">Žádné rezervace pro tento měsíc.</div>
+    <div style="color:var(--text-muted);font-size:12px;margin-top:8px;">
+      Spusťte <code style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:11px;">python -m report.main --slug {{ slug }} --year {{ year }} --month {{ month }}</code>
+    </div>
+  </div>
+  {% endif %}
+  </div>
+</div>

@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "28_Pluku_58": {
+      "listing_id": 184988,
+      "listing_nickname": "28. Pluku 58",
+      "display_name": "28. Pluku 58",
+      "balicky_per_person": 249,
+      "city_tax_rate": 50,
+      "vat_rate": 0.21,
+      "rentero_commission": 0.15,
+      "channels": {
+        "airbnb": {
+          "listing_names": ["Modern APT City Hideaway"]
+        },
+        "booking": {
+          "listing_nickname": "28. Pluku 58 - Bcom",
+          "property_id": "12860254"
+        }
+      }
+    }
+  }
+}

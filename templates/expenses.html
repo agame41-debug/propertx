@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}Výdaje — Rentero{% endblock %}
+
+{% block content %}
+
+{# Flash #}
+{% if flash %}
+<div class="notify {% if flash.level == 'error' %}notify-error{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
+  <div style="flex:1;font-weight:600;">{{ flash.message }}</div>
+</div>
+{% endif %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;color:var(--text-100);letter-spacing:-0.02em;">Výdaje</h1>
+    <div style="font-size:13px;color:var(--text-300);margin-top:3px;">Přehled všech nákladů na objekty</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;">
+
+  {# Left: filters + table #}
+  <div>
+
+    {# Filters #}
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><span class="card-title">Filtry</span></div>
+      <div style="padding:14px 20px;">
+        <form method="get" action="/expenses" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+          <div>
+            <label class="form-label">Objekt</label>
+            <select name="slug" class="form-input" style="width:180px;">
+              <option value="">— všechny —</option>
+              {% for p in properties %}
+              <option value="{{ p.slug }}" {% if filter_slug == p.slug %}selected{% endif %}>
+                {{ p.display_name or p.listing_nickname }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Rok</label>
+            <select name="year" class="form-input" style="width:90px;">
+              <option value="">—</option>
+              {% for y in range(2024, 2028) %}
+              <option value="{{ y }}" {% if filter_year == y %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Měsíc</label>
+            <select name="month" class="form-input" style="width:80px;">
+              <option value="">—</option>
+              {% for mn in range(1, 13) %}
+              <option value="{{ mn }}" {% if filter_month == mn %}selected{% endif %}>{{ "%02d"|format(mn) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Filtrovat</button>
+          {% if filter_slug or filter_year or filter_month %}
+          <a href="/expenses" class="btn btn-ghost btn-sm">Zrušit</a>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
+    {# Expenses table #}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Výdaje{{ ' · ' + (expenses|length)|string + ' položek' if expenses else '' }}</span>
+      </div>
+      {% if expenses %}
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Objekt</th>
+              <th>Popis</th>
+              <th>Kategorie</th>
+              <th class="text-right">Částka</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for exp in expenses %}
+            <tr>
+              <td class="num" style="color:var(--text-300);font-size:12px;">
+                {{ exp.date_str or ("%02d/%d"|format(exp.month, exp.year)) }}
+              </td>
+              <td style="font-size:12px;color:var(--text-200);">
+                {{ exp.property_display_name or exp.property_slug or "—" }}
+              </td>
+              <td style="color:var(--text-100);">{{ exp.description }}</td>
+              <td>
+                {% if exp.category_name %}
+                <span class="badge badge-neutral" style="font-size:10px;">{{ exp.category_name }}</span>
+                {% else %}
+                <span style="color:var(--text-300);font-size:12px;">—</span>
+                {% endif %}
+              </td>
+              <td class="num num-neg text-right" style="font-size:13px;font-weight:600;">
+                {{ fmt_czk(exp.amount_czk) }}
+              </td>
+              <td style="text-align:right;">
+                <form method="post" action="/expenses/{{ exp.id }}/delete"
+                      onsubmit="return confirm('Smazat výdaj?')"
+                      style="display:inline;">
+                  {{ csrf_input(request) }}
+                  <button type="submit" class="btn btn-destructive btn-sm" style="font-size:11px;">Smazat</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4" style="font-size:12px;color:var(--text-300);">Celkem</td>
+              <td class="num num-neg text-right" style="font-size:13px;font-weight:700;color:var(--color-red);">
+                {{ fmt_czk(expenses | sum(attribute='amount_czk')) }}
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% else %}
+      <div style="padding:48px;text-align:center;color:var(--text-300);font-size:13px;">Žádné výdaje.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Right: add expense + categories #}
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    {# Add expense form #}
+    <div class="card">
+      <div class="card-header"><span class="card-title">Přidat výdaj</span></div>
+      <div style="padding:16px 20px;">
+        <form method="post" action="/expenses/add" style="display:flex;flex-direction:column;gap:10px;" data-expense-vat-form>
+          {{ csrf_input(request) }}
+          <div>
+            <label class="form-label">Objekt *</label>
+            <select name="property_slug" required class="form-input">
+              <option value="">— vyberte —</option>
+              {% for p in properties %}
+              <option value="{{ p.slug }}">{{ p.display_name or p.listing_nickname }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+              <label class="form-label">Rok *</label>
+              <input type="number" name="year" required value="{{ now.year }}" min="2020" max="2030" class="form-input">
+            </div>
+            <div>
+              <label class="form-label">Měsíc *</label>
+              <input type="number" name="month" required value="{{ now.month }}" min="1" max="12" class="form-input">
+            </div>
+          </div>
+          <div>
+            <label class="form-label">Popis *</label>
+            <input type="text" name="description" required placeholder="např. Internet" class="form-input">
+          </div>
+          <div>
+            <label class="form-label">Kategorie</label>
+            <select name="category_id" class="form-input">
+              <option value="">— bez kategorie —</option>
+              {% for cat in categories %}
+              <option value="{{ cat.id }}">{{ cat.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div>
+              <label class="form-label">Datum</label>
+              <input type="date" name="date_str" class="form-input">
+            </div>
+            <div>
+              <label class="form-label">Částka celkem (Kč)</label>
+              <input type="number" name="amount_czk" min="0.01" step="0.01" placeholder="0.00" class="form-input" data-expense-gross-input>
+            </div>
+            <div>
+              <label class="form-label">Cena bez DPH</label>
+              <input type="number" name="amount_net_czk" min="0.01" step="0.01" placeholder="0.00" class="form-input" data-expense-net-input>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+              <label class="form-label">DPH %</label>
+              <input type="number" name="vat_rate" min="0" step="0.01" placeholder="21" class="form-input" data-expense-vat-input>
+            </div>
+            <div style="font-size:12px;color:var(--text-300);display:flex;align-items:flex-end;padding-bottom:10px;">
+              Vyplň buď `Částka celkem`, nebo `Cena bez DPH + DPH %`.
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:4px;">Přidat výdaj</button>
+        </form>
+      </div>
+    </div>
+
+    {# Categories #}
+    <div class="card">
+      <div class="card-header"><span class="card-title">Kategorie</span></div>
+      <div style="padding:0 20px 14px;">
+        {% for cat in categories %}
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
+          <span style="font-size:13px;color:var(--text-200);">{{ cat.name }}</span>
+          <form method="post" action="/categories/{{ cat.id }}/delete"
+                onsubmit="return confirm('Smazat kategorii?')">
+            {{ csrf_input(request) }}
+            <button type="submit" class="btn btn-destructive btn-sm" style="font-size:11px;padding:3px 8px;">&#215;</button>
+          </form>
+        </div>
+        {% endfor %}
+        <form method="post" action="/categories/add" style="display:flex;gap:8px;margin-top:12px;">
+          {{ csrf_input(request) }}
+          <input type="text" name="name" required placeholder="Název kategorie" class="form-input">
+          <button type="submit" class="btn btn-ghost btn-sm" style="flex-shrink:0;">Přidat</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  function bindExpenseVatForm(form) {
+    var gross = form.querySelector('[data-expense-gross-input]');
+    var net = form.querySelector('[data-expense-net-input]');
+    var vat = form.querySelector('[data-expense-vat-input]');
+    if (!gross || !net || !vat) return;
+    function parse(value) {
+      var text = String(value || '').trim().replace(',', '.');
+      if (!text) return null;
+      var parsed = Number(text);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    function updateGrossFromNet() {
+      var netValue = parse(net.value);
+      if (netValue === null || netValue <= 0) return;
+      var vatValue = parse(vat.value);
+      if (vatValue === null) vatValue = 0;
+      gross.value = ((netValue * (1 + vatValue / 100)) + Number.EPSILON).toFixed(2);
+    }
+    net.addEventListener('input', updateGrossFromNet);
+    vat.addEventListener('input', updateGrossFromNet);
+  }
+  document.querySelectorAll('[data-expense-vat-form]').forEach(bindExpenseVatForm);
+})();
+</script>
+
+{% endblock %}

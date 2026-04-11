@@ -1,0 +1,199 @@
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-header">
+    <div style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;" onclick="toggleSection('expenses-body', 'caret-exp')">
+      <svg id="caret-exp" class="caret-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      <span class="card-title">Výdaje</span>
+      {% if expenses %}
+      <span style="font-size:12px;color:var(--text-muted);">{{ expenses|length }} položek · <span class="num" style="color:var(--red);">{{ money(summary.expenses_total_czk) }}</span></span>
+      {% endif %}
+    </div>
+    {% if month_state.status == 'LOCKED' %}
+    <span style="font-size:12px;color:var(--text-muted);">Uzamčeno</span>
+    {% else %}
+    <button onclick="document.getElementById('add-expense-form').style.display = document.getElementById('add-expense-form').style.display === 'none' ? 'block' : 'none'"
+            class="btn btn-sm btn-primary" style="font-size:12px;">
+      + Přidat výdaj
+    </button>
+    {% endif %}
+  </div>
+
+  <div id="expenses-body">
+    {% if month_state.status != 'LOCKED' %}
+    <div id="add-expense-form" style="display:none;padding:16px 20px;border-bottom:1px solid var(--border);background:rgba(91,106,249,0.04);">
+      <form method="post" action="/expenses/add"
+            style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;"
+            data-expense-vat-form>
+        {{ csrf_input(request) }}
+        <input type="hidden" name="property_slug" value="{{ slug }}">
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        <div>
+          <label class="form-label">Popis *</label>
+          <input type="text" name="description" required placeholder="např. Internet" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Kategorie</label>
+          <select name="category_id" class="form-input">
+            <option value="">— bez kategorie —</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}">{{ cat.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Datum</label>
+          <input type="date" name="date_str" class="form-input">
+        </div>
+        <div>
+          <label class="form-label">Částka celkem</label>
+          <input type="number" name="amount_czk" min="0.01" step="0.01" placeholder="0.00" class="form-input" data-expense-gross-input>
+        </div>
+        <div>
+          <label class="form-label">Bez DPH</label>
+          <input type="number" name="amount_net_czk" min="0.01" step="0.01" placeholder="0.00" class="form-input" data-expense-net-input>
+        </div>
+        <div>
+          <label class="form-label">DPH %</label>
+          <input type="number" name="vat_rate" min="0" step="0.01" placeholder="21" class="form-input" data-expense-vat-input>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button type="submit" class="btn btn-primary btn-sm">Uložit</button>
+          <button type="button"
+                  onclick="document.getElementById('add-expense-form').style.display='none'"
+                  class="btn btn-ghost btn-sm">Zrušit</button>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if expenses %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:110px;">Datum</th>
+          <th>Popis</th>
+          <th style="width:130px;">Kategorie</th>
+          <th class="text-right" style="width:120px;">Částka</th>
+          <th style="width:80px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in expenses %}
+        <tr id="expense-row-{{ e.id }}" style="position:relative;">
+          <td style="font-size:12px;" class="num">{{ e.date or "—" }}</td>
+          <td style="color:var(--text-primary);">{{ e.description }}</td>
+          <td>
+            {% if e.category_name %}
+            <span class="badge badge-neutral" style="font-size:10.5px;">{{ e.category_name }}</span>
+            {% else %}
+            <span style="color:var(--text-muted);">—</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;" class="num num-neg" style="font-weight:600;">{{ money(e.amount_czk) }}</td>
+          <td style="text-align:right;">
+            {% if month_state.status != 'LOCKED' %}
+            <div style="display:flex;justify-content:flex-end;gap:8px;opacity:0;transition:opacity 0.13s;" class="expense-actions">
+              <button onclick="toggleEditExpense({{ e.id }})"
+                      style="font-size:12px;color:var(--accent);background:none;border:none;cursor:pointer;padding:2px;">Upravit</button>
+              <form method="post" action="/expenses/{{ e.id }}/delete" style="display:inline;"
+                    onsubmit="return confirm('Smazat výdaj?')">
+                {{ csrf_input(request) }}
+                <button type="submit" style="font-size:12px;color:var(--red);background:none;border:none;cursor:pointer;padding:2px;">Smazat</button>
+              </form>
+            </div>
+            {% else %}
+            <span style="font-size:11px;color:var(--text-muted);">Uzamčeno</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% if month_state.status != 'LOCKED' %}
+        <tr id="edit-expense-{{ e.id }}" style="display:none;">
+          <td colspan="5" style="padding:12px 16px;background:rgba(91,106,249,0.04);border-bottom:1px solid var(--border);">
+            <form method="post" action="/expenses/{{ e.id }}/edit"
+                  style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;"
+                  data-expense-vat-form>
+              {{ csrf_input(request) }}
+              <input type="hidden" name="property_slug" value="{{ slug }}">
+              <input type="hidden" name="year" value="{{ year }}">
+              <input type="hidden" name="month" value="{{ month }}">
+              <div>
+                <label class="form-label">Popis</label>
+                <input type="text" name="description" value="{{ e.description }}" required class="form-input">
+              </div>
+              <div>
+                <label class="form-label">Kategorie</label>
+                <select name="category_id" class="form-input">
+                  <option value="">— bez kategorie —</option>
+                  {% for cat in categories %}
+                  <option value="{{ cat.id }}" {% if cat.id == e.category_id %}selected{% endif %}>{{ cat.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Datum</label>
+                <input type="date" name="date_str" value="{{ e.date or '' }}" class="form-input">
+              </div>
+              <div>
+                <label class="form-label">Částka celkem</label>
+                <input type="number" name="amount_czk" value="{{ e.amount_czk }}" min="0.01" step="0.01" class="form-input" data-expense-gross-input>
+              </div>
+              <div>
+                <label class="form-label">Bez DPH</label>
+                <input type="number" name="amount_net_czk" min="0.01" step="0.01" class="form-input" data-expense-net-input>
+              </div>
+              <div>
+                <label class="form-label">DPH %</label>
+                <input type="number" name="vat_rate" min="0" step="0.01" placeholder="21" class="form-input" data-expense-vat-input>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <button type="submit" class="btn btn-primary btn-sm">Uložit</button>
+                <button type="button" onclick="toggleEditExpense({{ e.id }})" class="btn btn-ghost btn-sm">Zrušit</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" style="font-weight:600;color:var(--text-secondary);">Celkem výdaje</td>
+          <td style="text-align:right;" class="num" style="font-weight:700;color:var(--red);">{{ money(summary.expenses_total_czk) }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    {% else %}
+    <div style="padding:36px 20px;text-align:center;color:var(--text-muted);font-size:13px;">
+      Žádné výdaje pro tento měsíc.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(function() {
+  function bindExpenseVatForm(form) {
+    var gross = form.querySelector('[data-expense-gross-input]');
+    var net = form.querySelector('[data-expense-net-input]');
+    var vat = form.querySelector('[data-expense-vat-input]');
+    if (!gross || !net || !vat) return;
+    function parse(value) {
+      var text = String(value || '').trim().replace(',', '.');
+      if (!text) return null;
+      var parsed = Number(text);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    function updateGrossFromNet() {
+      var netValue = parse(net.value);
+      if (netValue === null || netValue <= 0) return;
+      var vatValue = parse(vat.value);
+      if (vatValue === null) vatValue = 0;
+      gross.value = ((netValue * (1 + vatValue / 100)) + Number.EPSILON).toFixed(2);
+    }
+    net.addEventListener('input', updateGrossFromNet);
+    vat.addEventListener('input', updateGrossFromNet);
+  }
+  document.querySelectorAll('[data-expense-vat-form]').forEach(bindExpenseVatForm);
+})();
+</script>

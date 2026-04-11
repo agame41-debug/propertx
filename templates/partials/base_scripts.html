@@ -1,0 +1,979 @@
+<script>
+/* ─── Theme Toggle ───────────────────────────────────────────────────── */
+(function() {
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    var moon = document.getElementById('theme-icon-moon');
+    var sun  = document.getElementById('theme-icon-sun');
+    var lbl  = document.getElementById('theme-toggle-label');
+    if (!moon) return;
+    if (theme === 'light') {
+      moon.style.display = 'none';
+      sun.style.display  = '';
+      lbl.textContent    = 'Tmavý režim';
+    } else {
+      moon.style.display = '';
+      sun.style.display  = 'none';
+      lbl.textContent    = 'Světlý režim';
+    }
+  }
+
+  function toggle() {
+    var cur   = document.documentElement.getAttribute('data-theme') || 'dark';
+    var next  = cur === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('rentero_theme', next);
+    applyTheme(next);
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var saved = localStorage.getItem('rentero_theme') || 'dark';
+    applyTheme(saved);
+  });
+
+  window.RenteroTheme = { toggle: toggle };
+})();
+
+/* ─── Dismissible Notifications ─────────────────────────────────────── */
+(function() {
+  function ensureDismissButton(banner) {
+    if (!banner || banner.querySelector('[data-dismiss-banner]')) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'notify-dismiss';
+    btn.setAttribute('data-dismiss-banner', '1');
+    btn.setAttribute('aria-label', 'Zavřít upozornění');
+    btn.textContent = '×';
+    banner.appendChild(btn);
+  }
+
+  function initDismissibleBanners(root) {
+    (root || document).querySelectorAll('.notify, [data-dismissible-banner]').forEach(function(banner) {
+      if (banner.dataset.dismissInit === '1') return;
+      ensureDismissButton(banner);
+      var btn = banner.querySelector('[data-dismiss-banner]');
+      if (btn) {
+        btn.addEventListener('click', function() {
+          banner.remove();
+        });
+      }
+      var t = parseInt(banner.getAttribute('data-auto-dismiss-ms') || '0', 10);
+      if (t > 0) {
+        setTimeout(function() {
+          if (banner.isConnected) banner.remove();
+        }, t);
+      }
+      banner.dataset.dismissInit = '1';
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    initDismissibleBanners(document);
+  });
+
+  window.RenteroDismissibleBanners = {
+    init: initDismissibleBanners,
+  };
+})();
+
+/* ─── Month Navigator ────────────────────────────────────────────────── */
+(function() {
+  function isMonthAwarePath(pathname) {
+    return pathname === '/' || pathname === '/bank' || pathname === '/expenses' || pathname === '/reconciliation';
+  }
+  function getStoredYM() {
+    try {
+      var s = JSON.parse(localStorage.getItem('rentero_ym'));
+      if (s && s.y && s.m) return { y: +s.y, m: +s.m };
+    } catch(e) {}
+    return null;
+  }
+  function hasExplicitYM(url) {
+    var qy = +(url.searchParams.get('year') || 0);
+    var qm = +(url.searchParams.get('month') || 0);
+    return !!(qy && qm >= 1 && qm <= 12);
+  }
+  function syncMonthAwareLocationFromStorage() {
+    var url = new URL(window.location.href);
+    if (!isMonthAwarePath(url.pathname) || hasExplicitYM(url)) return false;
+    var stored = getStoredYM();
+    if (!stored) return false;
+    url.searchParams.set('year', stored.y);
+    url.searchParams.set('month', stored.m);
+    window.location.replace(url.toString());
+    return true;
+  }
+  function buildMonthAwareHref(baseHref, ym) {
+    if (!baseHref) return baseHref;
+    var url = new URL(baseHref, window.location.origin);
+    if (url.pathname === '/inventory' || isMonthAwarePath(url.pathname)) {
+      url.searchParams.set('year', ym.y);
+      url.searchParams.set('month', ym.m);
+      return url.pathname + url.search + url.hash;
+    }
+    return url.pathname + url.search + url.hash;
+  }
+  function refreshMonthAwareNav(ym) {
+    document.querySelectorAll('a[data-month-aware]').forEach(function(link) {
+      var baseHref = link.dataset.baseHref || link.getAttribute('href') || '';
+      if (!link.dataset.baseHref) link.dataset.baseHref = baseHref;
+      link.setAttribute('href', buildMonthAwareHref(baseHref, ym));
+    });
+  }
+  function curYM() {
+    var pm = location.pathname.match(/\/property\/[^/]+\/(\d+)\/(\d+)/);
+    if (pm) return { y: +pm[1], m: +pm[2] };
+    var p = new URLSearchParams(location.search);
+    var qy = +p.get('year'), qm = +p.get('month');
+    if (qy && qm) return { y: qy, m: qm };
+    try { var s = JSON.parse(localStorage.getItem('rentero_ym')); if (s && s.y) return s; } catch(e) {}
+    var d = new Date(); return { y: d.getFullYear(), m: d.getMonth() + 1 };
+  }
+  function writeYM(y, m) {
+    localStorage.setItem('rentero_ym', JSON.stringify({ y: y, m: m }));
+  }
+  function updateDisplay(ym) {
+    var label = document.getElementById('global-month');
+    if (label) label.textContent = ('0'+ym.m).slice(-2) + '/' + ym.y;
+    refreshMonthAwareNav(ym);
+    document.dispatchEvent(new CustomEvent('rentero:month-change', { detail: ym }));
+  }
+  function goToMonth(y, m) {
+    writeYM(y, m);
+    updateDisplay({ y: y, m: m });
+    var pp = location.pathname.match(/^(\/property\/[^/]+\/)(\d+)\/(\d+)(.*)/);
+    if (pp) { location.href = pp[1] + y + '/' + m + pp[4]; return; }
+    var url = new URL(location.href);
+    url.searchParams.set('year', y); url.searchParams.set('month', m);
+    location.href = url.toString();
+  }
+  function navigate(delta) {
+    var cur = curYM(), m = cur.m + delta, y = cur.y;
+    if (m > 12) { m = 1; y++; } if (m < 1) { m = 12; y--; }
+    goToMonth(y, m);
+  }
+  function openPicker() {
+    var cur = curYM();
+    var overlay = document.getElementById('month-picker-overlay');
+    var monthSelect = document.getElementById('month-picker-month');
+    var yearInput = document.getElementById('month-picker-year');
+    if (!overlay || !monthSelect || !yearInput) return;
+    monthSelect.value = String(cur.m);
+    yearInput.value = String(cur.y);
+    overlay.style.display = 'flex';
+  }
+  function closePicker() {
+    var overlay = document.getElementById('month-picker-overlay');
+    if (overlay) overlay.style.display = 'none';
+  }
+  if (syncMonthAwareLocationFromStorage()) return;
+  var c = curYM();
+  updateDisplay(c);
+  document.getElementById('month-prev').onclick = function() { navigate(-1); };
+  document.getElementById('month-next').onclick = function() { navigate(1); };
+  document.getElementById('global-month').onclick = openPicker;
+  document.getElementById('month-picker-close').onclick = closePicker;
+  document.getElementById('month-picker-cancel').onclick = closePicker;
+  document.getElementById('month-picker-apply').onclick = function() {
+    var month = parseInt(document.getElementById('month-picker-month').value || '0', 10);
+    var year = parseInt(document.getElementById('month-picker-year').value || '0', 10);
+    if (!year || month < 1 || month > 12) return;
+    closePicker();
+    goToMonth(year, month);
+  };
+  document.getElementById('month-picker-overlay').addEventListener('click', function(e) {
+    if (e.target === this) closePicker();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.altKey && e.key === 'ArrowLeft')  navigate(-1);
+    if (e.altKey && e.key === 'ArrowRight') navigate(1);
+    if (e.key === 'Escape') closePicker();
+  });
+  window.RenteroMonthNav = {
+    getCurrent: curYM,
+    goToMonth: goToMonth,
+    openPicker: openPicker,
+  };
+})();
+
+/* ─── Scroll State + Back-to-top ─────────────────────────────────────── */
+(function() {
+  var KEY = 'scroll_' + location.pathname;
+  var saved = sessionStorage.getItem(KEY);
+  if (saved) window.addEventListener('load', function() { window.scrollTo(0, parseInt(saved)); });
+  window.addEventListener('beforeunload', function() { sessionStorage.setItem(KEY, window.scrollY); });
+
+  var btt = document.getElementById('back-to-top');
+  if (btt) {
+    window.addEventListener('scroll', function() {
+      btt.classList.toggle('visible', window.scrollY > 300);
+    }, { passive: true });
+  }
+})();
+
+/* ─── Sidebar Objects Accordion ─────────────────────────────────────── */
+var _sbObjLoaded = false;
+function _sbLoadObjects() {
+  var p = document.getElementById('sb-obj-panel');
+  if (!p) return;
+  var ym = (window.RenteroMonthNav && window.RenteroMonthNav.getCurrent) ? window.RenteroMonthNav.getCurrent() : null;
+  var url = '/sidebar/objects';
+  if (ym) url += '?year=' + ym.y + '&month=' + ym.m;
+  fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(function(r) { return r.text(); })
+    .then(function(html) { p.innerHTML = html; })
+    .catch(function() { p.innerHTML = '<div style="padding:8px 16px;font-size:11px;color:var(--text-300);">Chyba načítání</div>'; });
+}
+function sbToggleObj() {
+  var p = document.getElementById('sb-obj-panel');
+  var c = document.getElementById('sb-obj-caret');
+  if (!p) return;
+  var open = p.style.display !== 'none';
+  p.style.display = open ? 'none' : 'block';
+  if (c) c.classList.toggle('rotated', !open);
+  localStorage.setItem('rentero_sb_obj', !open ? '1' : '0');
+  if (!open && !_sbObjLoaded) {
+    _sbObjLoaded = true;
+    _sbLoadObjects();
+  }
+}
+(function() {
+  if (localStorage.getItem('rentero_sb_obj') === '1') sbToggleObj();
+  if (location.pathname.startsWith('/property/') && !_sbObjLoaded) sbToggleObj();
+  // Reload sidebar when month changes so indicators and links stay current
+  document.addEventListener('rentero:month-change', function() {
+    var p = document.getElementById('sb-obj-panel');
+    if (p && p.style.display !== 'none') {
+      _sbLoadObjects();
+    }
+  });
+})();
+
+/* ─── Click-to-copy on .copyable cells ──────────────────────────────── */
+(function() {
+  var _toastTimer = null;
+  function showCopyToast(text) {
+    var toast = document.getElementById('copy-toast');
+    if (!toast) return;
+    toast.textContent = 'Zkopírováno: ' + text + ' \u2713';
+    toast.classList.add('show');
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 1600);
+  }
+  function parseCopyValue(td) {
+    var raw = td.dataset.val;
+    if (raw !== undefined && raw !== '' && !isNaN(parseFloat(raw))) {
+      var n = parseFloat(raw);
+      return Number.isInteger(n) ? String(n) : n.toFixed(2).replace('.', ',');
+    }
+    var txt = (td.textContent || '').replace(/\u00a0/g, '').replace(/\s+/g, '').replace('K\u010d','').trim();
+    return txt || (td.textContent || '').trim();
+  }
+  function _doCopy(el, val) {
+    if (!val) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(val).then(function() {
+        el.classList.remove('copy-flash');
+        void el.offsetWidth;
+        el.classList.add('copy-flash');
+        showCopyToast(val);
+      });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = val; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); showCopyToast(val); } catch(err) {}
+      document.body.removeChild(ta);
+      el.classList.remove('copy-flash'); void el.offsetWidth; el.classList.add('copy-flash');
+    }
+  }
+  document.addEventListener('click', function(e) {
+    // existing table cell copy
+    var td = e.target.closest('td.copyable');
+    if (td) { _doCopy(td, parseCopyValue(td)); return; }
+    // strip value copy
+    var rv = e.target.closest('.rcs-val[data-copy]');
+    if (rv) {
+      e.stopPropagation();
+      _doCopy(rv, rv.dataset.copy);
+    }
+  });
+})();
+
+/* ─── TableEnhanced ──────────────────────────────────────────────────── */
+function TableEnhanced(el) {
+  this.el = el;
+  this.id = el.dataset.tableId || 'tbl';
+  this.key = 'rentero_tbl_' + this.id;
+  this.state = this._load();
+  this._origOrder = null;
+  this._init();
+}
+TableEnhanced.prototype._load = function() {
+  try { return JSON.parse(localStorage.getItem(this.key)) || {}; } catch(e) { return {}; }
+};
+TableEnhanced.prototype._save = function() {
+  localStorage.setItem(this.key, JSON.stringify(this.state));
+};
+TableEnhanced.prototype._collectBlocks = function(tbody) {
+  var blocks = [];
+  var current = null;
+  Array.from(tbody.children).forEach(function(row, index) {
+    if (row.classList.contains('drilldown-row')) {
+      if (current) current.extras.push(row);
+      return;
+    }
+    current = {
+      key: row.dataset.rowId || ('__idx_' + index),
+      row: row,
+      extras: [],
+    };
+    blocks.push(current);
+  });
+  return blocks;
+};
+TableEnhanced.prototype._appendBlock = function(tbody, block) {
+  tbody.appendChild(block.row);
+  block.extras.forEach(function(extra) { tbody.appendChild(extra); });
+};
+TableEnhanced.prototype._init = function() {
+  this._buildHeaders();
+  this._applyColOrder();
+  this._applySort();
+  this._updateSortUI();
+};
+TableEnhanced.prototype._buildHeaders = function() {
+  var self = this;
+  this.el.querySelectorAll('thead th[data-col]').forEach(function(th) {
+    if (th.dataset.sortable !== 'false') {
+      th.classList.add('sortable');
+      var ind = document.createElement('span');
+      ind.className = 'sort-ind';
+      th.appendChild(ind);
+      th.addEventListener('click', function(e) {
+        if (e.target.classList.contains('col-drag')) return;
+        self._toggleSort(th.dataset.col);
+      });
+    }
+    var h = document.createElement('span');
+    h.className = 'col-drag'; h.textContent = '⠿'; h.title = 'Přetáhni';
+    h.addEventListener('mousedown', function(e) { self._startDrag(e, th); });
+    th.appendChild(h);
+  });
+};
+TableEnhanced.prototype._toggleSort = function(col) {
+  if (this.state.sort === col) {
+    if (this.state.sortDir === 'asc') this.state.sortDir = 'desc';
+    else { delete this.state.sort; delete this.state.sortDir; }
+  } else { this.state.sort = col; this.state.sortDir = 'asc'; }
+  this._save(); this._applySort(); this._updateSortUI();
+};
+TableEnhanced.prototype._applySort = function() {
+  var tbody = this.el.querySelector('tbody');
+  if (!tbody) return;
+  var self = this;
+  var blocks = this._collectBlocks(tbody);
+  if (!this._origOrder) this._origOrder = blocks.map(function(block) { return block.key; });
+  if (!this.state.sort) {
+    if (this._origOrder) {
+      var blockMap = new Map();
+      blocks.forEach(function(block) { blockMap.set(block.key, block); });
+      this._origOrder.forEach(function(key) {
+        var block = blockMap.get(key);
+        if (block) self._appendBlock(tbody, block);
+      });
+    }
+    return;
+  }
+  var col = this.state.sort, dir = this.state.sortDir;
+  blocks.sort(function(a, b) {
+    var ac = a.row.querySelector('[data-col="' + col + '"]');
+    var bc = b.row.querySelector('[data-col="' + col + '"]');
+    var av = ac ? (ac.dataset.val !== undefined ? +ac.dataset.val : ac.textContent.trim()) : '';
+    var bv = bc ? (bc.dataset.val !== undefined ? +bc.dataset.val : bc.textContent.trim()) : '';
+    var cmp = (typeof av === 'number' && typeof bv === 'number') ?
+      av - bv : String(av).localeCompare(String(bv), 'cs');
+    return dir === 'desc' ? -cmp : cmp;
+  });
+  blocks.forEach(function(block) { self._appendBlock(tbody, block); });
+};
+TableEnhanced.prototype._updateSortUI = function() {
+  var self = this;
+  this.el.querySelectorAll('thead th[data-col]').forEach(function(th) {
+    var ind = th.querySelector('.sort-ind');
+    if (!ind) return;
+    if (th.dataset.col === self.state.sort) {
+      ind.textContent = self.state.sortDir === 'asc' ? ' ↑' : ' ↓';
+      th.classList.add('sorted');
+    } else { ind.textContent = ''; th.classList.remove('sorted'); }
+  });
+};
+TableEnhanced.prototype._startDrag = function(e, th) {
+  e.preventDefault();
+  var self = this;
+  var ths = Array.from(this.el.querySelectorAll('thead th'));
+  var from = ths.indexOf(th), to = from;
+  var ghost = document.createElement('div');
+  var r = th.getBoundingClientRect();
+  ghost.style.cssText = 'position:fixed;opacity:.75;pointer-events:none;z-index:9999;'
+    + 'background:var(--bg-card);border:1px dashed var(--color-primary);'
+    + 'border-radius:6px;padding:5px 10px;font-size:11px;color:var(--text-100);'
+    + 'top:' + r.top + 'px;left:' + (e.clientX - 20) + 'px;white-space:nowrap;';
+  ghost.textContent = th.dataset.col || 'col';
+  document.body.appendChild(ghost);
+  th.classList.add('dragging');
+  function onMove(me) {
+    ghost.style.left = (me.clientX - 20) + 'px';
+    ths.forEach(function(t, i) {
+      var tr2 = t.getBoundingClientRect();
+      if (me.clientX > tr2.left && me.clientX < tr2.right) {
+        ths.forEach(function(tt) { tt.classList.remove('drop-target'); });
+        if (i !== from) { t.classList.add('drop-target'); to = i; }
+      }
+    });
+  }
+  function onUp() {
+    ghost.remove(); th.classList.remove('dragging');
+    self.el.querySelectorAll('.drop-target').forEach(function(t) { t.classList.remove('drop-target'); });
+    if (to !== from) {
+      self._moveCol(from, to);
+      self.state.colOrder = Array.from(self.el.querySelectorAll('thead th')).map(function(t) { return t.dataset.col; });
+      self._save();
+    }
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+};
+TableEnhanced.prototype._moveCol = function(from, to) {
+  this.el.querySelectorAll('tr').forEach(function(row) {
+    var cells = Array.from(row.children);
+    if (from >= cells.length || to >= cells.length) return;
+    var cell = cells[from], ref = cells[to];
+    if (from < to) row.insertBefore(cell, ref.nextSibling);
+    else row.insertBefore(cell, ref);
+  });
+};
+TableEnhanced.prototype._applyColOrder = function() {
+  if (!this.state.colOrder) return;
+  var self = this;
+  var cur = Array.from(this.el.querySelectorAll('thead th')).map(function(t) { return t.dataset.col; });
+  this.state.colOrder.forEach(function(col, toIdx) {
+    var fromIdx = cur.indexOf(col);
+    if (fromIdx !== -1 && fromIdx !== toIdx) {
+      self._moveCol(fromIdx, toIdx);
+      cur.splice(toIdx, 0, cur.splice(fromIdx, 1)[0]);
+    }
+  });
+};
+TableEnhanced.prototype._addResetButton = function() {
+  var self = this;
+  var header = this.el.closest('.card') && this.el.closest('.card').querySelector('.card-header');
+  if (!header) return;
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'tbl-reset-btn';
+  btn.title = 'Resetovat řazení a pořadí sloupců';
+  btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> Reset';
+  btn.style.display = 'none';
+  btn.onclick = function(e) {
+    e.stopPropagation();
+    self.state = {};
+    self._save();
+    location.reload();
+  };
+  header.appendChild(btn);
+  this._resetBtn = btn;
+  this._syncResetBtn();
+};
+TableEnhanced.prototype._syncResetBtn = function() {
+  if (!this._resetBtn) return;
+  var hasState = !!(this.state.sort || (this.state.colOrder && this.state.colOrder.length));
+  this._resetBtn.style.display = hasState ? 'inline-flex' : 'none';
+};
+var _origToggleSort = TableEnhanced.prototype._toggleSort;
+TableEnhanced.prototype._toggleSort = function(col) {
+  _origToggleSort.call(this, col);
+  this._syncResetBtn();
+};
+var _origSaveState = TableEnhanced.prototype._save;
+TableEnhanced.prototype._save = function() {
+  _origSaveState.call(this);
+  this._syncResetBtn();
+};
+var _origInit = TableEnhanced.prototype._init;
+TableEnhanced.prototype._init = function() {
+  _origInit.call(this);
+  this._addResetButton();
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('table[data-enhanced]').forEach(function(t) { new TableEnhanced(t); });
+});
+</script>
+
+<script>
+var FloatingPanel = (function() {
+  'use strict';
+
+  var STORAGE_KEY = 'rentero_panel';
+  var MAX_TABS = 5;
+  var COMPACT_SIZE  = { w: 560, h: 460 };
+  var EXPANDED_SIZE = { w: 860, h: 640 };
+  var MIN_W = 360, MIN_H = 140;
+  var SNAP_THRESHOLD = 12;
+
+  var _panel, _tabbar, _tabsScroll, _content;
+  var _isDragging = false;
+  var _dragStart = { x: 0, y: 0, px: 0, py: 0 };
+
+  // Multi-edge resize state
+  var _resizeEdge = null; // 'n','s','e','w','nw','ne','sw','se'
+  var _resizeStart = { mx: 0, my: 0, x: 0, y: 0, w: 0, h: 0 };
+
+  // ── State ──────────────────────────────────────────────────────────
+  var _state = {
+    tabs: [],          // [{code, slug, year, month, title, channel}]
+    activeTab: null,   // tabKey or '__summary__'
+    position: { x: 80, y: 80 },
+    size: { w: COMPACT_SIZE.w, h: COMPACT_SIZE.h },
+    minimized: false,
+    expanded: false,
+  };
+  var _tabContent = {}; // tabKey -> HTML string cache
+  var _preExpandState = null; // saved {position, size} before expand
+
+  function _save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(_state)); } catch(e) {}
+  }
+
+  function _load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      var saved = JSON.parse(raw);
+      if (saved && Array.isArray(saved.tabs)) {
+        _state = Object.assign(_state, saved);
+      }
+    } catch(e) {}
+  }
+
+  // ── DOM helpers ────────────────────────────────────────────────────
+  function _clamp(val, min, max) { return Math.max(min, Math.min(val, max)); }
+
+  function _applyPosition() {
+    var maxX = Math.max(0, window.innerWidth  - 60);
+    var maxY = Math.max(0, window.innerHeight - 36);
+    var x = _clamp(_state.position.x, -(_state.size.w - 60), maxX);
+    var y = _clamp(_state.position.y, 0, maxY);
+    _panel.style.left = x + 'px';
+    _panel.style.top  = y + 'px';
+  }
+
+  function _applySize() {
+    _panel.style.width  = _state.size.w + 'px';
+    _panel.style.height = _state.minimized ? '36px' : _state.size.h + 'px';
+  }
+
+  function _applyAll() {
+    _applyPosition();
+    _applySize();
+  }
+
+  function _show() {
+    _panel.style.display = 'flex';
+    _applyAll();
+  }
+
+  function _hide() {
+    _panel.style.display = 'none';
+  }
+
+  // ── Snap to viewport edges ─────────────────────────────────────────
+  function _snap() {
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var x = _state.position.x, y = _state.position.y;
+    var r = x + _state.size.w, b = y + _state.size.h;
+    if (x >= 0 && x <= SNAP_THRESHOLD) _state.position.x = 0;
+    if (y >= 0 && y <= SNAP_THRESHOLD) _state.position.y = 0;
+    if (r <= vw && r >= vw - SNAP_THRESHOLD) _state.position.x = vw - _state.size.w;
+    if (b <= vh && b >= vh - SNAP_THRESHOLD) _state.position.y = vh - _state.size.h;
+  }
+
+  // ── Drag (from entire title bar) ──────────────────────────────────
+  function _onDragStart(e) {
+    if (e.target.closest('.fp-tab, .fp-btn, .fp-btn-close, .fp-tab-close, .fp-tab-summary')) return;
+    _isDragging = true;
+    _panel.classList.add('fp-dragging');
+    var pt = e.touches ? e.touches[0] : e;
+    _dragStart = { x: pt.clientX, y: pt.clientY, px: _state.position.x, py: _state.position.y };
+    e.preventDefault();
+  }
+
+  function _onDragMove(e) {
+    if (!_isDragging) return;
+    var pt = e.touches ? e.touches[0] : e;
+    _state.position.x = _dragStart.px + (pt.clientX - _dragStart.x);
+    _state.position.y = _dragStart.py + (pt.clientY - _dragStart.y);
+    _applyPosition();
+  }
+
+  function _onDragEnd() {
+    if (!_isDragging) return;
+    _isDragging = false;
+    _panel.classList.remove('fp-dragging');
+    _snap();
+    _applyPosition();
+    _save();
+  }
+
+  // ── Multi-edge resize ─────────────────────────────────────────────
+  function _onEdgeResizeStart(e) {
+    var edge = e.target.dataset.edge;
+    if (!edge) return;
+    _resizeEdge = edge;
+    _panel.classList.add('fp-resizing');
+    var pt = e.touches ? e.touches[0] : e;
+    _resizeStart = {
+      mx: pt.clientX, my: pt.clientY,
+      x: _state.position.x, y: _state.position.y,
+      w: _state.size.w, h: _state.size.h,
+    };
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function _onEdgeResizeMove(e) {
+    if (!_resizeEdge) return;
+    var pt = e.touches ? e.touches[0] : e;
+    var dx = pt.clientX - _resizeStart.mx;
+    var dy = pt.clientY - _resizeStart.my;
+    var edge = _resizeEdge;
+
+    var newX = _resizeStart.x, newY = _resizeStart.y;
+    var newW = _resizeStart.w, newH = _resizeStart.h;
+
+    // East component
+    if (edge === 'e' || edge === 'ne' || edge === 'se') {
+      newW = Math.max(MIN_W, _resizeStart.w + dx);
+    }
+    // West component — move left edge, adjust width
+    if (edge === 'w' || edge === 'nw' || edge === 'sw') {
+      var wAdj = _resizeStart.w - dx;
+      if (wAdj >= MIN_W) { newW = wAdj; newX = _resizeStart.x + dx; }
+      else { newW = MIN_W; newX = _resizeStart.x + (_resizeStart.w - MIN_W); }
+    }
+    // South component
+    if (edge === 's' || edge === 'se' || edge === 'sw') {
+      newH = Math.max(MIN_H, _resizeStart.h + dy);
+    }
+    // North component — move top edge, adjust height
+    if (edge === 'n' || edge === 'nw' || edge === 'ne') {
+      var hAdj = _resizeStart.h - dy;
+      if (hAdj >= MIN_H) { newH = hAdj; newY = _resizeStart.y + dy; }
+      else { newH = MIN_H; newY = _resizeStart.y + (_resizeStart.h - MIN_H); }
+    }
+
+    _state.position.x = newX;
+    _state.position.y = newY;
+    _state.size.w = newW;
+    _state.size.h = newH;
+    _state.expanded = false;
+    _applyAll();
+  }
+
+  function _onEdgeResizeEnd() {
+    if (!_resizeEdge) return;
+    _resizeEdge = null;
+    _panel.classList.remove('fp-resizing');
+    _snap();
+    _applyAll();
+    _save();
+  }
+
+  // ── Double-click title bar → maximize / restore ────────────────────
+  function _onTitleDblClick(e) {
+    if (e.target.closest('.fp-tab, .fp-btn, .fp-btn-close, .fp-tab-close, .fp-tab-summary')) return;
+    toggleExpand();
+  }
+
+  // ── Tab bar rendering ──────────────────────────────────────────────
+  function _esc(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function _renderTabBar() {
+    _tabsScroll.innerHTML = '';
+    _state.tabs.forEach(function(tab) {
+      var key = _tabKey(tab);
+      var btn = document.createElement('button');
+      btn.className = 'fp-tab' + (key === _state.activeTab ? ' fp-tab-active' : '');
+      btn.dataset.code = key;
+      btn.title = tab.title;
+
+      var channelDot = '';
+      if ((tab.channel || '').toLowerCase().indexOf('airbnb') >= 0) {
+        channelDot = '<span style="width:6px;height:6px;border-radius:50%;background:#ff5a5f;flex-shrink:0;display:inline-block;"></span>';
+      } else if ((tab.channel || '').toLowerCase().indexOf('booking') >= 0) {
+        channelDot = '<span style="width:6px;height:6px;border-radius:50%;background:#0053b4;flex-shrink:0;display:inline-block;"></span>';
+      }
+
+      btn.innerHTML = channelDot
+        + '<span class="fp-tab-label">' + _esc(tab.title) + '</span>'
+        + '<button class="fp-tab-close" data-close="' + _esc(key) + '" title="Zavřít tab">'
+        + '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">'
+        + '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+
+      btn.addEventListener('click', function(e) {
+        if (e.target.closest('.fp-tab-close')) {
+          closeTab(e.target.closest('.fp-tab-close').dataset.close);
+        } else {
+          _activateTab(key);
+        }
+      });
+      _tabsScroll.appendChild(btn);
+    });
+
+    var summaryTab = document.getElementById('fp-summary-tab');
+    if (summaryTab) {
+      summaryTab.classList.toggle('fp-tab-active', _state.activeTab === '__summary__');
+    }
+  }
+
+  // ── Tab key helper (code or code:year:month for uniqueness) ────────
+  function _tabKey(tab) {
+    if (typeof tab === 'string') return tab;
+    if (tab.year && tab.month) return tab.code + ':' + tab.year + ':' + tab.month;
+    return tab.code;
+  }
+
+  // ── Tab activation ─────────────────────────────────────────────────
+  function _activateTab(code) {
+    _state.activeTab = code;
+    _renderTabBar();
+
+    if (code === '__summary__') {
+      _renderSummary();
+      _save();
+      return;
+    }
+
+    if (_tabContent[code]) {
+      _content.innerHTML = _tabContent[code];
+      _save();
+      return;
+    }
+
+    _content.innerHTML = '<div class="fp-loading">'
+      + '<svg class="fp-spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+      + '<path stroke-linecap="round" d="M12 2a10 10 0 010 20A10 10 0 0112 2" opacity=".25"/>'
+      + '<path stroke-linecap="round" d="M12 2a10 10 0 0110 10"/></svg>'
+      + 'Na\u010d\xedt\xe1m\u2026</div>';
+
+    var tab = _state.tabs.find(function(t) { return _tabKey(t) === code; });
+    var rawCode = tab ? tab.code : code;
+    var url = '/reservation/' + encodeURIComponent(rawCode) + '/panel';
+    if (tab && tab.year && tab.month) {
+      url += '?year=' + tab.year + '&month=' + tab.month;
+    }
+
+    fetch(url, { credentials: 'same-origin' })
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function(html) {
+        _tabContent[code] = html;
+        if (_state.activeTab === code) _content.innerHTML = html;
+      })
+      .catch(function(err) {
+        if (_state.activeTab === code) {
+          _content.innerHTML = '<div style="padding:24px;color:var(--color-red);font-size:13px;">Chyba: ' + _esc(err.message) + '</div>';
+        }
+      });
+
+    _save();
+  }
+
+  // ── Summary tab ────────────────────────────────────────────────────
+  function _renderSummary() {
+    if (_state.tabs.length === 0) {
+      _content.innerHTML = '<div class="fp-summary-empty">\u017d\xe1dn\xe9 otev\u0159en\xe9 rezervace.</div>';
+      return;
+    }
+
+    var totals = { nights: 0, payout: 0, ubytovani: 0, priprava: 0, citytax: 0, provize: 0, count: 0 };
+    _state.tabs.forEach(function(tab) {
+      var html = _tabContent[_tabKey(tab)];
+      if (!html) return;
+      var tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      totals.count++;
+      function _getVal(attr) {
+        var el = tmp.querySelector('[data-summary-' + attr + ']');
+        return el ? parseFloat(el.getAttribute('data-summary-' + attr) || 0) : 0;
+      }
+      totals.nights    += _getVal('nights');
+      totals.payout    += _getVal('payout');
+      totals.ubytovani += _getVal('ubytovani');
+      totals.priprava  += _getVal('priprava');
+      totals.citytax   += _getVal('citytax');
+      totals.provize   += _getVal('provize');
+    });
+
+    function _fmt(n) {
+      return Math.round(n).toLocaleString('cs-CZ') + ' K\u010d';
+    }
+
+    _content.innerHTML = '<div class="fp-summary-grid">'
+      + '<div class="fp-summary-item fp-summary-item-sm"><span class="fp-summary-label">Rezervac\xed</span><span class="fp-summary-value">' + totals.count + '</span></div>'
+      + '<div class="fp-summary-item fp-summary-item-sm"><span class="fp-summary-label">Noc\xed</span><span class="fp-summary-value">' + totals.nights + '</span></div>'
+      + '<div class="fp-summary-item fp-summary-featured"><span class="fp-summary-label">V\xfdplata celkem</span><span class="fp-summary-value">' + _fmt(totals.payout) + '</span></div>'
+      + '<div class="fp-summary-item"><span class="fp-summary-label">Ubytov\xe1n\xed</span><span class="fp-summary-value">' + _fmt(totals.ubytovani) + '</span></div>'
+      + '<div class="fp-summary-item"><span class="fp-summary-label">P\u0159\xedprava pokoje</span><span class="fp-summary-value">' + _fmt(totals.priprava) + '</span></div>'
+      + '<div class="fp-summary-item"><span class="fp-summary-label">City tax</span><span class="fp-summary-value">' + _fmt(totals.citytax) + '</span></div>'
+      + '<div class="fp-summary-item"><span class="fp-summary-label">Provize</span><span class="fp-summary-value">' + _fmt(totals.provize) + '</span></div>'
+      + '</div>';
+  }
+
+  // ── Open / close tabs ──────────────────────────────────────────────
+  function open(code, slug, year, month, title, channel) {
+    var tabObj = { code: code, slug: slug, year: year, month: month, title: title, channel: channel || '' };
+    var key = _tabKey(tabObj);
+    var existing = _state.tabs.find(function(t) { return _tabKey(t) === key; });
+    if (existing) {
+      _show();
+      if (_state.minimized) toggleMinimize();
+      _activateTab(key);
+      return;
+    }
+
+    if (_state.tabs.length >= MAX_TABS) {
+      var evicted = _state.tabs.shift();
+      delete _tabContent[_tabKey(evicted)];
+    }
+
+    _state.tabs.push(tabObj);
+    _show();
+    if (_state.minimized) toggleMinimize();
+    _renderTabBar();
+    _activateTab(key);
+  }
+
+  function closeTab(code) {
+    var idx = _state.tabs.findIndex(function(t) { return _tabKey(t) === code; });
+    if (idx === -1) return;
+    _state.tabs.splice(idx, 1);
+    delete _tabContent[code];
+
+    if (_state.tabs.length === 0) {
+      _state.activeTab = null;
+      _hide();
+      _save();
+      return;
+    }
+
+    var nextTab = _state.tabs[Math.min(idx, _state.tabs.length - 1)];
+    _renderTabBar();
+    _activateTab(nextTab ? _tabKey(nextTab) : '__summary__');
+  }
+
+  function closeAll() {
+    _state.tabs.forEach(function(t) { delete _tabContent[_tabKey(t)]; });
+    _state.tabs = [];
+    _state.activeTab = null;
+    _hide();
+    _save();
+  }
+
+  // ── Public: minimize / expand ──────────────────────────────────────
+  function toggleMinimize() {
+    _state.minimized = !_state.minimized;
+    _panel.classList.toggle('fp-minimized', _state.minimized);
+    _applySize();
+    _save();
+  }
+
+  function toggleExpand() {
+    if (_state.expanded && _preExpandState) {
+      // Restore previous size/position
+      _state.position = Object.assign({}, _preExpandState.position);
+      _state.size = Object.assign({}, _preExpandState.size);
+      _state.expanded = false;
+      _preExpandState = null;
+    } else {
+      // Save current state, then maximize to viewport
+      _preExpandState = {
+        position: Object.assign({}, _state.position),
+        size: Object.assign({}, _state.size),
+      };
+      _state.expanded = true;
+      _state.position = { x: 0, y: 0 };
+      _state.size = { w: window.innerWidth, h: window.innerHeight };
+    }
+    _applyAll();
+    _save();
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────
+  function init() {
+    _panel      = document.getElementById('fp-panel');
+    _tabbar     = document.getElementById('fp-tabbar');
+    _tabsScroll = document.getElementById('fp-tabs-scroll');
+    _content    = document.getElementById('fp-content');
+    if (!_panel) return;
+
+    // Drag from entire title bar
+    _tabbar.addEventListener('mousedown',  _onDragStart);
+    _tabbar.addEventListener('touchstart', _onDragStart, { passive: false });
+    document.addEventListener('mousemove',  _onDragMove);
+    document.addEventListener('touchmove',  _onDragMove, { passive: false });
+    document.addEventListener('mouseup',   _onDragEnd);
+    document.addEventListener('touchend',  _onDragEnd);
+
+    // Double-click title bar → maximize/restore
+    _tabbar.addEventListener('dblclick', _onTitleDblClick);
+
+    // Multi-edge resize: attach to all .fp-edge elements
+    _panel.querySelectorAll('.fp-edge').forEach(function(el) {
+      el.addEventListener('mousedown',  _onEdgeResizeStart);
+      el.addEventListener('touchstart', _onEdgeResizeStart, { passive: false });
+    });
+    document.addEventListener('mousemove',  _onEdgeResizeMove);
+    document.addEventListener('touchmove',  _onEdgeResizeMove, { passive: false });
+    document.addEventListener('mouseup',   _onEdgeResizeEnd);
+    document.addEventListener('touchend',  _onEdgeResizeEnd);
+
+    // Escape → minimize (if visible)
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && _panel.style.display !== 'none') {
+        if (_state.minimized) {
+          // Already minimized → close all
+          closeAll();
+        } else {
+          toggleMinimize();
+        }
+      }
+    });
+
+    _load();
+    if (_state.tabs.length > 0) {
+      _show();
+      _renderTabBar();
+      _activateTab(_state.activeTab || (_state.tabs[0] && _tabKey(_state.tabs[0])) || '__summary__');
+    }
+  }
+
+  return {
+    init: init,
+    open: open,
+    closeTab: closeTab,
+    closeAll: closeAll,
+    activateTab: function(code) { _activateTab(code); },
+    toggleMinimize: toggleMinimize,
+    toggleExpand: toggleExpand,
+  };
+})();
+
+document.addEventListener('DOMContentLoaded', FloatingPanel.init);
+</script>

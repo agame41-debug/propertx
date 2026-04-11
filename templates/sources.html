@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Zdrojové soubory — Rentero{% endblock %}
+
+{% block content %}
+
+{% if flash %}
+<div class="notify {% if flash.level == 'error' %}notify-error{% elif flash.level == 'info' %}notify-info{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
+  <div style="flex:1;">
+    <div style="font-weight:600;">{{ flash.message }}</div>
+    {% if flash.detail %}
+    <details style="margin-top:6px;">
+      <summary style="cursor:pointer;font-size:12px;opacity:0.7;">Detaily importu</summary>
+      <pre style="margin-top:6px;font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-x:auto;opacity:0.75;">{{ flash.detail }}</pre>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;color:var(--text-100);letter-spacing:-0.02em;">Zdrojové soubory</h1>
+    <div style="font-size:13px;color:var(--text-300);margin-top:3px;">DB-backed archiv pro CSV importy</div>
+  </div>
+</div>
+
+{# Import form #}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><span class="card-title">Importovat soubor</span></div>
+  <div style="padding:16px 20px;">
+    <form method="post" action="/sources/import" enctype="multipart/form-data"
+          style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+      {{ csrf_input(request) }}
+      <div>
+        <label class="form-label">Typ zdroje</label>
+        <select name="source_type" class="form-input" style="width:180px;">
+          {% for source_type in source_types %}
+          <option value="{{ source_type }}" {% if source_type == selected_type %}selected{% endif %}>
+            {{ source_type_label(source_type) }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="flex:1;min-width:200px;">
+        <label class="form-label">Soubor</label>
+        <input type="file" name="upload" required class="form-input" style="cursor:pointer;">
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Importovat</button>
+    </form>
+  </div>
+</div>
+
+{# Type filter tabs #}
+<div style="margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+  <div class="filter-tabs">
+    <a href="/sources" class="filter-tab {% if not selected_type %}active{% endif %}">Vše</a>
+    {% for st in source_types %}
+    <a href="/sources?source_type={{ st }}" class="filter-tab {% if selected_type == st %}active{% endif %}">
+      {{ source_type_label(st) }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+{# Source files table #}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-header"><span class="card-title">Archiválie</span></div>
+  {% if source_files %}
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Typ</th>
+          <th>Soubor</th>
+          <th>Importováno</th>
+          <th>Stav</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sf in source_files %}
+        <tr>
+          <td>
+            <span class="badge badge-neutral" style="font-size:10px;">{{ source_type_label(sf.source_type) }}</span>
+          </td>
+          <td style="font-size:12px;color:var(--text-200);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            {{ sf.original_name }}
+          </td>
+          <td class="num" style="font-size:12px;color:var(--text-300);">
+            {{ sf.imported_at[:16].replace('T',' ') if sf.imported_at else '—' }}
+          </td>
+          <td>
+            {% if sf.is_active %}
+            <span class="badge badge-green" style="font-size:10px;">Aktivní</span>
+            {% else %}
+            <span class="badge badge-neutral" style="font-size:10px;">Neaktivní</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;">
+            <div style="display:flex;gap:6px;justify-content:flex-end;">
+              {% if sf.is_active %}
+              <form method="post" action="/sources/{{ sf.id }}/deactivate">
+                {{ csrf_input(request) }}
+                <button type="submit" class="btn btn-ghost btn-sm" style="font-size:11px;">Deaktivovat</button>
+              </form>
+              {% else %}
+              <form method="post" action="/sources/{{ sf.id }}/activate">
+                {{ csrf_input(request) }}
+                <button type="submit" class="btn btn-success btn-sm" style="font-size:11px;">Aktivovat</button>
+              </form>
+              {% endif %}
+              <a href="/sources/{{ sf.id }}/download" class="btn btn-ghost btn-sm" style="font-size:11px;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Stáhnout
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:48px;text-align:center;color:var(--text-300);font-size:13px;">Žádné soubory.</div>
+  {% endif %}
+</div>
+
+{# Import runs #}
+{% if import_runs %}
+<div class="card">
+  <div class="card-header"><span class="card-title">Posledních 30 importů</span></div>
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Čas</th>
+          <th>Soubor</th>
+          <th>Výsledek</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in import_runs %}
+        <tr>
+          <td class="num" style="font-size:12px;color:var(--text-300);">{{ run.imported_at[:16].replace('T',' ') if run.imported_at else '—' }}</td>
+          <td style="font-size:12px;color:var(--text-200);">{{ run.source_file_name or '—' }}</td>
+          <td>
+            {% if run.summary and run.summary.is_duplicate %}
+            <span class="badge badge-amber" style="font-size:10px;">Duplikát</span>
+            {% else %}
+            <span class="badge badge-green" style="font-size:10px;">OK</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

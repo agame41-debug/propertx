@@ -1,0 +1,29 @@
+<div id="month-picker-overlay" style="display:none;position:fixed;inset:0;background:rgba(7,10,18,0.58);backdrop-filter:blur(6px);z-index:1200;align-items:center;justify-content:center;padding:20px;">
+  <div class="card" style="width:min(420px,100%);padding:18px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;">
+      <div>
+        <div style="font-size:18px;font-weight:700;color:var(--text-100);">Vybrat měsíc</div>
+        <div style="font-size:12px;color:var(--text-300);margin-top:4px;">Volba změní globální měsíc pro dashboard a akce v inventory.</div>
+      </div>
+      <button type="button" id="month-picker-close" class="btn btn-ghost btn-sm">Zavřít</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div>
+        <label class="form-label" style="margin-bottom:4px;">Měsíc</label>
+        <select id="month-picker-month" class="form-input">
+          {% for m in range(1, 13) %}
+          <option value="{{ m }}">{{ "%02d"|format(m) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" style="margin-bottom:4px;">Rok</label>
+        <input id="month-picker-year" type="number" min="2020" max="2100" class="form-input" value="{{ current_year }}">
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+      <button type="button" id="month-picker-cancel" class="btn btn-secondary btn-sm">Zrušit</button>
+      <button type="button" id="month-picker-apply" class="btn btn-primary btn-sm">Použít</button>
+    </div>
+  </div>
+</div>

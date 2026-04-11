@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Klienti — Rentero{% endblock %}
+
+{% block content %}
+
+{% if flash %}
+<div class="notify {% if flash.level == 'error' %}notify-error{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
+  <div style="flex:1;">
+    <div style="font-weight:600;">{{ flash.message }}</div>
+    {% if flash.detail %}
+    <div style="margin-top:4px;font-size:12px;white-space:pre-line;opacity:0.9;">{{ flash.detail }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div style="margin-bottom:24px;">
+  <h1 style="font-size:22px;font-weight:700;color:var(--text-100);letter-spacing:-0.02em;">Klienti</h1>
+  <div style="font-size:13px;color:var(--text-300);margin-top:3px;">Informace o vlastnících objektů</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+  {% for item in merged %}
+  {% set prop = item.prop %}
+  {% set client = item.client %}
+  <a href="/clients/{{ prop.slug }}" class="card"
+     style="padding:18px;text-decoration:none;display:block;transition:border-color 80ms,transform 80ms;cursor:pointer;"
+     onmouseover="this.style.borderColor='var(--border-active)';this.style.transform='scale(1.005)'"
+     onmouseout="this.style.borderColor='var(--border-subtle)';this.style.transform=''">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;">
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--text-100);">
+          {{ prop.display_name or prop.listing_nickname }}
+        </div>
+        <div style="font-size:11px;color:var(--text-300);margin-top:2px;">{{ prop.slug }}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        {% if prop.active %}
+        <span style="font-size:10px;font-weight:700;color:#b7f5c3;background:rgba(38,181,96,0.16);border:1px solid rgba(38,181,96,0.28);padding:3px 6px;border-radius:999px;">ACTIVE</span>
+        {% else %}
+        <span style="font-size:10px;font-weight:700;color:#ffd79a;background:rgba(194,124,39,0.16);border:1px solid rgba(194,124,39,0.28);padding:3px 6px;border-radius:999px;">DRAFT</span>
+        {% endif %}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-300)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </div>
+
+    {% if client.name %}
+    <div style="font-size:13px;font-weight:500;color:var(--text-200);margin-bottom:10px;">{{ client.name }}</div>
+    {% else %}
+    <div style="font-size:13px;color:var(--text-300);font-style:italic;margin-bottom:10px;">Klient nezadán</div>
+    {% endif %}
+
+    <div style="font-size:12px;display:flex;flex-direction:column;gap:3px;">
+      {% if client.ico %}
+      <div><span style="color:var(--text-300);margin-right:8px;">IČO</span><span style="color:var(--text-200);">{{ client.ico }}</span></div>
+      {% endif %}
+      {% if client.email %}
+      <div><span style="color:var(--text-300);margin-right:8px;">Email</span><span style="color:var(--text-200);">{{ client.email }}</span></div>
+      {% endif %}
+    </div>
+
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:12px;color:var(--text-300);">Provize Rentero</span>
+      <span style="font-size:13px;font-weight:700;color:var(--text-100);">
+        {{ "%.0f"|format((prop.rentero_commission or 0) * 100) }}%
+      </span>
+    </div>
+  </a>
+  {% else %}
+  <div style="grid-column:1/-1;padding:56px;text-align:center;color:var(--text-300);font-size:13px;">
+    Žádní klienti.
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

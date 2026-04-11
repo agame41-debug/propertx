@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Checkin report {{ prop.display_name or prop.listing_nickname }} {{ "%02d/%d"|format(month, year) }} — Rentero{% endblock %}
+
+{% block content %}
+
+{# Header #}
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
+  <div>
+    <div style="font-size:12px;color:var(--text-300);margin-bottom:6px;display:flex;align-items:center;gap:5px;">
+      <a href="/" data-month-aware="1" style="color:var(--text-300);text-decoration:none;" onmouseover="this.style.color='var(--text-200)'" onmouseout="this.style.color='var(--text-300)'">Přehled</a>
+      <span style="opacity:0.4;">/</span>
+      <a href="/property/{{ slug }}/{{ year }}/{{ month }}" style="color:var(--text-300);text-decoration:none;" onmouseover="this.style.color='var(--text-200)'" onmouseout="this.style.color='var(--text-300)'">
+        {{ prop.display_name or prop.listing_nickname }}
+      </a>
+      <span style="opacity:0.4;">/</span>
+      <span>Checkin report</span>
+    </div>
+    <h1 style="font-size:22px;font-weight:700;color:var(--text-100);letter-spacing:-0.02em;">Checkin report</h1>
+    <div style="font-size:13px;color:var(--text-300);margin-top:3px;">
+      {{ prop.display_name or prop.listing_nickname }} · {{ "%02d/%d"|format(month, year) }}
+    </div>
+  </div>
+  <a href="/property/{{ slug }}/{{ year }}/{{ month }}" class="btn btn-ghost btn-sm">&#8592; Zpět na měsíc</a>
+</div>
+
+{# KPI summary #}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;">
+  <div class="kpi-card">
+    <div class="kpi-label">Aktivní skupiny</div>
+    <div class="kpi-value" style="font-size:22px;">{{ audit_summary.active_groups }}</div>
+  </div>
+  <div class="kpi-card kpi-card-green">
+    <div class="kpi-label">Spárované rezervace</div>
+    <div class="kpi-value" style="font-size:22px;color:var(--color-green);">{{ audit_summary.matched_reservations }}</div>
+  </div>
+  {% if audit_summary.reservation_issues > 0 %}
+  <div class="kpi-card kpi-card-amber">
+    <div class="kpi-label">Ke kontrole</div>
+    <div class="kpi-value" style="font-size:22px;color:var(--color-amber);">{{ audit_summary.reservation_issues }}</div>
+  </div>
+  {% else %}
+  <div class="kpi-card">
+    <div class="kpi-label">Ke kontrole</div>
+    <div class="kpi-value" style="font-size:22px;">{{ audit_summary.reservation_issues }}</div>
+  </div>
+  {% endif %}
+  {% if audit_summary.unmatched_groups > 0 %}
+  <div class="kpi-card kpi-card-red">
+    <div class="kpi-label">Skupiny bez rezervace</div>
+    <div class="kpi-value" style="font-size:22px;color:var(--color-red);">{{ audit_summary.unmatched_groups }}</div>
+  </div>
+  {% else %}
+  <div class="kpi-card">
+    <div class="kpi-label">Skupiny bez rezervace</div>
+    <div class="kpi-value" style="font-size:22px;">{{ audit_summary.unmatched_groups }}</div>
+  </div>
+  {% endif %}
+</div>
+
+{% if month_state.has_new_data_since_generation %}
+<div class="notify notify-info" style="margin-bottom:16px;">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <span>Od poslední generace byla detekována nová data. Přegeneruj report pro aktuální výsledky.</span>
+</div>
+{% endif %}
+
+{# Audit groups #}
+{% for group in group_audits %}
+{% set status = status_label(group.match_status) %}
+<div class="card" style="margin-bottom:12px;">
+  <div class="card-header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      {% if status[1] == 'green' %}
+      <span class="badge badge-green" style="font-size:11px;">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+        {{ status[0] }}
+      </span>
+      {% elif status[1] == 'amber' %}
+      <span class="badge badge-amber" style="font-size:11px;">{{ status[0] }}</span>
+      {% elif status[1] == 'orange' %}
+      <span class="badge badge-orange" style="font-size:11px;">{{ status[0] }}</span>
+      {% elif status[1] == 'red' %}
+      <span class="badge badge-red" style="font-size:11px;">{{ status[0] }}</span>
+      {% else %}
+      <span class="badge badge-neutral" style="font-size:11px;">{{ status[0] }}</span>
+      {% endif %}
+      <span style="font-size:13px;font-weight:600;color:var(--text-100);">{{ group.guest_name or 'Neznámý host' }}</span>
+      <span style="font-size:12px;color:var(--text-300);">{{ group.check_in }} &#8211; {{ group.check_out }}</span>
+    </div>
+  </div>
+  {% if group.detail and group.detail.matched_confirmation_code %}
+  <div style="padding:10px 20px;font-size:12px;color:var(--text-300);">
+    Spárováno s rezervací {{ group.detail.matched_confirmation_code }}.
+  </div>
+  {% elif group.checkin_property_name %}
+  <div style="padding:10px 20px;font-size:12px;color:var(--text-300);">
+    Zdroj: {{ group.checkin_property_name }}
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="card" style="padding:48px;text-align:center;color:var(--text-300);font-size:13px;">
+  Žádné checkin skupiny pro tento měsíc.
+</div>
+{% endfor %}
+
+{% endblock %}

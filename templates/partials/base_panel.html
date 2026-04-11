@@ -1,0 +1,43 @@
+<!-- Floating Reservation Panel — inserted once in base.html, managed by FloatingPanel JS -->
+<div id="fp-panel" class="fp-panel" style="display:none;" aria-label="Rezervační panel">
+
+  <!-- Edge resize handles (N, S, E, W) -->
+  <div class="fp-edge fp-edge-n" data-edge="n"></div>
+  <div class="fp-edge fp-edge-s" data-edge="s"></div>
+  <div class="fp-edge fp-edge-e" data-edge="e"></div>
+  <div class="fp-edge fp-edge-w" data-edge="w"></div>
+  <!-- Corner resize handles -->
+  <div class="fp-edge fp-edge-nw" data-edge="nw"></div>
+  <div class="fp-edge fp-edge-ne" data-edge="ne"></div>
+  <div class="fp-edge fp-edge-sw" data-edge="sw"></div>
+  <div class="fp-edge fp-edge-se" data-edge="se"></div>
+
+  <!-- Tab bar (header / drag handle) -->
+  <div class="fp-tabbar" id="fp-tabbar">
+    <div class="fp-tabs-scroll" id="fp-tabs-scroll">
+      <!-- Reservation tabs injected here by JS: <button class="fp-tab" data-code="..."> -->
+    </div>
+
+    <!-- Summary tab (always last, cannot be closed) -->
+    <button class="fp-tab fp-tab-summary" id="fp-summary-tab" title="Souhrn otevřených rezervací" onclick="FloatingPanel.activateTab('__summary__')">
+      <span class="fp-tab-label">&Sigma;</span>
+    </button>
+
+    <div class="fp-controls">
+      <button class="fp-btn" id="fp-minimize-btn" onclick="FloatingPanel.toggleMinimize()" title="Minimalizovat">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <button class="fp-btn" id="fp-expand-btn" onclick="FloatingPanel.toggleExpand()" title="Rozbalit / Zmenšit">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+      </button>
+      <button class="fp-btn fp-btn-close" id="fp-close-btn" onclick="FloatingPanel.closeAll()" title="Zavřít vše">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Content area -->
+  <div class="fp-content" id="fp-content">
+    <!-- Tab content injected by JS -->
+  </div>
+</div>

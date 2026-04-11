@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Historie změn — Rentero{% endblock %}
+
+{% block content %}
+<div style="max-width:1100px;">
+
+  {# ── Header ────────────────────────────────────────────────────────────── #}
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;">
+    <div>
+      <h1 style="font-size:20px;font-weight:700;color:var(--text-100);margin:0 0 4px;">Historie změn</h1>
+      <div style="font-size:13px;color:var(--text-300);">Ruční úpravy, přesuny rezervací a změny po importu zdrojových dokumentů</div>
+    </div>
+    <div style="font-size:12px;color:var(--text-400);">{{ events|length }} záznamů</div>
+  </div>
+
+  {# ── Filters ───────────────────────────────────────────────────────────── #}
+  <form method="get" action="/audit" style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label style="font-size:11px;color:var(--text-300);font-weight:500;text-transform:uppercase;letter-spacing:.04em;">Objekt</label>
+      <select name="slug" onchange="this.form.submit()"
+              style="background:var(--bg-3);border:1px solid var(--border-subtle);color:var(--text-100);
+                     border-radius:6px;padding:6px 10px;font-size:13px;min-width:180px;cursor:pointer;">
+        <option value="" {% if not filter_slug %}selected{% endif %}>Všechny objekty</option>
+        {% for p in props %}
+        <option value="{{ p.slug }}" {% if p.slug == filter_slug %}selected{% endif %}>
+          {{ p.display_name or p.listing_nickname or p.slug }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label style="font-size:11px;color:var(--text-300);font-weight:500;text-transform:uppercase;letter-spacing:.04em;">Rok</label>
+      <select name="year" onchange="this.form.submit()"
+              style="background:var(--bg-3);border:1px solid var(--border-subtle);color:var(--text-100);
+                     border-radius:6px;padding:6px 10px;font-size:13px;cursor:pointer;">
+        <option value="0" {% if not filter_year %}selected{% endif %}>Všechny roky</option>
+        {% for y in range(current_year, current_year - 3, -1) %}
+        <option value="{{ y }}" {% if y == filter_year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <label style="font-size:11px;color:var(--text-300);font-weight:500;text-transform:uppercase;letter-spacing:.04em;">Měsíc</label>
+      <select name="month" onchange="this.form.submit()"
+              style="background:var(--bg-3);border:1px solid var(--border-subtle);color:var(--text-100);
+                     border-radius:6px;padding:6px 10px;font-size:13px;cursor:pointer;">
+        <option value="0" {% if not filter_month %}selected{% endif %}>Všechny měsíce</option>
+        {% for m in range(1, 13) %}
+        <option value="{{ m }}" {% if m == filter_month %}selected{% endif %}>
+          {{ "%02d"|format(m) }} — {{ ["", "Leden","Únor","Březen","Duben","Květen","Červen","Červenec","Srpen","Září","Říjen","Listopad","Prosinec"][m] }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if filter_slug or filter_year or filter_month %}
+    <a href="/audit" style="font-size:12px;color:var(--text-300);padding:6px 10px;border:1px solid var(--border-subtle);
+                            border-radius:6px;text-decoration:none;background:var(--bg-3);white-space:nowrap;">
+      Zrušit filtry
+    </a>
+    {% endif %}
+  </form>
+
+  {# ── Table ─────────────────────────────────────────────────────────────── #}
+  {% if events %}
+  <div class="card">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:120px;">Typ</th>
+          <th>Objekt</th>
+          <th>Období</th>
+          <th>Rezervace / dokument</th>
+          <th>Detail</th>
+          <th>Důvod / aktér</th>
+          <th style="width:130px;">Datum</th>
+          <th style="width:90px;">Stav</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ev in events %}
+        <tr style="{% if ev.event_type != 'import' and not ev.is_active %}opacity:0.45;{% endif %}">
+
+          {# Type badge #}
+          <td>
+            {% if ev.event_type == 'move' %}
+            <span class="badge badge-blue" style="font-size:10px;">Přesun</span>
+            {% elif ev.event_type == 'import' %}
+            <span class="badge {% if ev.is_duplicate %}badge-neutral{% elif ev.orchestration_error %}badge-red{% else %}badge-blue{% endif %}" style="font-size:10px;">Import</span>
+            <div style="margin-top:4px;font-size:10px;color:var(--text-400);">{{ ev.source_type_label }}</div>
+            {% else %}
+            <span class="badge badge-amber" style="font-size:10px;">Úprava pole</span>
+            {% endif %}
+          </td>
+
+          {# Slug — link to property if we know the period #}
+          <td style="font-size:12px;font-weight:500;">
+            {% if ev.event_type == 'import' %}
+              {% if ev.link_slug %}
+              <a href="/property/{{ ev.link_slug }}/{{ ev.link_year }}/{{ ev.link_month }}"
+                 style="color:var(--text-200);text-decoration:none;"
+                 title="Přejít na {{ ev.link_slug }} {{ '%02d/%d'|format(ev.link_month, ev.link_year) }}">
+                {{ ev.link_slug }}
+              </a>
+              {% elif ev.display_slugs %}
+              <span style="color:var(--text-200);" title="{{ ev.display_slugs|join(', ') }}">
+                {{ ev.display_slugs[:3]|join(', ') }}
+              </span>
+              {% if ev.display_slugs|length > 3 %}
+              <div style="margin-top:3px;font-size:11px;color:var(--text-400);">
+                +{{ ev.display_slugs|length - 3 }} dalších objektů
+              </div>
+              {% endif %}
+              {% else %}
+              <span style="color:var(--text-400);">—</span>
+              {% endif %}
+            {% else %}
+            {% if ev.event_type == 'move' %}
+              {% set _y = ev.target_year %}
+              {% set _m = ev.target_month %}
+            {% else %}
+              {% set _y = ev.year %}
+              {% set _m = ev.month %}
+            {% endif %}
+            <a href="/property/{{ ev.slug }}/{{ _y }}/{{ _m }}"
+               style="color:var(--text-200);text-decoration:none;"
+              title="Přejít na {{ ev.slug }} {{ '%02d/%d'|format(_m, _y) }}">
+              {{ ev.slug }}
+            </a>
+            {% endif %}
+          </td>
+
+          {# Period #}
+          <td style="font-size:12px;color:var(--text-300);white-space:nowrap;">
+            {% if ev.event_type == 'import' %}
+              {% if ev.link_year and ev.link_month %}
+              <span style="color:var(--color-blue);">{{ "%02d/%d"|format(ev.link_month, ev.link_year) }}</span>
+              {% if ev.display_periods|length > 1 %}
+              <span style="color:var(--text-400);margin-left:4px;">+{{ ev.display_periods|length - 1 }}</span>
+              {% endif %}
+              {% elif ev.display_periods %}
+              <span title="{% for p in ev.display_periods %}{{ '%02d/%d'|format(p[1], p[0]) }}{% if not loop.last %}, {% endif %}{% endfor %}">
+                {{ "%02d/%d"|format(ev.display_periods[0][1], ev.display_periods[0][0]) }}
+              </span>
+              {% if ev.display_periods|length > 1 %}
+              <span style="color:var(--text-400);margin-left:4px;">+{{ ev.display_periods|length - 1 }}</span>
+              {% endif %}
+              {% else %}
+              {{ ev.imported_period_label }}
+              {% endif %}
+            {% elif ev.event_type == 'move' %}
+              <span title="Původní měsíc">{{ "%02d/%d"|format(ev.original_month, ev.original_year) }}</span>
+              <span style="color:var(--text-400);margin:0 4px;">→</span>
+              <span style="color:var(--color-blue);" title="Cílový měsíc">{{ "%02d/%d"|format(ev.target_month, ev.target_year) }}</span>
+            {% else %}
+              {{ "%02d/%d"|format(ev.month, ev.year) }}
+            {% endif %}
+          </td>
+
+          {# Reservation code #}
+          <td style="font-size:11px;color:var(--text-300);font-family:monospace;">
+            {% if ev.event_type == 'import' %}
+              <div style="font-family:inherit;color:var(--text-200);font-size:12px;font-weight:500;">{{ ev.source_name }}</div>
+              {% if ev.duplicate_source_file_name %}
+              <div style="margin-top:3px;color:var(--text-400);" title="{{ ev.duplicate_source_file_name }}">
+                dup. k {{ ev.duplicate_source_file_name }}
+              </div>
+              {% endif %}
+            {% elif ev.event_type == 'move' %}
+              {{ ev.confirmation_code or "—" }}
+            {% else %}
+              {{ ev.scope_id or "—" }}
+            {% endif %}
+          </td>
+
+          {# Detail of the change #}
+          <td style="font-size:12px;">
+            {% if ev.event_type == 'import' %}
+              <div style="color:var(--text-200);">{{ ev.message }}</div>
+              {% if ev.detail_lines %}
+                {% for line in ev.detail_lines %}
+                <div style="margin-top:3px;font-size:11px;color:var(--text-400);">{{ line }}</div>
+                {% endfor %}
+              {% endif %}
+            {% elif ev.event_type == 'move' %}
+              <span style="color:var(--text-200);">Přesunuto do {{ "%02d/%d"|format(ev.target_month, ev.target_year) }}</span>
+              {% if ev.reverted_at %}
+              <span style="color:var(--text-400);font-size:11px;"> · obnoveno {{ ev.reverted_at[:10] }}</span>
+              {% endif %}
+            {% else %}
+              {# Field override detail #}
+              {% set field_labels = {
+                'payout_eur': 'Výplata EUR',
+                'payout_czk': 'Výplata CZK',
+                'balicky_czk': 'Balíčky CZK',
+                'cleaning_fee_eur': 'Úklid EUR',
+                'city_tax_eur': 'Poplatek EUR',
+                'nights': 'Nocí',
+                'adults': 'Dospělí',
+                'is_cancelled': 'Storno',
+                'note': 'Poznámka'
+              } %}
+              <span style="color:var(--text-300);">{{ field_labels.get(ev.field, ev.field) }}:</span>
+              <span style="text-decoration:line-through;color:var(--text-400);font-size:11px;margin-left:4px;">{{ ev.old_value or "—" }}</span>
+              <span style="color:var(--text-300);margin:0 3px;">→</span>
+              <span style="color:var(--text-100);font-weight:500;">{{ ev.new_value or "—" }}</span>
+            {% endif %}
+          </td>
+
+          {# Reason #}
+          <td style="font-size:11px;color:var(--text-400);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+              title="{% if ev.event_type == 'import' %}Importoval: {{ ev.imported_by }}{% if ev.source_file_name %} · archiv: {{ ev.source_file_name }}{% endif %}{% else %}{{ ev.reason or '' }}{% endif %}">
+            {% if ev.event_type == 'import' %}
+              {{ ev.imported_by }}
+            {% else %}
+              {{ ev.reason or "—" }}
+            {% endif %}
+          </td>
+
+          {# Date #}
+          <td style="font-size:11px;color:var(--text-300);white-space:nowrap;">
+            {{ ev.created_at[:16].replace('T', ' ') if ev.created_at else "—" }}
+          </td>
+
+          {# Status #}
+          <td>
+            {% if ev.event_type == 'import' %}
+              {% if ev.is_duplicate %}
+              <span class="badge badge-neutral" style="font-size:10px;">Duplicitní</span>
+              {% elif ev.orchestration_error %}
+              <span class="badge badge-red" style="font-size:10px;">Chyba</span>
+              {% else %}
+              <span class="badge badge-green" style="font-size:10px;">Zapsáno</span>
+              {% endif %}
+            {% else %}
+              {% if ev.is_active %}
+              <span class="badge badge-green" style="font-size:10px;">Aktivní</span>
+              {% else %}
+              <span class="badge badge-neutral" style="font-size:10px;">Obnoveno</span>
+              {% endif %}
+            {% endif %}
+          </td>
+
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div style="text-align:center;padding:60px 0;color:var(--text-400);">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px;opacity:0.4;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    <div style="font-size:14px;">Žádné záznamy pro zvolené filtry</div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ prop.display_name or prop.listing_nickname }} {{ "%02d/%d"|format(month, year) }} — Rentero{% endblock %}
+
+{% block content %}
+{# ── Macros ──────────────────────────────────────────────────────────────── #}
+{% macro money(value) -%}{{ fmt_czk(value) }}{%- endmacro %}
+{% include "partials/property_intro.html" %}
+{% include "partials/property_reservations.html" %}
+{% include "partials/property_expenses.html" %}
+{% include "partials/property_override_history.html" %}
+{% include "partials/property_scripts.html" %}
+
+{% endblock %}

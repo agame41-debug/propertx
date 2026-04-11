@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}Inventory — Rentero{% endblock %}
+
+{% block content %}
+
+{% if flash %}
+<div class="notify {% if flash.level == 'error' %}notify-error{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
+  <div style="flex:1;">
+    <div style="font-weight:600;">{{ flash.message }}</div>
+    {% if flash.detail %}
+    <div style="margin-top:4px;font-size:12px;white-space:pre-line;opacity:0.9;">{{ flash.detail }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px;">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;color:var(--text-100);letter-spacing:-0.02em;">Hostify Inventory</h1>
+    <div style="font-size:13px;color:var(--text-300);margin-top:3px;">Draft onboarding a aktivace objektů z Hostify</div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+    <form method="post" action="/months/generate-all" id="inventory-generate-all-form" class="card" style="padding:10px 12px;display:flex;align-items:center;gap:10px;">
+      {{ csrf_input(request) }}
+      <input type="hidden" name="year" value="">
+      <input type="hidden" name="month" value="">
+      <div style="font-size:12px;color:var(--text-300);">
+        Přegenerovat vše za
+        <span style="color:var(--text-100);font-weight:700;" data-selected-global-month>--/----</span>
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm" {% if bulk_run and bulk_run.is_active %}disabled{% endif %}>
+        {% if bulk_run and bulk_run.is_active %}Běží{% else %}Spustit{% endif %}
+      </button>
+    </form>
+    <form method="post" action="/inventory/sync">
+      {{ csrf_input(request) }}
+      <button type="submit" class="btn btn-primary">Synchronizovat z Hostify</button>
+    </form>
+  </div>
+</div>
+
+{% if bulk_run %}
+<div class="card" style="padding:16px 18px;margin-bottom:18px;border-color:{% if bulk_run.is_active %}rgba(59,130,246,0.25){% elif bulk_run.status == 'FAILED' %}rgba(244,63,94,0.25){% else %}rgba(34,197,94,0.22){% endif %};">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+    <div style="min-width:0;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="font-size:16px;font-weight:700;color:var(--text-100);">Sekvenční generování {{ bulk_run.month_label }}</div>
+        <span class="badge {{ bulk_run.status_badge_class }}">{{ bulk_run.status_label }}</span>
+      </div>
+      <div style="margin-top:6px;font-size:12px;color:var(--text-300);">
+        {{ bulk_run.message or "Čeká na zpracování." }}
+      </div>
+      {% if bulk_run.is_active and bulk_run.current_slug %}
+      <div style="margin-top:6px;font-size:12px;color:var(--text-200);">
+        Aktuálně: <strong>{{ bulk_run.current_slug }}</strong>
+      </div>
+      {% endif %}
+      {% if bulk_run.detail %}
+      <div style="margin-top:8px;font-size:12px;color:var(--text-300);white-space:pre-line;">{{ bulk_run.detail }}</div>
+      {% endif %}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(90px,1fr));gap:10px;min-width:240px;">
+      <div style="padding:10px 12px;border:1px solid var(--border-subtle);border-radius:12px;background:rgba(255,255,255,0.02);">
+        <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Průběh</div>
+        <div style="font-size:20px;font-weight:700;color:var(--text-100);margin-top:6px;">{{ bulk_run.progress_label }}</div>
+      </div>
+      <div style="padding:10px 12px;border:1px solid var(--border-subtle);border-radius:12px;background:rgba(255,255,255,0.02);">
+        <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Výsledek</div>
+        <div style="font-size:12px;color:var(--text-100);margin-top:8px;line-height:1.45;">{{ bulk_run.summary_line }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:18px;">
+  <div class="card" style="padding:16px;">
+    <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Celkem</div>
+    <div style="font-size:24px;font-weight:700;color:var(--text-100);margin-top:8px;">{{ summary.total }}</div>
+  </div>
+  <div class="card" style="padding:16px;">
+    <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Aktivní</div>
+    <div style="font-size:24px;font-weight:700;color:var(--text-100);margin-top:8px;">{{ summary.active_count }}</div>
+  </div>
+  <div class="card" style="padding:16px;">
+    <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Draft</div>
+    <div style="font-size:24px;font-weight:700;color:var(--text-100);margin-top:8px;">{{ summary.draft_count }}</div>
+  </div>
+  <div class="card" style="padding:16px;">
+    <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Bez klienta</div>
+    <div style="font-size:24px;font-weight:700;color:var(--text-100);margin-top:8px;">{{ summary.missing_client_count }}</div>
+  </div>
+  <div class="card" style="padding:16px;">
+    <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Potřebují review</div>
+    <div style="font-size:24px;font-weight:700;color:var(--text-100);margin-top:8px;">{{ summary.review_needed_count }}</div>
+  </div>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;">
+  <div class="filter-tabs">
+    <a href="/inventory" class="filter-tab {% if not selected_status %}active{% endif %}">Vše</a>
+    <a href="/inventory?status=draft" class="filter-tab {% if selected_status == 'draft' %}active{% endif %}">Draft</a>
+    <a href="/inventory?status=active" class="filter-tab {% if selected_status == 'active' %}active{% endif %}">Aktivní</a>
+  </div>
+  <div style="font-size:12px;color:var(--text-300);">
+    Hostify child aliases a channel mapping se doplňují v detailu objektu.
+  </div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:14px;">
+  {% for row in rows %}
+  <div class="card" style="padding:18px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+      <div style="min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div style="font-size:16px;font-weight:700;color:var(--text-100);">{{ row.display_name }}</div>
+          {% if row.active %}
+          <span style="font-size:11px;font-weight:700;color:#b7f5c3;background:rgba(38,181,96,0.16);border:1px solid rgba(38,181,96,0.28);padding:3px 7px;border-radius:999px;">ACTIVE</span>
+          {% else %}
+          <span style="font-size:11px;font-weight:700;color:#ffd79a;background:rgba(194,124,39,0.16);border:1px solid rgba(194,124,39,0.28);padding:3px 7px;border-radius:999px;">DRAFT</span>
+          {% endif %}
+          {% if row.needs_review %}
+          <span style="font-size:11px;font-weight:700;color:#f7c3c3;background:rgba(215,90,90,0.14);border:1px solid rgba(215,90,90,0.24);padding:3px 7px;border-radius:999px;">REVIEW</span>
+          {% endif %}
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:var(--text-300);display:flex;gap:14px;flex-wrap:wrap;">
+          <span><strong style="color:var(--text-200);">Slug:</strong> {{ row.slug }}</span>
+          <span><strong style="color:var(--text-200);">Hostify ID:</strong> {{ row.listing_id or "—" }}</span>
+          <span><strong style="color:var(--text-200);">Nickname:</strong> {{ row.listing_nickname or "—" }}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+        <a href="/clients/{{ row.slug }}" class="btn btn-secondary">Otevřít detail</a>
+        {% if row.active %}
+        <form method="post" action="/inventory/{{ row.slug }}/deactivate">
+          {{ csrf_input(request) }}
+          <input type="hidden" name="redirect_to" value="/inventory{% if selected_status %}?status={{ selected_status }}{% endif %}">
+          <button type="submit" class="btn btn-secondary">Vrátit do draft</button>
+        </form>
+        {% else %}
+        <form method="post" action="/inventory/{{ row.slug }}/activate">
+          {{ csrf_input(request) }}
+          <input type="hidden" name="redirect_to" value="/inventory?status=draft">
+          <button type="submit" class="btn btn-primary">Aktivovat</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px;">
+      <div style="padding:12px;border:1px solid var(--border-subtle);border-radius:14px;background:rgba(255,255,255,0.02);">
+        <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Klient</div>
+        <div style="font-size:14px;color:var(--text-100);margin-top:7px;">{{ row.client_name or "Nezadán" }}</div>
+      </div>
+      <div style="padding:12px;border:1px solid var(--border-subtle);border-radius:14px;background:rgba(255,255,255,0.02);">
+        <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Hostify Aliases</div>
+        <div style="font-size:14px;color:var(--text-100);margin-top:7px;">
+          {% if row.hostify_listing_names %}
+            {{ row.hostify_listing_names|join(", ") }}
+          {% else %}
+            Jen primary nickname
+          {% endif %}
+        </div>
+      </div>
+      <div style="padding:12px;border:1px solid var(--border-subtle);border-radius:14px;background:rgba(255,255,255,0.02);">
+        <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Booking</div>
+        <div style="font-size:14px;color:var(--text-100);margin-top:7px;">{{ row.booking_property_id or row.booking_listing_nickname or "Volitelné" }}</div>
+      </div>
+      <div style="padding:12px;border:1px solid var(--border-subtle);border-radius:14px;background:rgba(255,255,255,0.02);">
+        <div style="font-size:11px;color:var(--text-300);text-transform:uppercase;letter-spacing:0.08em;">Airbnb</div>
+        <div style="font-size:14px;color:var(--text-100);margin-top:7px;">
+          {% if row.airbnb_listing_names %}
+            {{ row.airbnb_listing_names|join(", ") }}
+          {% else %}
+            Volitelné
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if row.issue_labels %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+      {% for issue in row.issue_labels %}
+      <span style="font-size:11px;color:#f7c3c3;background:rgba(215,90,90,0.14);border:1px solid rgba(215,90,90,0.24);padding:4px 8px;border-radius:999px;">{{ issue }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="card" style="padding:48px;text-align:center;color:var(--text-300);font-size:13px;">
+    Žádné objekty pro zvolený filtr.
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+(function() {
+  function applyMonthSelection(detail) {
+    if (!detail) return;
+    var form = document.getElementById('inventory-generate-all-form');
+    if (!form) return;
+    var yearInput = form.querySelector('input[name="year"]');
+    var monthInput = form.querySelector('input[name="month"]');
+    var label = form.querySelector('[data-selected-global-month]');
+    if (yearInput) yearInput.value = detail.y;
+    if (monthInput) monthInput.value = detail.m;
+    if (label) label.textContent = ('0' + detail.m).slice(-2) + '/' + detail.y;
+  }
+
+  if (window.RenteroMonthNav && typeof window.RenteroMonthNav.getCurrent === 'function') {
+    applyMonthSelection(window.RenteroMonthNav.getCurrent());
+  }
+  document.addEventListener('rentero:month-change', function(event) {
+    applyMonthSelection(event.detail || null);
+  });
+
+  {% if bulk_run and bulk_run.is_active %}
+  window.setTimeout(function() {
+    window.location.reload();
+  }, 5000);
+  {% endif %}
+})();
+</script>
+
+{% endblock %}

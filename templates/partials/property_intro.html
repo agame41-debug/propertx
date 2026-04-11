@@ -1,0 +1,308 @@
+{% set total_res = rows|length %}
+{% if total_res > 0 %}
+  {% set matched_rows = rows|selectattr('display_verification_status', 'equalto', 'MATCHED')|list %}
+  {% set matched_count = matched_rows|length %}
+  {% set bank_ok = rows|selectattr('bank_status', 'equalto', 'DORAZILO')|list|length %}
+  {% set bank_missing = rows|selectattr('bank_status', 'equalto', 'CHYBÍ')|list|length %}
+{% else %}
+  {% set matched_count = 0 %}
+  {% set bank_ok = 0 %}
+  {% set bank_missing = 0 %}
+{% endif %}
+
+{% if total_res == 0 %}
+  {% set insight_text = "Žádné rezervace pro tento měsíc." %}
+  {% set insight_tone = "muted" %}
+{% elif matched_count == total_res and bank_missing == 0 %}
+  {% set insight_text = "Měsíc bez nesrovnalostí — " ~ total_res ~ " rezervací, vše ověřeno a přijato na účet." %}
+  {% set insight_tone = "green" %}
+{% elif bank_missing > 0 %}
+  {% set insight_text = bank_missing ~ " platba" ~ ("y" if bank_missing > 1 else "") ~ " dosud nedorazila na účet." %}
+  {% set insight_tone = "amber" %}
+{% elif matched_count < total_res %}
+  {% set insight_text = matched_count ~ " z " ~ total_res ~ " rezervací ověřeno." %}
+  {% set insight_tone = "blue" %}
+{% else %}
+  {% set insight_text = total_res ~ " rezervací · " ~ matched_count ~ " ověřeno." %}
+  {% set insight_tone = "neutral" %}
+{% endif %}
+
+{% set total_payout = row_breakdown.total.payout_czk if rows else 0 %}
+{% if total_payout and total_payout > 0 %}
+  {% set pct_airbnb  = [((row_breakdown.airbnb.payout_czk  / total_payout) * 100)|round|int, 0]|max %}
+  {% set pct_booking = [((row_breakdown.booking.payout_czk / total_payout) * 100)|round|int, 0]|max %}
+  {% set pct_other   = [((row_breakdown.other.payout_czk   / total_payout) * 100)|round|int, 0]|max %}
+{% else %}
+  {% set pct_airbnb = 0 %}
+  {% set pct_booking = 0 %}
+  {% set pct_other = 0 %}
+{% endif %}
+
+{% if generation_job and generation_job.status in ['PENDING', 'RUNNING'] %}
+<script>setTimeout(function(){ window.location.reload(); }, 5000);</script>
+{% endif %}
+
+{% if flash %}
+<div class="notify {% if flash.level == 'error' %}notify-error{% elif flash.level == 'info' %}notify-info{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;">
+    {% if flash.level == 'error' %}<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    {% else %}<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>{% endif %}
+  </svg>
+  <div style="flex:1;">
+    <div style="font-weight:600;">{{ flash.message }}</div>
+    {% if flash.detail %}
+    <details style="margin-top:6px;">
+      <summary style="cursor:pointer;font-size:12px;opacity:0.7;">Technické detaily</summary>
+      <pre style="margin-top:6px;font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-x:auto;opacity:0.75;">{{ flash.detail }}</pre>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if generation_job and generation_job.status in ['PENDING', 'RUNNING'] %}
+<div class="notify notify-info" style="margin-bottom:16px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;animation:spin 1.2s linear infinite;">
+    <path stroke-linecap="round" d="M12 2a10 10 0 010 20A10 10 0 0112 2" opacity=".3"/><path stroke-linecap="round" d="M12 2a10 10 0 0110 10"/>
+  </svg>
+  <div>
+    <div style="font-weight:600;">Generování reportu běží na pozadí.</div>
+    <div style="font-size:12px;opacity:0.75;margin-top:2px;">Stránka se automaticky obnoví za 5 sekund.</div>
+  </div>
+</div>
+<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+{% elif generation_job and generation_job.status == 'FAILED' %}
+<div class="notify notify-error" style="margin-bottom:16px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <div style="flex:1;">
+    <div style="font-weight:600;">{{ generation_job.message or 'Generování reportu selhalo.' }}</div>
+    {% if generation_job.detail %}
+    <details style="margin-top:6px;">
+      <summary style="cursor:pointer;font-size:12px;opacity:0.7;">Technické detaily posledního pokusu</summary>
+      <pre style="margin-top:6px;font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-x:auto;opacity:0.75;">{{ generation_job.detail }}</pre>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% elif show_generation_success_banner %}
+<div class="notify notify-success" data-dismissible-banner data-auto-dismiss-ms="60000" style="margin-bottom:16px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+  <div style="flex:1;font-weight:600;">{{ generation_job.message or 'Report byl vygenerován.' }}</div>
+</div>
+{% endif %}
+
+{% if month_notifications %}
+<div class="notify notify-amber" style="margin-bottom:16px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  <div style="flex:1;">
+    <div style="font-weight:600;margin-bottom:6px;">Upozornění pro tento měsíc</div>
+    {% for note in month_notifications %}
+    <div style="{% if not loop.first %}margin-top:6px;{% endif %}">
+      <div>{{ note.message }}</div>
+      <div style="font-size:11px;opacity:0.6;margin-top:2px;">{{ note.created_at[:16].replace('T', ' ') }} · {{ note.source_type or note.event_type }}</div>
+      {% if note.payload and note.payload.change_lines %}
+      <div style="margin-top:4px;font-size:12px;opacity:0.9;">
+        {% for line in note.payload.change_lines %}
+        <div>{{ line }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="prop-page-header">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;">
+    <div>
+      <div class="prop-breadcrumb">
+        <a href="/" data-month-aware="1" class="prop-breadcrumb-link">Přehled</a>
+        <span class="prop-breadcrumb-sep">/</span>
+        <span>{{ prop.display_name or prop.listing_nickname }}</span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px;">
+        <h1 class="prop-page-title">{{ prop.display_name or prop.listing_nickname }}</h1>
+
+        {% if month_state.status == 'LOCKED' %}
+        <span class="badge badge-neutral" style="gap:5px;">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          Uzamčeno
+        </span>
+        {% else %}
+        <span class="badge badge-green">
+          <span style="width:5px;height:5px;border-radius:50%;background:currentColor;display:inline-block;"></span>
+          Otevřeno
+        </span>
+        {% endif %}
+        {% if month_state.has_new_data_since_generation %}
+        <span class="badge badge-blue">Nová data</span>
+        {% endif %}
+        {% if month_state and month_state.last_generated_at %}
+        <span style="font-size:11px;color:var(--text-300);margin-left:8px;">
+          Aktualizováno:
+          {% set _ts = month_state.last_generated_at[:16].replace('T', ' ') %}
+          {{ _ts }}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;padding-top:18px;">
+      <a href="/audit?slug={{ slug }}&year={{ year }}&month={{ month }}" class="btn btn-ghost btn-sm">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Změny
+      </a>
+
+      <a href="/property/{{ slug }}/{{ year }}/{{ month }}/evidence-hostu" class="btn btn-ghost btn-sm">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Checkin report
+      </a>
+
+      {% if latest_report %}
+      <a href="/property/{{ slug }}/{{ year }}/{{ month }}/download" class="btn btn-secondary btn-sm">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Excel
+      </a>
+      {% endif %}
+
+      <a href="/clients/{{ slug }}" class="btn btn-ghost btn-sm">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        {{ client.name or "Klient" }}
+      </a>
+
+      {% if month_state.status == 'LOCKED' %}
+      <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/unlock">
+        {{ csrf_input(request) }}
+        <button type="submit" class="btn btn-lock btn-sm">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>
+          Odemknout
+        </button>
+      </form>
+      {% else %}
+      <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/lock">
+        {{ csrf_input(request) }}
+        <button type="submit" class="btn btn-lock btn-sm">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          Uzamknout měsíc
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if month_state.status == 'LOCKED' %}
+<div class="notify notify-amber" style="margin-bottom:20px;">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+  <span>Tento měsíc je uzamčen. Výdaje a další změny jsou pouze ke čtení.</span>
+</div>
+{% elif month_state.has_new_data_since_generation %}
+<div class="notify notify-info" style="margin-bottom:20px;">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <div>
+    <div>Od poslední generace byla detekována nová data. Přegeneruj report pro aktuální výsledky.</div>
+    {% if latest_change_lines %}
+    <div style="margin-top:6px;font-size:12px;opacity:0.9;">
+      {% for line in latest_change_lines %}
+      <div>{{ line }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% elif not rows and data_exists %}
+<div class="notify notify-info" style="margin-bottom:20px;">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <div>
+    <div>Data pro tento měsíc existují, ale report ještě nebyl vygenerován. Generování se spouští automaticky při novém importu, nebo ho můžeš spustit ručně.</div>
+    {% if latest_change_lines %}
+    <div style="margin-top:6px;font-size:12px;opacity:0.9;">
+      {% for line in latest_change_lines %}
+      <div>{{ line }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:12px;">
+  <div class="kpi-card kpi-card-green">
+    <div class="kpi-label">Klientovi bude vyplaceno</div>
+    <div class="kpi-value" style="color:var(--color-green);">
+      {{ money(summary.client_payout_after_expenses_czk) }}
+    </div>
+    <div class="kpi-sub">
+      Před výdaji: <span style="color:var(--text-200);">{{ money(summary.client_payout_before_expenses_czk) }}</span>
+    </div>
+    {% if client and client.bank_account %}
+    <div style="margin-top:6px;font-size:11px;color:var(--text-300);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ client.bank_account }}">
+      {{ client.bank_account }}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="kpi-card kpi-card-blue">
+    <div class="kpi-label">Vyplaceno platformami</div>
+    <div class="kpi-value" style="font-size:21px;">
+      {{ money(summary.gross_payout_czk) }}
+    </div>
+    <div class="kpi-sub">
+      Ubytování: <span style="color:var(--text-200);">{{ money(summary.accommodation_income_czk) }}</span>
+    </div>
+  </div>
+
+  <div class="kpi-card kpi-card-red">
+    <div class="kpi-label">
+      Rentero fee ({{ "%.0f"|format(summary.rentero_commission_rate * 100) }}%)
+    </div>
+    <div class="kpi-value" style="font-size:21px;color:var(--color-red);">
+      &#8722; {{ money(summary.rentero_fee_czk + summary.vat_rentero_fee_czk) }}
+    </div>
+    <div class="kpi-sub">
+      Příprava pokoje: <span style="color:var(--text-200);">{{ money(summary.rentero_room_prep_with_vat_czk) }}</span>
+    </div>
+  </div>
+
+  {% set has_expenses = summary.expenses_total_czk and summary.expenses_total_czk != 0 %}
+  <div class="kpi-card {% if has_expenses %}kpi-card-amber{% else %}kpi-card-neutral{% endif %}">
+    <div class="kpi-label">Výdaje</div>
+    <div class="kpi-value" style="font-size:21px;{% if has_expenses %}color:var(--color-amber);{% else %}color:var(--text-300);{% endif %}">
+      {% if has_expenses %}&#8722; {{ money(summary.expenses_total_czk) }}{% else %}&#8212;{% endif %}
+    </div>
+    {% if has_expenses %}
+    <div class="kpi-sub">{{ expenses|length }} položek</div>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:24px;">
+  {% if total_res > 0 %}
+  <span class="badge badge-neutral" style="font-size:12px;padding:4px 10px;">
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    {{ total_res }} rezervací
+  </span>
+  {% if matched_count > 0 %}
+  <span class="badge badge-green" style="font-size:12px;padding:4px 10px;">
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    {{ matched_count }} ověřeno
+  </span>
+  {% endif %}
+  {% if bank_ok > 0 %}
+  <span class="badge badge-green" style="font-size:12px;padding:4px 10px;">{{ bank_ok }} plateb přijato</span>
+  {% endif %}
+  {% if bank_missing > 0 %}
+  <span class="badge badge-red" style="font-size:12px;padding:4px 10px;">{{ bank_missing }} plateb chybí</span>
+  {% endif %}
+  {% if expenses %}
+  <span class="badge badge-neutral" style="font-size:12px;padding:4px 10px;">{{ expenses|length }} výdajů</span>
+  {% endif %}
+  {% endif %}
+
+</div>
+
+{% if rows %}
+{% include "partials/property_breakdown.html" %}
+{% endif %}

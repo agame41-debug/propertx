@@ -1,0 +1,126 @@
+<script>
+var _SECTION_KEY = 'rentero_sec_' + location.pathname;
+function _saveSectionState(bodyId, collapsed) {
+  try {
+    var s = JSON.parse(sessionStorage.getItem(_SECTION_KEY) || '{}');
+    s[bodyId] = collapsed;
+    sessionStorage.setItem(_SECTION_KEY, JSON.stringify(s));
+  } catch(e) {}
+}
+function _restoreSectionStates() {
+  try {
+    var s = JSON.parse(sessionStorage.getItem(_SECTION_KEY) || '{}');
+    Object.keys(s).forEach(function(bodyId) {
+      var body  = document.getElementById(bodyId);
+      if (!body) return;
+      var collapsed = s[bodyId];
+      if (collapsed) {
+        body.classList.add('collapsed');
+        // Find associated caret via card-header onclick
+        var card = body.closest('.card');
+        if (card) {
+          var caretMatch = (card.querySelector('.caret-icon') || null);
+          if (caretMatch) caretMatch.classList.add('rotated');
+        }
+      }
+    });
+  } catch(e) {}
+}
+function toggleSection(bodyId, caretId) {
+  var body  = document.getElementById(bodyId);
+  var caret = document.getElementById(caretId);
+  if (!body) return;
+  var isCollapsed = body.classList.toggle('collapsed');
+  if (caret) {
+    if (isCollapsed) caret.classList.add('rotated');
+    else caret.classList.remove('rotated');
+  }
+  _saveSectionState(bodyId, isCollapsed);
+}
+document.addEventListener('DOMContentLoaded', _restoreSectionStates);
+
+function toggleEditExpense(id) {
+  var row = document.getElementById('edit-expense-' + id);
+  if (!row) return;
+  var isHidden = row.style.display === 'none' || row.style.display === '';
+  row.style.display = isHidden ? 'table-row' : 'none';
+}
+
+function toggleOverrideForm(idx) {
+  var row = document.getElementById('override-form-' + idx);
+  if (!row) return;
+  var isHidden = row.style.display === 'none' || row.style.display === '';
+  row.style.display = isHidden ? 'table-row' : 'none';
+}
+
+function updateOverrideCurrentVal(idx, select) {
+  var opt = select.options[select.selectedIndex];
+  var current = opt.dataset.current || '—';
+  var origEl = document.getElementById('override-orig-' + idx);
+  var newEl  = document.getElementById('override-newval-' + idx);
+  if (origEl) origEl.textContent = current;
+  if (newEl)  newEl.value = opt.dataset.current || '';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('tr').forEach(function(tr) {
+    var actions = tr.querySelector('.expense-actions');
+    if (!actions) return;
+    tr.addEventListener('mouseenter', function(){ actions.style.opacity = '1'; });
+    tr.addEventListener('mouseleave', function(){ actions.style.opacity = '0'; });
+  });
+});
+
+function _clearRowSelected() {
+  document.querySelectorAll('tr.row-selected').forEach(function(r) { r.classList.remove('row-selected'); });
+}
+
+function openDrawerFromRow(el) {
+  // Backward-compat shim — delegates to FloatingPanel
+  var code    = el.dataset.code;
+  var slug    = el.dataset.slug;
+  var year    = el.dataset.year;
+  var month   = el.dataset.month;
+  var guest   = el.dataset.guest   || '—';
+  var channel = el.dataset.channel || '';
+  _clearRowSelected();
+  el.classList.add('row-selected');
+  FloatingPanel.open(code, slug, year, month, guest, channel);
+}
+
+// ── Inline row expand ─────────────────────────────────────────────────────
+function toggleResExpand(el, idx) {
+  var expandRow = document.getElementById('res-expand-' + idx);
+  if (!expandRow) return;
+
+  var isOpen = expandRow.style.display !== 'none';
+  if (isOpen) {
+    expandRow.style.display = 'none';
+    el.classList.remove('row-expand-active');
+  } else {
+    expandRow.style.display = 'table-row';
+    el.classList.add('row-expand-active');
+  }
+}
+
+function toggleAllResExpand() {
+  var btn = document.getElementById('res-expand-all-btn');
+  var expandRows = document.querySelectorAll('tr.res-expand-row');
+  if (!expandRows.length) return;
+
+  // determine current state: if any are closed → open all; if all open → close all
+  var anyHidden = Array.prototype.some.call(expandRows, function(tr) {
+    return tr.style.display === 'none' || tr.style.display === '';
+  });
+
+  expandRows.forEach(function(tr) {
+    tr.style.display = anyHidden ? 'table-row' : 'none';
+  });
+  document.querySelectorAll('tr[onclick^="toggleResExpand"]').forEach(function(tr) {
+    if (anyHidden) tr.classList.add('row-expand-active');
+    else tr.classList.remove('row-expand-active');
+  });
+
+  if (btn) btn.textContent = anyHidden ? 'Sbalit vše' : 'Rozbalit vše';
+}
+</script>
