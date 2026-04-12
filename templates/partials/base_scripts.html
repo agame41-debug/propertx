@@ -441,13 +441,8 @@ function sbToggleObj() {
   document.addEventListener('click', function(e) {
     var cp = e.target.closest('[data-copy]');
     if (!cp) return;
-    // prevent navigation when inside a link (prop-row <a>, hx-boosted links)
-    if (cp.closest('a')) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-    } else {
-      e.stopPropagation();
-    }
+    e.preventDefault();
+    e.stopImmediatePropagation();
     _doCopy(cp, cp.dataset.copy);
   }, true);
   /* Bubble phase — table cell copy (td.copyable without data-copy) */
