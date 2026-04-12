@@ -1018,10 +1018,26 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
   var W, H;
   var stars = [];
-  var COUNT = 55;
+  var COUNT = 70;
   var raf;
   var paused = false;
   var isLight = false;
+
+  // Star color palette — warm whites, blue-whites, gold, subtle pink
+  var darkColors = [
+    'rgb(220, 215, 240)',  // cool white
+    'rgb(200, 210, 255)',  // blue-white
+    'rgb(255, 220, 160)',  // warm gold
+    'rgb(240, 200, 220)',  // subtle pink
+    'rgb(180, 200, 255)',  // ice blue
+  ];
+  var lightColors = [
+    'rgb(100, 60, 150)',   // purple
+    'rgb(60, 70, 140)',    // indigo
+    'rgb(140, 80, 50)',    // warm brown
+    'rgb(80, 50, 130)',    // deep violet
+    'rgb(50, 90, 140)',    // steel blue
+  ];
 
   function resize() {
     W = window.innerWidth;
@@ -1035,19 +1051,20 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
 
   function create() {
     var d = Math.random();
-    var bright = d > 0.82;
+    var bright = d > 0.78;
     return {
       x: Math.random() * W,
       y: Math.random() * H,
-      size: bright ? 1.2 + Math.random() * 0.6 : 0.4 + Math.random() * 0.5,
+      size: bright ? 1.4 + Math.random() * 0.8 : 0.5 + Math.random() * 0.6,
       vx: (Math.random() - 0.5) * 0.03,
       vy: -0.008 - Math.random() * 0.025,
-      baseA: bright ? 0.55 + Math.random() * 0.35 : 0.10 + Math.random() * 0.15,
+      baseA: bright ? 0.6 + Math.random() * 0.35 : 0.15 + Math.random() * 0.20,
       phase: Math.random() * 6.28,
       speed: 0.004 + Math.random() * 0.018,
-      depth: bright ? 0.5 + Math.random() * 0.35 : 0.15,
-      spike: bright ? 3 + Math.random() * 4 : 0,
-      bright: bright
+      depth: bright ? 0.5 + Math.random() * 0.35 : 0.2,
+      spike: bright ? 3 + Math.random() * 5 : 0,
+      bright: bright,
+      colorIdx: Math.floor(Math.random() * 5)
     };
   }
 
@@ -1057,25 +1074,26 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
     for (var i = 0; i < COUNT; i++) stars.push(create());
   }
 
-  function drawStar(x, y, size, spike, a) {
-    // core dot — tiny sharp pixel
-    ctx.globalAlpha = a;
-    ctx.fillRect(x - size * 0.5, y - size * 0.5, size, size);
+  function drawStar(s, a) {
+    var colors = isLight ? lightColors : darkColors;
+    ctx.fillStyle = colors[s.colorIdx];
 
-    // cross spikes for bright stars — the "twinkle"
+    // core dot
+    ctx.globalAlpha = a;
+    ctx.fillRect(s.x - s.size * 0.5, s.y - s.size * 0.5, s.size, s.size);
+
+    // cross spikes for bright stars
+    var spike = s.spike * (0.5 + 0.5 * Math.sin(s.phase));
     if (spike > 0) {
-      ctx.globalAlpha = a * 0.5;
-      ctx.fillRect(x - spike, y - 0.5, spike * 2, 1);
-      ctx.fillRect(x - 0.5, y - spike, 1, spike * 2);
+      ctx.globalAlpha = a * 0.45;
+      ctx.fillRect(s.x - spike, s.y - 0.5, spike * 2, 1);
+      ctx.fillRect(s.x - 0.5, s.y - spike, 1, spike * 2);
     }
   }
 
   function draw() {
     if (paused) return;
     ctx.clearRect(0, 0, W, H);
-
-    // star color: warm white in dark, purple in light
-    ctx.fillStyle = isLight ? 'rgb(120, 80, 160)' : 'rgb(210, 205, 230)';
 
     for (var i = 0; i < stars.length; i++) {
       var s = stars[i];
@@ -1088,11 +1106,9 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
       if (s.x > W + 12) s.x = -12;
 
       var a = s.baseA * (1 - s.depth + s.depth * Math.sin(s.phase));
-      // in light theme, stars more subtle
-      if (isLight) a *= 0.4;
+      if (isLight) a *= 0.75;
 
-      var spike = s.spike * (0.5 + 0.5 * Math.sin(s.phase));
-      drawStar(s.x, s.y, s.size, spike, a);
+      drawStar(s, a);
     }
 
     ctx.globalAlpha = 1;
