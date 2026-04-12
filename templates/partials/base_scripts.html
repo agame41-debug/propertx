@@ -1018,7 +1018,7 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
   var W, H;
   var particles = [];
-  var PARTICLE_COUNT = 80;
+  var STAR_COUNT = 60;
   var raf;
   var paused = false;
 
@@ -1032,26 +1032,29 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  function createParticle() {
+  function createStar() {
     var depth = Math.random();
+    // 15% are bright stars, rest are dim background
+    var isBright = depth > 0.85;
     return {
       x: Math.random() * W,
       y: Math.random() * H,
-      r: 0.4 + depth * 1.2,
-      vx: (Math.random() - 0.5) * 0.12,
-      vy: -0.05 - Math.random() * 0.15,
-      alpha: 0.08 + depth * 0.25,
+      r: isBright ? 1.5 + Math.random() * 1.0 : 0.6 + Math.random() * 0.8,
+      vx: (Math.random() - 0.5) * 0.04,
+      vy: -0.01 - Math.random() * 0.04,
+      baseAlpha: isBright ? 0.5 + Math.random() * 0.4 : 0.12 + Math.random() * 0.18,
       pulse: Math.random() * Math.PI * 2,
-      pulseSpeed: 0.003 + Math.random() * 0.008,
-      hue: Math.random() < 0.6 ? 280 : (Math.random() < 0.5 ? 55 : 25)
+      pulseSpeed: 0.005 + Math.random() * 0.015,
+      pulseDepth: isBright ? 0.4 + Math.random() * 0.3 : 0.2,
+      bright: isBright
     };
   }
 
   function init() {
     resize();
     particles = [];
-    for (var i = 0; i < PARTICLE_COUNT; i++) {
-      particles.push(createParticle());
+    for (var i = 0; i < STAR_COUNT; i++) {
+      particles.push(createStar());
     }
   }
 
@@ -1066,24 +1069,23 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
       p.pulse += p.pulseSpeed;
 
       // wrap around edges
-      if (p.y < -5) { p.y = H + 5; p.x = Math.random() * W; }
-      if (p.x < -5) p.x = W + 5;
-      if (p.x > W + 5) p.x = -5;
+      if (p.y < -10) { p.y = H + 10; p.x = Math.random() * W; }
+      if (p.x < -10) p.x = W + 10;
+      if (p.x > W + 10) p.x = -10;
 
-      var a = p.alpha * (0.6 + 0.4 * Math.sin(p.pulse));
-      var L = p.hue === 280 ? 0.75 : (p.hue === 55 ? 0.80 : 0.72);
-      var C = p.hue === 280 ? 0.10 : 0.08;
+      var a = p.baseAlpha * (1 - p.pulseDepth + p.pulseDepth * Math.sin(p.pulse));
 
+      // star core — warm white
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = 'oklch(' + L + ' ' + C + ' ' + p.hue + ' / ' + a.toFixed(3) + ')';
+      ctx.fillStyle = 'rgba(220,215,235,' + a.toFixed(3) + ')';
       ctx.fill();
 
-      // glow for brighter particles
-      if (p.r > 1.0 && a > 0.15) {
+      // glow halo for bright stars
+      if (p.bright) {
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r * 3, 0, Math.PI * 2);
-        ctx.fillStyle = 'oklch(' + L + ' ' + C + ' ' + p.hue + ' / ' + (a * 0.12).toFixed(3) + ')';
+        ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(180,165,220,' + (a * 0.08).toFixed(3) + ')';
         ctx.fill();
       }
     }
