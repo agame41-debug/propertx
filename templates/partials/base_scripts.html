@@ -1130,6 +1130,31 @@ var FloatingPanel = (function() {
     }
   }
 
+  function submitAction(form, code, successMsg) {
+    // Submit form via fetch, show success in panel, then close tab & reload
+    var data = new FormData(form);
+    _content.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;padding:32px;">'
+      + '<svg class="fp-spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+      + '<path stroke-linecap="round" d="M12 2a10 10 0 010 20A10 10 0 0112 2" opacity=".25"/>'
+      + '<path stroke-linecap="round" d="M12 2a10 10 0 0110 10"/></svg>'
+      + '<span style="font-size:13px;color:var(--text-300);">Zpracování…</span></div>';
+    fetch(form.action, {
+      method: 'POST',
+      body: data,
+      credentials: 'same-origin',
+      redirect: 'follow',
+    }).then(function() {
+      _content.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;padding:32px;">'
+        + '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="oklch(0.82 0.16 155)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
+        + '<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+        + '<span style="font-size:14px;font-weight:600;color:oklch(0.82 0.16 155);">' + _esc(successMsg || 'Hotovo') + '</span></div>';
+      setTimeout(function() { closeTab(code); window.location.reload(); }, 1200);
+    }).catch(function(err) {
+      _content.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;padding:32px;">'
+        + '<span style="font-size:13px;color:var(--red);">Chyba: ' + _esc(err.message) + '</span></div>';
+    });
+  }
+
   return {
     init: init,
     open: open,
@@ -1138,6 +1163,7 @@ var FloatingPanel = (function() {
     activateTab: function(code) { _activateTab(code); },
     toggleMinimize: toggleMinimize,
     toggleExpand: toggleExpand,
+    submitAction: submitAction,
   };
 })();
 
