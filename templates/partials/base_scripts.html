@@ -437,25 +437,23 @@ function sbToggleObj() {
       el.classList.remove('copy-flash'); void el.offsetWidth; el.classList.add('copy-flash');
     }
   }
+  /* Capture phase — runs BEFORE htmx boost can intercept the click */
   document.addEventListener('click', function(e) {
-    // existing table cell copy
-    var td = e.target.closest('td.copyable');
-    if (td) { _doCopy(td, parseCopyValue(td)); return; }
-    // strip value copy
-    var rv = e.target.closest('.rcs-val[data-copy]');
-    if (rv) {
-      e.stopPropagation();
-      _doCopy(rv, rv.dataset.copy);
-      return;
-    }
-    // generic [data-copy] elements (KPI values, financial numbers, etc.)
     var cp = e.target.closest('[data-copy]');
-    if (cp) {
-      // prevent navigation when inside a link (e.g. prop-row <a>)
-      if (cp.closest('a')) e.preventDefault();
+    if (!cp) return;
+    // prevent navigation when inside a link (prop-row <a>, hx-boosted links)
+    if (cp.closest('a')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    } else {
       e.stopPropagation();
-      _doCopy(cp, cp.dataset.copy);
     }
+    _doCopy(cp, cp.dataset.copy);
+  }, true);
+  /* Bubble phase — table cell copy (td.copyable without data-copy) */
+  document.addEventListener('click', function(e) {
+    var td = e.target.closest('td.copyable');
+    if (td && !td.dataset.copy) { _doCopy(td, parseCopyValue(td)); }
   });
 })();
 
