@@ -158,7 +158,7 @@ def _build_aircover_reservation(parent_row: dict, ac_item: dict, suffix: str = "
         "airbnb_payout_date": ac_item.get("payout_date", ""),
         "batch_ref": ac_item.get("gref") or ac_item.get("batch_ref", ""),
         "batch_payout_date": ac_item.get("payout_date", ""),
-        "batch_amount_czk": ac_item.get("amount_czk"),
+        "batch_amount_czk": ac_item.get("batch_czk") or ac_item.get("amount_czk"),
     }
 
 

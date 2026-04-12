@@ -536,6 +536,7 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
                     "airbnb_rate": batch["implied_rate"],
                     "amount_eur": eur_amount,
                     "amount_czk": round(eur_amount * batch["implied_rate"], 2) if batch["implied_rate"] else None,
+                    "batch_czk": batch["amount_czk"],
                     "guest_name": (row.get("Host") or "").strip(),
                     "listing_name": (row.get("Nabídka") or "").strip(),
                     "check_in": _parse_date(row.get("Datum zahájení", "")).isoformat() if _parse_date(row.get("Datum zahájení", "")) else "",
