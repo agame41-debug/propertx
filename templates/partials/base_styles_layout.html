@@ -283,14 +283,15 @@
     }
   }
 
-  /* Light theme aurora — warm soft tones, wider spread, lower opacity */
+  /* Light theme aurora — soft warm pastels, visible on white */
   [data-theme="light"] .main-content::before {
     background:
-      radial-gradient(ellipse 70% 55%, rgba(180, 140, 220, 0.07) 0%, transparent 80%),
-      radial-gradient(ellipse 65% 50%, rgba(140, 170, 230, 0.06) 0%, transparent 75%),
-      radial-gradient(ellipse 60% 55%, rgba(240, 180, 140, 0.05) 0%, transparent 75%),
-      radial-gradient(ellipse 55% 50%, rgba(160, 200, 220, 0.05) 0%, transparent 70%),
-      radial-gradient(ellipse 58% 48%, rgba(220, 160, 190, 0.04) 0%, transparent 75%);
+      radial-gradient(ellipse 65% 50%, rgba(150, 110, 200, 0.10) 0%, transparent 75%),
+      radial-gradient(ellipse 60% 48%, rgba(100, 140, 220, 0.09) 0%, transparent 70%),
+      radial-gradient(ellipse 55% 52%, rgba(220, 150, 120, 0.08) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 45%, rgba(120, 180, 200, 0.07) 0%, transparent 68%),
+      radial-gradient(ellipse 55% 42%, rgba(200, 130, 170, 0.06) 0%, transparent 72%);
+    background-size: 200% 200%;
   }
 
   @media (prefers-reduced-motion: reduce) {
