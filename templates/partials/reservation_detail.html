@@ -266,7 +266,18 @@
   <div style="margin-bottom:14px;">
     <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-300);margin-bottom:8px;">Přesunout do jiného měsíce</div>
 
-    {% if r.get('_assignment') %}
+    {% if r.get('_assignment') and r.get('_moved_here') %}
+    {# Reservation was moved INTO this month — show origin and revert #}
+    <div style="padding:10px 12px;background:rgba(245,161,74,0.08);border:1px solid rgba(245,161,74,0.2);border-radius:8px;font-size:12px;color:var(--amber);margin-bottom:8px;">
+      ⚠ Přesunuto sem z {{ "%02d/%d"|format(r._assignment.original_month, r._assignment.original_year) }}
+      {% if r._assignment.reason %} — {{ r._assignment.reason }}{% endif %}
+    </div>
+    <form method="post" action="/property/{{ slug }}/{{ r._assignment.original_year }}/{{ r._assignment.original_month }}/reservation/{{ r.confirmation_code }}/move-revert" hx-boost="false" onsubmit="event.preventDefault();if(typeof FloatingPanel!=='undefined')FloatingPanel.submitAction(this,'{{ r.confirmation_code }}','Přesun vrácen zpět')">
+      {{ csrf_input(request) }}
+      <button type="submit" class="btn btn-ghost btn-sm">Vrátit přesun zpět</button>
+    </form>
+    {% elif r.get('_assignment') %}
+    {# Reservation moved OUT of this month — show target and revert #}
     <div style="padding:10px 12px;background:rgba(245,161,74,0.08);border:1px solid rgba(245,161,74,0.2);border-radius:8px;font-size:12px;color:var(--amber);margin-bottom:8px;">
       ⚠ Přesunuto do {{ "%02d/%d"|format(r._assignment.target_month, r._assignment.target_year) }}
       {% if r._assignment.reason %} — {{ r._assignment.reason }}{% endif %}

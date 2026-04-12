@@ -5,6 +5,33 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 
+def _resolve_assignment(state, conn, slug, code, year, month):
+    """Find assignment for a reservation row, checking both directions.
+
+    Returns (assignment_dict | None, moved_here: bool).
+    moved_here=False means "moved OUT of this month" (original=here).
+    moved_here=True  means "moved INTO this month" (target=here).
+    """
+    # 1. Check if moved OUT of this month
+    asgn = state["get_assignment_for_code"](
+        conn, slug, code, original_year=year, original_month=month,
+    )
+    if asgn:
+        return asgn, False
+    # 2. Check if moved INTO this month (any assignment targeting here)
+    moved_in = state["get_codes_assigned_to_month"](conn, slug, year, month)
+    for a in moved_in:
+        if a["confirmation_code"] == code:
+            # Fetch the full assignment record
+            full = state["get_assignment_for_code"](
+                conn, slug, code,
+                original_year=a["original_year"],
+                original_month=a["original_month"],
+            )
+            return full, True
+    return None, False
+
+
 def register(app, state) -> None:
     require_auth = state["require_auth"]
     get_db = state["get_db"]
@@ -97,13 +124,14 @@ def register(app, state) -> None:
             raise HTTPException(status_code=404, detail="Reservation not found")
         bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [code])
         month_state = state["get_report_month_state"](conn, slug, year, month)
-        assignment = state["get_assignment_for_code"](
-            conn, slug, code, original_year=year, original_month=month,
+        assignment, moved_here = _resolve_assignment(
+            state, conn, slug, code, year, month,
         )
         exclusion = state["get_exclusion_for_code"](conn, slug, code)
         row = dict(row)
         if assignment:
             row["_assignment"] = assignment
+            row["_moved_here"] = moved_here
         if exclusion:
             row["_exclusion"] = exclusion
         return state["templates"].TemplateResponse(
@@ -149,13 +177,14 @@ def register(app, state) -> None:
 
         bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [code])
         month_state = state["get_report_month_state"](conn, slug, year, month)
-        assignment = state["get_assignment_for_code"](
-            conn, slug, code, original_year=year, original_month=month,
+        assignment, moved_here = _resolve_assignment(
+            state, conn, slug, code, year, month,
         )
         exclusion = state["get_exclusion_for_code"](conn, slug, code)
         row = dict(row)
         if assignment:
             row["_assignment"] = assignment
+            row["_moved_here"] = moved_here
         if exclusion:
             row["_exclusion"] = exclusion
 
