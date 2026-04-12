@@ -283,11 +283,7 @@
     }
   }
 
-  /* Light theme — no CSS aurora, canvas handles sun rays */
-  [data-theme="light"] .main-content::before {
-    background: none;
-    animation: none;
-  }
+  /* Light theme — same aurora, just visible on light bg */
 
   @media (prefers-reduced-motion: reduce) {
     .main-content::before { animation: none; }

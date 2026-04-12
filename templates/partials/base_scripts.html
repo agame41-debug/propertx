@@ -1013,7 +1013,7 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
   document.body.addEventListener('htmx:afterSwap', observeSparklines);
 })();
 
-/* ─── Cosmos — stars (dark) / sun rays (light) ─────────────────────── */
+/* ─── Cosmos — floating particle field (both themes) ───────────────── */
 (function() {
   var canvas = document.getElementById('cosmos');
   if (!canvas) return;
@@ -1022,13 +1022,12 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
 
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
   var W, H;
+  var stars = [];
+  var COUNT = 70;
   var raf;
   var paused = false;
   var isLight = false;
 
-  /* ── DARK THEME: Stars ── */
-  var stars = [];
-  var STAR_COUNT = 70;
   var darkColors = [
     'rgb(220, 215, 240)',
     'rgb(200, 210, 255)',
@@ -1036,8 +1035,25 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
     'rgb(240, 200, 220)',
     'rgb(180, 200, 255)',
   ];
+  var lightColors = [
+    'rgb(140, 80, 200)',
+    'rgb(100, 70, 190)',
+    'rgb(180, 90, 160)',
+    'rgb(80, 100, 200)',
+    'rgb(160, 60, 180)',
+  ];
 
-  function createStar() {
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function create() {
     var d = Math.random();
     var bright = d > 0.78;
     return {
@@ -1056,180 +1072,45 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
     };
   }
 
-  function drawStars() {
-    for (var i = 0; i < stars.length; i++) {
-      var s = stars[i];
-      s.x += s.vx;
-      s.y += s.vy;
-      s.phase += s.speed;
-      if (s.y < -12) { s.y = H + 12; s.x = Math.random() * W; }
-      if (s.x < -12) s.x = W + 12;
-      if (s.x > W + 12) s.x = -12;
-
-      var a = s.baseA * (1 - s.depth + s.depth * Math.sin(s.phase));
-      ctx.fillStyle = darkColors[s.colorIdx];
-      ctx.globalAlpha = a;
-      ctx.fillRect(s.x - s.size * 0.5, s.y - s.size * 0.5, s.size, s.size);
-
-      var spike = s.spike * (0.5 + 0.5 * Math.sin(s.phase));
-      if (spike > 0) {
-        ctx.globalAlpha = a * 0.45;
-        ctx.fillRect(s.x - spike, s.y - 0.5, spike * 2, 1);
-        ctx.fillRect(s.x - 0.5, s.y - spike, 1, spike * 2);
-      }
-    }
-  }
-
-  /* ── LIGHT THEME: Sun rays + dust particles ── */
-  var rays = [];
-  var RAY_COUNT = 14;
-  var dusts = [];
-  var DUST_COUNT = 40;
-  var sunX, sunY;
-  var globalTime = 0;
-
-  function createRay(i) {
-    var baseAngle = (Math.PI * 0.6) + (i / RAY_COUNT) * Math.PI * 1.15;
-    return {
-      angle: baseAngle,
-      length: 0.5 + Math.random() * 0.5,
-      width: 0.003 + Math.random() * 0.008,
-      baseA: 0.06 + Math.random() * 0.09,
-      phase: Math.random() * 6.28,
-      speed: 0.003 + Math.random() * 0.006,
-      drift: 0.0004 + Math.random() * 0.001,
-      driftPhase: Math.random() * 6.28,
-    };
-  }
-
-  function createDust() {
-    var angle = (Math.PI * 0.5) + Math.random() * Math.PI * 1.3;
-    var dist = 0.15 + Math.random() * 0.7;
-    return {
-      x: sunX + Math.cos(angle) * dist * Math.max(W, H),
-      y: sunY + Math.sin(angle) * dist * Math.max(W, H),
-      size: 0.8 + Math.random() * 1.5,
-      vx: -0.02 - Math.random() * 0.04,
-      vy: 0.01 + Math.random() * 0.03,
-      baseA: 0.15 + Math.random() * 0.3,
-      phase: Math.random() * 6.28,
-      speed: 0.008 + Math.random() * 0.015,
-      warm: Math.random() > 0.5,
-    };
-  }
-
-  function initLight() {
-    sunX = W * 0.94;
-    sunY = H * 0.04;
-    rays = [];
-    for (var i = 0; i < RAY_COUNT; i++) rays.push(createRay(i));
-    dusts = [];
-    for (var i = 0; i < DUST_COUNT; i++) dusts.push(createDust());
-  }
-
-  function drawSunRays() {
-    globalTime += 0.008;
-
-    // Glow at source
-    var grd = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 180);
-    grd.addColorStop(0, 'rgba(255, 235, 180, 0.30)');
-    grd.addColorStop(0.3, 'rgba(255, 220, 150, 0.12)');
-    grd.addColorStop(1, 'rgba(255, 210, 130, 0)');
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = grd;
-    ctx.fillRect(sunX - 200, sunY - 200, 400, 400);
-
-    // Rays
-    var maxLen = Math.max(W, H) * 1.2;
-    for (var i = 0; i < rays.length; i++) {
-      var r = rays[i];
-      r.phase += r.speed;
-      r.driftPhase += r.drift;
-
-      var a = r.baseA * (0.5 + 0.5 * Math.sin(r.phase));
-      var angle = r.angle + Math.sin(r.driftPhase) * 0.04;
-      var len = r.length * maxLen;
-      var halfW = r.width * maxLen;
-
-      var cos = Math.cos(angle);
-      var sin = Math.sin(angle);
-      var perpX = -sin * halfW;
-      var perpY = cos * halfW;
-
-      // Gradient along ray
-      var endX = sunX + cos * len;
-      var endY = sunY + sin * len;
-      var rayGrd = ctx.createLinearGradient(sunX, sunY, endX, endY);
-      rayGrd.addColorStop(0, 'rgba(255, 230, 170, ' + a * 1.5 + ')');
-      rayGrd.addColorStop(0.3, 'rgba(255, 220, 150, ' + a + ')');
-      rayGrd.addColorStop(1, 'rgba(255, 215, 140, 0)');
-
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = rayGrd;
-      ctx.beginPath();
-      ctx.moveTo(sunX, sunY);
-      ctx.lineTo(endX + perpX, endY + perpY);
-      ctx.lineTo(endX - perpX, endY - perpY);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // Dust particles
-    for (var i = 0; i < dusts.length; i++) {
-      var d = dusts[i];
-      d.x += d.vx;
-      d.y += d.vy;
-      d.phase += d.speed;
-
-      // Reset if out of viewport
-      if (d.x < -20 || d.y > H + 20 || d.y < -20) {
-        var angle = (Math.PI * 0.5) + Math.random() * Math.PI * 1.3;
-        var dist = 0.1 + Math.random() * 0.6;
-        d.x = sunX + Math.cos(angle) * dist * Math.max(W, H);
-        d.y = sunY + Math.sin(angle) * dist * Math.max(W, H);
-      }
-
-      var da = d.baseA * (0.4 + 0.6 * Math.sin(d.phase));
-      ctx.globalAlpha = da;
-      ctx.fillStyle = d.warm ? 'rgb(255, 220, 150)' : 'rgb(255, 240, 200)';
-      ctx.fillRect(d.x - d.size * 0.5, d.y - d.size * 0.5, d.size, d.size);
-
-      // Subtle cross for larger particles
-      if (d.size > 1.5) {
-        ctx.globalAlpha = da * 0.3;
-        ctx.fillRect(d.x - 3, d.y - 0.5, 6, 1);
-        ctx.fillRect(d.x - 0.5, d.y - 3, 1, 6);
-      }
-    }
-  }
-
-  /* ── Shared ── */
-  function resize() {
-    W = window.innerWidth;
-    H = window.innerHeight;
-    canvas.width  = W * dpr;
-    canvas.height = H * dpr;
-    canvas.style.width  = W + 'px';
-    canvas.style.height = H + 'px';
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (isLight) { sunX = W * 0.94; sunY = H * 0.04; }
-  }
-
   function init() {
     resize();
     stars = [];
-    for (var i = 0; i < STAR_COUNT; i++) stars.push(createStar());
-    initLight();
+    for (var i = 0; i < COUNT; i++) stars.push(create());
+  }
+
+  function drawStar(s, a) {
+    var colors = isLight ? lightColors : darkColors;
+    ctx.fillStyle = colors[s.colorIdx];
+
+    ctx.globalAlpha = a;
+    ctx.fillRect(s.x - s.size * 0.5, s.y - s.size * 0.5, s.size, s.size);
+
+    var spike = s.spike * (0.5 + 0.5 * Math.sin(s.phase));
+    if (spike > 0) {
+      ctx.globalAlpha = a * 0.45;
+      ctx.fillRect(s.x - spike, s.y - 0.5, spike * 2, 1);
+      ctx.fillRect(s.x - 0.5, s.y - spike, 1, spike * 2);
+    }
   }
 
   function draw() {
     if (paused) return;
     ctx.clearRect(0, 0, W, H);
 
-    if (isLight) {
-      drawSunRays();
-    } else {
-      drawStars();
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i];
+      s.x += s.vx;
+      s.y += s.vy;
+      s.phase += s.speed;
+
+      if (s.y < -12) { s.y = H + 12; s.x = Math.random() * W; }
+      if (s.x < -12) s.x = W + 12;
+      if (s.x > W + 12) s.x = -12;
+
+      var a = s.baseA * (1 - s.depth + s.depth * Math.sin(s.phase));
+      if (isLight) a *= 0.75;
+
+      drawStar(s, a);
     }
 
     ctx.globalAlpha = 1;
@@ -1237,9 +1118,7 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
   }
 
   function checkTheme() {
-    var wasLight = isLight;
     isLight = document.documentElement.getAttribute('data-theme') === 'light';
-    if (!wasLight && isLight) initLight();
     if (paused) { paused = false; draw(); }
   }
 
@@ -1256,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
     }
   });
 
-  window.addEventListener('resize', function() { resize(); if (isLight) initLight(); });
+  window.addEventListener('resize', resize);
 
   var mo = new MutationObserver(checkTheme);
   mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
