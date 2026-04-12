@@ -1324,7 +1324,14 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
 
   function checkTheme() {
     isLight = document.documentElement.getAttribute('data-theme') === 'light';
-    if (paused) { paused = false; draw(); }
+    if (isLight) {
+      paused = true;
+      if (raf) cancelAnimationFrame(raf);
+      ctx.clearRect(0, 0, W, H);
+    } else if (paused) {
+      paused = false;
+      draw();
+    }
   }
 
   var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1347,6 +1354,7 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
 
   init();
   isLight = document.documentElement.getAttribute('data-theme') === 'light';
-  draw();
+  if (!isLight) draw();
+  else paused = true;
 })();
 </script>

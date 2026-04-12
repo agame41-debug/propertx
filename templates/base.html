@@ -1,3 +1,5 @@
+{% set is_htmx = request.headers.get('HX-Request', '') == 'true' %}
+{% if not is_htmx %}
 <!DOCTYPE html>
 <html lang="cs">
 <head>
@@ -25,7 +27,7 @@
   {% include "partials/base_styles_responsive.html" %}
   {% block head %}{% endblock %}
 </head>
-<body hx-boost="true" hx-target="#page-body" hx-swap="outerHTML transition:true" hx-select="#page-body" hx-push-url="true">
+<body hx-boost="true" hx-target="#page-body" hx-swap="outerHTML transition:true" hx-push-url="true">
 
 <canvas id="cosmos" aria-hidden="true"></canvas>
 
@@ -39,9 +41,11 @@
       <button id="mobile-month-label" type="button" style="background:none;border:none;cursor:pointer;font-size:var(--text-sm);font-weight:600;color:var(--text-100);padding:var(--space-xs) var(--space-md);font-family:inherit;">--/----</button>
       <button class="sb-month-btn" id="mobile-month-next">&#8250;</button>
     </div>
+{% endif %}
     <div id="page-body">
       {% block content %}{% endblock %}
     </div>
+{% if not is_htmx %}
   </main>
 </div>
 
@@ -422,3 +426,4 @@
 </script>
 </body>
 </html>
+{% endif %}
