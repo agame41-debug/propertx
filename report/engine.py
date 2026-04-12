@@ -156,9 +156,9 @@ def _build_aircover_reservation(parent_row: dict, ac_item: dict, suffix: str = "
         "effective_payout_eur": amount_eur,
         "airbnb_batch_rate": float(ac_item.get("airbnb_rate") or 0.0),
         "airbnb_payout_date": ac_item.get("payout_date", ""),
-        "batch_ref": "",
-        "batch_payout_date": "",
-        "batch_amount_czk": None,
+        "batch_ref": ac_item.get("gref") or ac_item.get("batch_ref", ""),
+        "batch_payout_date": ac_item.get("payout_date", ""),
+        "batch_amount_czk": ac_item.get("amount_czk"),
     }
 
 
@@ -616,14 +616,6 @@ def generate_report_in_process(
     )
     save_payout_batch_bank_matches(conn, "airbnb", airbnb_matches)
     save_payout_batch_bank_matches(conn, "booking", booking_matches)
-
-    # ── AirCover rows: override bank status to N/A ───────────────────────────
-    for row in calc_rows:
-        if row.get("is_aircover"):
-            row["bank_status"] = "N/A"
-            row["bank_datum"] = ""
-            row["bank_amount_czk"] = None
-            row["bank_tx_key"] = ""
 
     # ── Booking CHYBÍ_V_HOSTIFY → KE_KONTROLE ──────────────────────────────
     for row in calc_rows:

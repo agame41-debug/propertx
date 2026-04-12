@@ -441,6 +441,19 @@ def apply_checkin_city_tax_overrides(
             )
             continue
 
+        if row.get("is_aircover"):
+            skipped = {
+                **row,
+                "tax_verification_required": False,
+                "checkin_verified": False,
+                "checkin_reservation_id": "",
+                "checkin_property_name": "",
+                "checkin_total_guests": None,
+                "checkin_missing_age_guests": 0,
+            }
+            updated.append(skipped)
+            continue
+
         active = {**row, "tax_verification_required": True}
         updated.append(active)
         active_rows.append((idx, active))
