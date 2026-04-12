@@ -233,8 +233,8 @@
     var stored = getStoredYM();
     if (stored) refreshMonthAwareNav(stored);
   });
-  // Bypass HTMX for month-aware links — full page navigation with correct month.
-  // Capturing phase runs before HTMX can intercept the click.
+  // Intercept month-aware links: if link href already has the correct month,
+  // let HTMX handle it (fast). If month is stale, bypass HTMX with full reload.
   document.addEventListener('click', function(e) {
     var link = e.target.closest('a[data-month-aware]');
     if (!link) return;
@@ -243,6 +243,15 @@
     var base = link.dataset.baseHref || link.getAttribute('href') || '/';
     try { base = new URL(base, location.origin).pathname; } catch(ex) {}
     if (!isMonthAwarePath(base) && base !== '/inventory') return;
+    // Check if link already has the correct month — let HTMX handle it
+    try {
+      var linkUrl = new URL(link.getAttribute('href') || '', location.origin);
+      if (+linkUrl.searchParams.get('year') === stored.y &&
+          +linkUrl.searchParams.get('month') === stored.m) {
+        return; // months match, HTMX proceeds normally (fast)
+      }
+    } catch(ex) {}
+    // Month mismatch — bypass HTMX, full page load with correct month
     e.preventDefault();
     e.stopImmediatePropagation();
     window.location.href = base + '?year=' + stored.y + '&month=' + stored.m;
