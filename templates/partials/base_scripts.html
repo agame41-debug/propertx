@@ -1084,23 +1084,35 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
     ctx.fillStyle = col;
 
     if (isLight) {
-      // Soft glowing circles for light theme
-      ctx.globalAlpha = a;
+      // Large soft glow halo — the main visible part
       ctx.shadowColor = col;
-      ctx.shadowBlur = s.bright ? 12 : 6;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.size * 0.8, 0, 6.28);
-      ctx.fill();
+      ctx.shadowBlur = s.bright ? 25 : 14;
+      ctx.globalAlpha = a * 0.7;
+      ctx.fillRect(s.x - 0.5, s.y - 0.5, 1, 1);
 
-      // Brighter core
+      // Second glow pass for intensity
       if (s.bright) {
-        ctx.globalAlpha = a * 0.8;
-        ctx.shadowBlur = 18;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size * 0.4, 0, 6.28);
-        ctx.fill();
+        ctx.shadowBlur = 35;
+        ctx.globalAlpha = a * 0.5;
+        ctx.fillRect(s.x - 0.5, s.y - 0.5, 1, 1);
       }
+
+      // Tiny sharp core
       ctx.shadowBlur = 0;
+      ctx.globalAlpha = a * 0.9;
+      var cs = s.size * 0.4;
+      ctx.fillRect(s.x - cs * 0.5, s.y - cs * 0.5, cs, cs);
+
+      // Cross spikes — thin, with glow
+      var spike = s.spike * (0.5 + 0.5 * Math.sin(s.phase));
+      if (spike > 0) {
+        ctx.shadowColor = col;
+        ctx.shadowBlur = 8;
+        ctx.globalAlpha = a * 0.35;
+        ctx.fillRect(s.x - spike, s.y - 0.5, spike * 2, 1);
+        ctx.fillRect(s.x - 0.5, s.y - spike, 1, spike * 2);
+        ctx.shadowBlur = 0;
+      }
     } else {
       // Sharp pixel stars for dark theme
       ctx.globalAlpha = a;
