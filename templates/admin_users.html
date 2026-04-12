@@ -124,7 +124,7 @@
         <div style="font-size:12px;font-weight:600;color:var(--text-200);margin-bottom:8px;">Přiřazené objekty</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;max-height:300px;overflow-y:auto;">
           {% for prop in properties %}
-          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-200);padding:4px 8px;border-radius:4px;cursor:pointer;background:var(--bg-100);border:1px solid var(--border-subtle);">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-200);padding:4px 8px;border-radius:4px;cursor:pointer;background:var(--bg-2);border:1px solid var(--border-base);">
             <input type="checkbox" name="property_slugs" value="{{ prop.slug }}"
                    {% if prop.slug in u.assigned_properties %}checked{% endif %}
                    style="accent-color:#7c6dff;">
@@ -148,7 +148,7 @@
 
 <!-- Create User Modal -->
 <div id="create-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
-  <div style="background:var(--bg-200);border:1px solid var(--border-subtle);border-radius:16px;padding:28px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+  <div style="background:var(--bg-2);border:1px solid var(--border-top);border-radius:16px;padding:28px;width:100%;max-width:400px;box-shadow:var(--shadow-lg);">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
       <div style="font-size:18px;font-weight:700;color:var(--text-100);">Nový uživatel</div>
       <button onclick="document.getElementById('create-modal').style.display='none'" style="background:none;border:none;color:var(--text-300);cursor:pointer;font-size:20px;line-height:1;">&times;</button>

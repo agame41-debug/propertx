@@ -430,7 +430,7 @@
   /* ── Property rows (dashboard) ── */
   .prop-row {
     display: grid;
-    grid-template-columns: 2fr 150px 130px 100px 100px 80px 20px;
+    grid-template-columns: 2fr 160px 140px 100px 20px;
     align-items: center; gap: var(--space-md);
     padding: var(--space-md) var(--space-lg);
     background: var(--bg-3);
@@ -462,11 +462,19 @@
   .pr-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-100);
               overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pr-slug  { font-size: var(--text-xs); color: var(--text-300); margin-top: 1px; }
-  .pr-occ   { display: flex; flex-direction: column; gap: 3px; }
-  .pr-bar   { height: 3px; background: var(--border-base); border-radius: 2px; overflow: hidden; }
-  .pr-bar-fill { height: 100%; background: var(--color-primary); border-radius: 2px; transition: width .4s; }
-  .pr-occ-lbl  { font-size: var(--text-xs); color: var(--text-300); }
-  .pr-stats, .pr-issues { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+
+  /* ── Trend sparkline + reservation count ── */
+  .pr-trend { display: flex; align-items: center; gap: 10px; }
+  .pr-spark { width: 68px; height: 24px; flex-shrink: 0; }
+  .pr-rez { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+  .pr-rez-num { font-size: var(--text-sm); font-weight: 600; color: var(--text-100);
+                font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .pr-rez-lbl { font-size: 10px; color: var(--text-300); line-height: 1; }
+  .pr-rez-delta { font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+  .pr-rez-up   { color: var(--color-green); }
+  .pr-rez-down { color: var(--color-red); }
+
+  .pr-stats { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
   .pr-arrow { color: var(--text-300); font-size: 16px; text-align: right; }
 
   /* ── Table sorting ── */

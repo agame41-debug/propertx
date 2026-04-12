@@ -133,15 +133,13 @@
 {% if dashboard_rows %}
 <div id="property-grid" class="stagger-list">
   {# Header row (desktop only) #}
-  <div class="desktop-only" style="display:grid;grid-template-columns:2fr 150px 130px 100px 100px 80px 20px;gap:var(--space-md);
+  <div class="desktop-only" style="display:grid;grid-template-columns:2fr 160px 140px 100px 20px;gap:var(--space-md);
               padding:4px var(--space-lg) var(--space-sm);font-size:10px;font-weight:600;letter-spacing:.08em;
               text-transform:uppercase;color:var(--text-300);">
     <div>Objekt</div>
-    <div style="text-align:right;">Výplata / Ubytování</div>
-    <div style="text-align:right;" class="pr-hide-tablet">Odměna Rentero</div>
-    <div>Obsazenost</div>
+    <div>Rezervace</div>
+    <div style="text-align:right;">Výplata</div>
     <div>Stav</div>
-    <div class="pr-hide-tablet">Zdraví</div>
     <div></div>
   </div>
 
@@ -177,8 +175,7 @@
     <div class="pr-name">
       <span class="pr-dot" data-h="{{ row.health }}"></span>
       <div style="min-width:0;">
-        <div class="pr-title">{{ row.display_name }}</div>
-        <div class="pr-slug">{{ row.slug }}
+        <div class="pr-title">{{ row.display_name }}
           {% if is_locked %}
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-left:3px;opacity:.5;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
           {% elif has_new %}
@@ -188,78 +185,79 @@
       </div>
     </div>
 
-    {# Col 2: Financial — Výplata klientovi or Cena ubytování #}
+    {# Col 2: Trend — 6-month sparkline + reservation count with delta #}
+    <div class="pr-trend pr-hide-mobile">
+      {% set rez_counts = row.cells | map(attribute='rows_count') | list %}
+      {% set max_rez = rez_counts | max if rez_counts and (rez_counts | max) > 0 else 1 %}
+      <svg class="pr-spark" viewBox="0 0 68 24" aria-hidden="true">
+        {% for cell in row.cells %}
+        {% set bar_h = [((cell.rows_count / max_rez) * 20) | round | int, 2] | max if cell.rows_count else 2 %}
+        {% set bx = loop.index0 * 12 %}
+        <rect x="{{ bx }}" y="{{ 24 - bar_h }}" width="8" height="{{ bar_h }}" rx="2"
+              fill="{% if cell.is_current and issues_count > 0 %}var(--color-amber){% elif cell.is_current %}var(--color-primary){% else %}oklch(var(--fg) / 0.12){% endif %}"/>
+        {% endfor %}
+      </svg>
+      <div class="pr-rez">
+        <div style="display:flex;align-items:baseline;gap:4px;">
+          <span class="pr-rez-num">{{ rez_count }}</span>
+          {% set rez_delta = rez_count - rez_prev %}
+          {% if rez_delta > 0 %}
+          <span class="pr-rez-delta pr-rez-up">+{{ rez_delta }}</span>
+          {% elif rez_delta < 0 %}
+          <span class="pr-rez-delta pr-rez-down">{{ rez_delta }}</span>
+          {% endif %}
+        </div>
+        <span class="pr-rez-lbl">rez.</span>
+      </div>
+    </div>
+
+    {# Col 3: Financial — payout with optional odměna sub-text #}
     <div class="pr-financial" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
       {% if cur_cell and cur_cell.kind == 'report' %}
         {% if row.is_rentero %}
-        <div style="font-size:var(--text-sm);font-weight:600;color:var(--text-100);">{{ "{:,.0f}".format(cena_ubyt).replace(",", "\u00a0") }} Kč</div>
-        <div style="font-size:10px;color:var(--text-300);">cena ubytování</div>
+        <div style="font-size:var(--text-sm);font-weight:600;color:var(--text-100);font-variant-numeric:tabular-nums;">{{ "{:,.0f}".format(cena_ubyt).replace(",", "\u00a0") }} Kč</div>
+        <div style="font-size:10px;color:var(--text-300);">ubytování</div>
         {% else %}
-        <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);">{{ "{:,.0f}".format(payout).replace(",", "\u00a0") }} Kč</div>
-        <div style="font-size:10px;color:var(--text-300);">výplata klientovi</div>
+        <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;">{{ "{:,.0f}".format(payout).replace(",", "\u00a0") }} Kč</div>
+        {% if provize > 0 %}
+        <div style="font-size:10px;color:var(--text-300);font-variant-numeric:tabular-nums;">odměna {{ "{:,.0f}".format(provize).replace(",", "\u00a0") }}</div>
+        {% else %}
+        <div style="font-size:10px;color:var(--text-300);">výplata</div>
+        {% endif %}
         {% endif %}
       {% else %}
       <span style="color:var(--text-300);font-size:var(--text-xs);">—</span>
       {% endif %}
     </div>
 
-    {# Col 3: Odměna Rentero (only for non-rentero) — hidden on mobile & tablet #}
-    <div class="pr-hide-mobile pr-hide-tablet" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
-      {% if cur_cell and cur_cell.kind == 'report' and not row.is_rentero %}
-      <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-blue);">{{ "{:,.0f}".format(provize).replace(",", "\u00a0") }} Kč</div>
-      <div style="font-size:10px;color:var(--text-300);">odměna</div>
-      {% else %}
-      <span style="color:var(--text-300);font-size:var(--text-xs);">—</span>
-      {% endif %}
-    </div>
-
-    {# Col 4: Obsazenost — mini bar + rez count #}
-    <div class="pr-occ pr-hide-mobile">
-      {% if cur_cell and cur_cell.kind == 'report' %}
-      {% set occ_pct = [((rez_count / 31) * 100) | round | int, 100] | min %}
-      <div class="pr-bar"><div class="pr-bar-fill" style="width:{{ occ_pct }}%;"></div></div>
-      <span class="pr-occ-lbl">{{ rez_count }} rez.</span>
-      {% elif cur_cell and cur_cell.kind == 'generate' %}
-      {% set _user = get_current_user(request) %}
-      {% if _user and _user.role != 'client' %}
-      <form method="post" action="{{ cur_cell.generate_href }}" onclick="event.stopPropagation()">
-        {{ csrf_input(request) }}
-        <button type="submit" class="btn btn-primary btn-sm" style="font-size:var(--text-xs);">Vygenerovat</button>
-      </form>
-      {% endif %}
-      {% else %}
-      <span class="pr-occ-lbl" style="color:var(--text-300);">—</span>
-      {% endif %}
-    </div>
-
-    {# Col 5: stats badges #}
+    {# Col 4: Status — merged stav + health + generate action #}
     <div class="pr-stats pr-hide-mobile">
       {% if cur_cell and cur_cell.kind == 'report' %}
-        {% if cur_cell.matched %}
+        {% if issues_count > 0 %}
+          {% if cur_cell.rozdil %}
+          <span class="badge badge-orange" style="font-size:10px;">&#916;{{ cur_cell.rozdil }}</span>
+          {% endif %}
+          {% if cur_cell.ke_kontrole %}
+          <span class="badge badge-amber" style="font-size:10px;">?{{ cur_cell.ke_kontrole }}</span>
+          {% endif %}
+        {% elif cur_cell.matched %}
         <span class="badge badge-green" style="font-size:10px;">
           <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-          {{ cur_cell.matched }}
+          OK
         </span>
         {% endif %}
-        {% if cur_cell.rozdil %}
-        <span class="badge badge-orange" style="font-size:10px;">&#916;{{ cur_cell.rozdil }}</span>
-        {% endif %}
-        {% if cur_cell.ke_kontrole %}
-        <span class="badge badge-amber" style="font-size:10px;">?{{ cur_cell.ke_kontrole }}</span>
+      {% elif cur_cell and cur_cell.kind == 'generate' %}
+        {% set _user = get_current_user(request) %}
+        {% if _user and _user.role != 'client' %}
+        <form method="post" action="{{ cur_cell.generate_href }}" onclick="event.stopPropagation()">
+          {{ csrf_input(request) }}
+          <button type="submit" class="btn btn-primary btn-sm" style="font-size:var(--text-xs);">Generovat</button>
+        </form>
         {% endif %}
       {% endif %}
     </div>
 
-    {# Col 6: health — hidden on mobile & tablet #}
-    <div class="pr-issues pr-hide-mobile pr-hide-tablet">
-      {% if issues_count > 0 %}
-      <span class="badge badge-red" style="font-size:10px;">&#x2717;{{ issues_count }}</span>
-      {% elif cur_cell and cur_cell.kind == 'report' %}
-      <span class="badge badge-green" style="font-size:10px;">OK</span>
-      {% endif %}
-    </div>
-
-    {# Col 7: arrow #}
+    {# Col 5: arrow #}
     <div class="pr-arrow">›</div>
 
   </a>
