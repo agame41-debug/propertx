@@ -30,7 +30,7 @@
   <div class="card" style="padding:20px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:12px;">
-        <div style="width:36px;height:36px;border-radius:50%;background:{% if u.role == 'admin' %}var(--accent){% elif u.role == 'manager' %}var(--color-blue){% else %}var(--text-300){% endif %};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:oklch(0.10 0.01 155);">
+        <div style="width:36px;height:36px;border-radius:50%;background:{% if u.role == 'admin' %}var(--accent){% elif u.role == 'manager' %}var(--color-blue){% else %}var(--text-300){% endif %};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;">
           {{ u.username[0]|upper }}
         </div>
         <div>

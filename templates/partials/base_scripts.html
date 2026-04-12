@@ -265,7 +265,7 @@ function sbToggleObj() {
       var n = parseFloat(raw);
       return Number.isInteger(n) ? String(n) : n.toFixed(2).replace('.', ',');
     }
-    var txt = (td.textContent || '').replace(/\u00a0/g, '').replace(/\s+/g, '').replace('K\u010d','').trim();
+    var txt = (td.textContent || '').replace(/[\u00a0\u202f]/g, '').replace(/\s+/g, '').replace('K\u010d','').trim();
     return txt || (td.textContent || '').trim();
   }
   function _doCopy(el, val) {
