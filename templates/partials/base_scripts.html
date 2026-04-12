@@ -157,25 +157,16 @@
   }
   function goToMonth(y, m) {
     writeYM(y, m);
-    updateDisplay({ y: y, m: m });
-    var targetUrl;
-    var pp = location.pathname.match(/^(\/property\/[^/]+\/)(\d+)\/(\d+)(.*)/);
+    // Full page navigation — no HTMX, guaranteed correct server render
+    var pp = location.pathname.match(/^(\/property\/[^/]+\/)\d+\/\d+(.*)/);
     if (pp) {
-      targetUrl = pp[1] + y + '/' + m + (pp[4] || '');
+      window.location.href = pp[1] + y + '/' + m + (pp[2] || '');
     } else {
       var url = new URL(location.href);
-      url.searchParams.set('year', y); url.searchParams.set('month', m);
-      targetUrl = url.pathname + url.search;
+      url.searchParams.set('year', y);
+      url.searchParams.set('month', m);
+      window.location.href = url.pathname + url.search;
     }
-    // Navigate via a temporary boosted link so HTMX manages history natively
-    var tmp = document.createElement('a');
-    tmp.href = targetUrl;
-    tmp.style.display = 'none';
-    document.body.appendChild(tmp);
-    htmx.process(tmp);
-    tmp.click();
-    // Remove after HTMX fully processes the navigation
-    document.addEventListener('htmx:afterSettle', function() { tmp.remove(); }, { once: true });
   }
   function navigate(delta) {
     var cur = curYM(), m = cur.m + delta, y = cur.y;
@@ -242,35 +233,20 @@
     var stored = getStoredYM();
     if (stored) refreshMonthAwareNav(stored);
   });
-  // Ensure month-aware HTMX requests always carry current year/month from localStorage.
-  // Belt 1: modify evt.detail.path in configRequest (may not work for all HTMX versions).
-  document.body.addEventListener('htmx:configRequest', function(evt) {
-    if (evt.detail.verb !== 'GET') return;
-    try {
-      var url = new URL(evt.detail.path, location.origin);
-      if (!isMonthAwarePath(url.pathname)) return;
-      var stored = getStoredYM();
-      if (!stored) return;
-      url.searchParams.set('year', stored.y);
-      url.searchParams.set('month', stored.m);
-      evt.detail.path = url.pathname + url.search;
-    } catch(e) {}
-  });
-
-  // Belt 2: intercept clicks on month-aware links in CAPTURING phase (before HTMX
-  // reads href). This guarantees the href contains the correct month at click time,
-  // regardless of whether configRequest path modification works.
+  // Bypass HTMX for month-aware links — full page navigation with correct month.
+  // Capturing phase runs before HTMX can intercept the click.
   document.addEventListener('click', function(e) {
     var link = e.target.closest('a[data-month-aware]');
     if (!link) return;
     var stored = getStoredYM();
     if (!stored) return;
     var base = link.dataset.baseHref || link.getAttribute('href') || '/';
-    // Strip existing query params to get clean base path
     try { base = new URL(base, location.origin).pathname; } catch(ex) {}
     if (!isMonthAwarePath(base) && base !== '/inventory') return;
-    link.setAttribute('href', base + '?year=' + stored.y + '&month=' + stored.m);
-  }, true); // true = capturing phase, runs BEFORE HTMX
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    window.location.href = base + '?year=' + stored.y + '&month=' + stored.m;
+  }, true);
 
   window.RenteroMonthNav = {
     getCurrent: curYM,
