@@ -30,7 +30,7 @@
   <div class="kpi-card kpi-card-green">
     <div class="kpi-label">Celková výplata</div>
     <div class="kpi-value" style="color:var(--color-green);font-size:24px;" id="kpi-payout">
-      {{ "{:,.0f}".format(dashboard_summary.total_payout_czk).replace(",", "\u202f") }} Kč
+      {{ "{:,.0f}".format(dashboard_summary.total_payout_czk).replace(",", " ") }} Kč
     </div>
     <div class="kpi-sub" id="kpi-payout-sub">platformy → klienti · {{ dashboard_summary.current_month_label }}</div>
   </div>
@@ -213,11 +213,11 @@
     <div class="pr-financial" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
       {% if cur_cell and cur_cell.kind == 'report' %}
         {% if row.is_rentero %}
-        <div style="font-size:var(--text-sm);font-weight:600;color:var(--text-100);font-variant-numeric:tabular-nums;">{{ "{:,.0f}".format(cena_ubyt).replace(",", "\u202f") }} Kč</div>
+        <div style="font-size:var(--text-sm);font-weight:600;color:var(--text-100);font-variant-numeric:tabular-nums;">{{ "{:,.0f}".format(cena_ubyt).replace(",", " ") }} Kč</div>
         {% else %}
-        <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;">{{ "{:,.0f}".format(payout).replace(",", "\u202f") }} Kč</div>
+        <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;">{{ "{:,.0f}".format(payout).replace(",", " ") }} Kč</div>
         {% if provize > 0 %}
-        <div style="font-size:10px;color:var(--text-300);font-variant-numeric:tabular-nums;">odměna {{ "{:,.0f}".format(provize).replace(",", "\u202f") }}</div>
+        <div style="font-size:10px;color:var(--text-300);font-variant-numeric:tabular-nums;">odměna {{ "{:,.0f}".format(provize).replace(",", " ") }}</div>
         {% endif %}
         {% endif %}
       {% else %}
@@ -265,7 +265,7 @@ var _activeOwner = '';
 var _searchQuery = '';
 
 function _formatNumber(n) {
-  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
 function _applyFilters() {

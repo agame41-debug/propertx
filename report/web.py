@@ -248,7 +248,7 @@ def _fmt_czk(value, empty: str = "—") -> str:
     try:
         v = float(value)
         # Czech format: space as thousands separator, comma as decimal point
-        formatted = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", "\u202f")
+        formatted = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", " ")
         return f"{formatted} Kč"
     except (TypeError, ValueError):
         return empty
