@@ -25,7 +25,7 @@
   {% include "partials/base_styles_responsive.html" %}
   {% block head %}{% endblock %}
 </head>
-<body hx-boost="true" hx-target="#content" hx-swap="innerHTML transition:true" hx-push-url="true">
+<body hx-boost="true" hx-target="#content" hx-swap="outerHTML transition:true" hx-select="#content" hx-push-url="true">
 
 <canvas id="cosmos" aria-hidden="true"></canvas>
 
@@ -345,12 +345,29 @@
     document.body.addEventListener('htmx:sendError', finishBar);
   })();
 
+  /* If hx-select="#content" can't find #content in response (e.g. login page),
+     fall back to a full page reload so the user isn't stuck on a blank screen. */
+  document.body.addEventListener('htmx:beforeSwap', function(evt) {
+    if (evt.detail.isError) return; // let error handlers deal with errors
+    // For boosted navigations, if response lacks #content, do full reload
+    var xhr = evt.detail.xhr;
+    if (xhr && xhr.status === 200) {
+      var tmp = document.createElement('div');
+      tmp.innerHTML = xhr.responseText;
+      if (!tmp.querySelector('#content')) {
+        evt.detail.shouldSwap = false;
+        window.location.href = evt.detail.pathInfo && evt.detail.pathInfo.finalRequestPath
+          ? evt.detail.pathInfo.finalRequestPath : window.location.href;
+      }
+    }
+  });
+
   /* Close sheets on navigation (HTMX) */
   document.body.addEventListener('htmx:afterSwap', function(evt) {
     closeSheet();
     closeObjSheet();
     /* Execute <script> tags injected by HTMX swap */
-    var target = evt.detail.target || evt.detail.elt;
+    var target = document.getElementById('content');
     if (target) {
       target.querySelectorAll('script').forEach(function(old) {
         var s = document.createElement('script');

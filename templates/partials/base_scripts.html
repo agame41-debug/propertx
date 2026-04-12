@@ -198,6 +198,7 @@
   }
   if (syncMonthAwareLocationFromStorage()) return;
   var c = curYM();
+  writeYM(c.y, c.m); // ensure localStorage is always populated
   updateDisplay(c);
   document.getElementById('month-prev').onclick = function() { navigate(-1); };
   document.getElementById('month-next').onclick = function() { navigate(1); };
