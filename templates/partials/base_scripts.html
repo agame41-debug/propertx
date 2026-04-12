@@ -340,7 +340,8 @@ function _sbLoadObjects(backgroundOnly) {
   }
   if (hasContent) {
     _sbUpdateActiveSlug();
-    if (sp) sp.scrollTop = savedScroll;
+    // Only restore scroll on property pages — on other pages sidebar starts at top
+    if (sp && location.pathname.startsWith('/property/')) sp.scrollTop = savedScroll;
   }
   var ym = (window.RenteroMonthNav && window.RenteroMonthNav.getCurrent) ? window.RenteroMonthNav.getCurrent() : null;
   var url = '/sidebar/objects';
@@ -353,7 +354,7 @@ function _sbLoadObjects(backgroundOnly) {
       sessionStorage.setItem('rentero_sb_html', html);
       htmx.process(p);
       _sbUpdateActiveSlug();
-      if (sp) sp.scrollTop = scrollBefore;
+      if (sp && location.pathname.startsWith('/property/')) sp.scrollTop = scrollBefore;
     })
     .catch(function() {
       if (!hasContent) p.innerHTML = '<div style="padding:8px 16px;font-size:11px;color:var(--text-300);">Chyba načítání</div>';
