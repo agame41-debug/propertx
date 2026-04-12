@@ -155,7 +155,13 @@
       target = url.pathname + url.search;
     }
     if (typeof htmx !== 'undefined') {
-      htmx.ajax('GET', target, { target: '#content', swap: 'innerHTML transition:true', pushUrl: target });
+      htmx.ajax('GET', target, {
+        target: '#content',
+        swap: 'innerHTML transition:true',
+        headers: { 'HX-Boosted': 'true' },
+      }).then(function() {
+        history.pushState({}, '', target);
+      });
     } else {
       location.href = target;
     }
