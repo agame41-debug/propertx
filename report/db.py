@@ -617,6 +617,16 @@ CREATE TABLE IF NOT EXISTS reservation_exclusions (
     UNIQUE(slug, confirmation_code)
 );
 
+CREATE TABLE IF NOT EXISTS split_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL,
+    confirmation_code TEXT NOT NULL,
+    batch_ref TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL DEFAULT '',
+    UNIQUE(slug, confirmation_code, batch_ref)
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     username        TEXT UNIQUE NOT NULL,
@@ -724,6 +734,18 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _backfill_checkin_source_snapshots(conn)
     _backfill_booking_payout_item_guest_names(conn)
     _migrate_month_assignments_scope(conn)
+    # split_transactions table (added 2026-04)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS split_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT NOT NULL,
+            confirmation_code TEXT NOT NULL,
+            batch_ref TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            created_by TEXT NOT NULL DEFAULT '',
+            UNIQUE(slug, confirmation_code, batch_ref)
+        )
+    """)
     _seed_admin_user(conn)
 
 
@@ -2466,3 +2488,44 @@ def get_hostify_reservation_counts(
 # --------------------------------------------------------------------------- #
 #  Report object config                                                        #
 # --------------------------------------------------------------------------- #
+
+
+# --------------------------------------------------------------------------- #
+#  Split transactions                                                          #
+# --------------------------------------------------------------------------- #
+
+def get_split_transactions(conn, slug):
+    """Return all split transaction records for a property."""
+    rows = conn.execute(
+        "SELECT * FROM split_transactions WHERE slug = ?", (slug,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_split_transactions_for_code(conn, slug, confirmation_code):
+    """Return split records for a specific reservation code."""
+    rows = conn.execute(
+        "SELECT * FROM split_transactions WHERE slug = ? AND confirmation_code = ?",
+        (slug, confirmation_code),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def create_split_transaction(conn, slug, confirmation_code, batch_ref, actor=""):
+    """Create a split transaction record. Idempotent via UNIQUE constraint."""
+    conn.execute(
+        """INSERT OR IGNORE INTO split_transactions
+               (slug, confirmation_code, batch_ref, created_at, created_by)
+           VALUES (?, ?, ?, ?, ?)""",
+        (slug, confirmation_code, batch_ref, _now(), actor),
+    )
+    conn.commit()
+
+
+def delete_split_transaction(conn, slug, confirmation_code, batch_ref):
+    """Delete a split transaction record (merge back)."""
+    conn.execute(
+        "DELETE FROM split_transactions WHERE slug = ? AND confirmation_code = ? AND batch_ref = ?",
+        (slug, confirmation_code, batch_ref),
+    )
+    conn.commit()

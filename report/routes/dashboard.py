@@ -34,12 +34,14 @@ def _resolve_assignment(state, conn, slug, code, year, month):
 
 def _bank_lookup_code(row, code):
     """Return the confirmation_code to use for bank transaction lookup.
-    AirCover and adjustment rows use their parent code since payout_batch_items
-    stores the original confirmation_code without __AC/__ADJ suffix."""
+    AirCover, adjustment, and split rows use their parent code since
+    payout_batch_items stores the original confirmation_code without suffix."""
     if row.get("is_aircover") and row.get("aircover_parent_code"):
         return row["aircover_parent_code"]
     if row.get("is_payout_adjustment") and row.get("adjustment_parent_code"):
         return row["adjustment_parent_code"]
+    if row.get("is_split_transaction") and row.get("split_parent_code"):
+        return row["split_parent_code"]
     return code
 
 
@@ -55,7 +57,7 @@ def _filter_bank_txns_for_row(row, bank_txns, state, conn):
         return bank_txns
 
     row_batch_ref = row.get("batch_ref") or ""
-    is_secondary = row.get("is_payout_adjustment") or row.get("is_aircover")
+    is_secondary = row.get("is_payout_adjustment") or row.get("is_aircover") or row.get("is_split_transaction")
 
     if is_secondary and row_batch_ref:
         return [t for t in bank_txns if t.get("batch_ref") == row_batch_ref]
@@ -72,7 +74,8 @@ def _filter_bank_txns_for_row(row, bank_txns, state, conn):
                    WHERE (confirmation_code LIKE ? OR confirmation_code = ?)
                      AND confirmation_code != ?
                      AND (json_extract(data, '$.is_payout_adjustment') = 1
-                          OR json_extract(data, '$.is_aircover') = 1)""",
+                          OR json_extract(data, '$.is_aircover') = 1
+                          OR json_extract(data, '$.is_split_transaction') = 1)""",
                 (code + "__%", code, code),
             ).fetchall()
             for s in siblings:

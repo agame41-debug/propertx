@@ -116,6 +116,11 @@ from report.db import (
     reinstate_reservation,
     get_active_exclusions,
     get_exclusion_for_code,
+    # split transactions
+    create_split_transaction,
+    delete_split_transaction,
+    get_split_transactions,
+    get_split_transactions_for_code,
     # accounting
     save_accounting_entries,
     get_accounting_entries,

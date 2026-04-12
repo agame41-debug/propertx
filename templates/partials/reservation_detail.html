@@ -47,6 +47,9 @@
       {% if r.is_aircover %}
       <span class="badge" style="font-size:9.5px;font-weight:700;letter-spacing:0.04em;background:rgba(245,161,74,0.12);color:var(--amber);border:1px solid rgba(245,161,74,0.2);">AirCover</span>
       {% endif %}
+      {% if r.is_split_transaction %}
+      <span class="badge" style="font-size:9.5px;font-weight:700;letter-spacing:0.04em;background:oklch(0.65 0.18 280 / 0.1);color:var(--accent);border:1px solid oklch(0.65 0.18 280 / 0.2);">Oddělená platba</span>
+      {% endif %}
       {% set vs = r.display_verification_status or r.verification_status or "" %}
       {% if vs %}
       <span class="badge {% if vs == 'MATCHED' %}badge-green{% elif vs == 'ROZDÍL' %}badge-orange{% elif vs == 'KE KONTROLE' %}badge-amber{% elif 'CHYBÍ' in vs %}badge-red{% else %}badge-neutral{% endif %}" style="font-size:9.5px;font-weight:700;letter-spacing:0.04em;">{{ vs }}</span>
@@ -175,6 +178,7 @@
   </div>
 </div>
 
+{% set _user = get_current_user(request) %}
 {# ── Bank Transactions ─────────────────────────────────────────────────────── #}
 <div class="drawer-section">
   <div class="drawer-section-head">
@@ -221,6 +225,15 @@
           </div>
         </div>
       </a>
+      {% if bank_txns|length >= 2 and not r.is_split_transaction and not r.is_payout_adjustment and not r.is_aircover and month_state and month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
+      <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/split-transaction"
+            hx-boost="false" style="margin-top:4px;"
+            onsubmit="event.preventDefault();if(typeof FloatingPanel!=='undefined')FloatingPanel.submitAction(this,'{{ r.confirmation_code }}','Transakce oddělena')">
+        {{ csrf_input(request) }}
+        <input type="hidden" name="batch_ref" value="{{ t.batch_ref or t.gref or '' }}">
+        <button type="submit" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px;color:var(--accent);border-color:oklch(0.65 0.18 280 / 0.2);">Oddělit</button>
+      </form>
+      {% endif %}
       {% endfor %}
     </div>
 
@@ -269,7 +282,6 @@
 </div>
 
 {# ── Akce ─────────────────────────────────────────────────────────────────── #}
-{% set _user = get_current_user(request) %}
 {% if month_state and month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
 <div class="drawer-section">
   <div class="drawer-section-head">
@@ -355,6 +367,23 @@
   <div style="margin-top:12px;padding:10px 12px;background:var(--accent-dim);border:1px solid oklch(0.65 0.18 280 / 0.2);border-radius:8px;font-size:12px;color:var(--accent);">
     Toto je platební korekce (Doplatek) k rezervaci z {{ "%02d/%d"|format(r.adjustment_original_month, r.adjustment_original_year) if r.adjustment_original_month else "minulého měsíce" }}.
     Úklid, city tax a balíčky nejsou zahrnuty (již zaúčtováno v původním měsíci).
+  </div>
+  {% endif %}
+
+  {# ── Split transaction info + merge button ─────────────────── #}
+  {% if r.is_split_transaction %}
+  <div style="margin-top:12px;">
+    <div style="padding:10px 12px;background:oklch(0.65 0.18 280 / 0.06);border:1px solid oklch(0.65 0.18 280 / 0.15);border-radius:8px;font-size:12px;color:var(--accent);margin-bottom:8px;">
+      Oddělená platba z rezervace {{ r.split_parent_code or r.confirmation_code.split('__')[0] }}.
+      Úklid, city tax a balíčky nejsou zahrnuty (již zaúčtováno v hlavní rezervaci).
+    </div>
+    <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/merge-transaction"
+          hx-boost="false"
+          onsubmit="event.preventDefault();if(typeof FloatingPanel!=='undefined')FloatingPanel.submitAction(this,'{{ r.confirmation_code }}','Vráceno do hlavní rezervace')">
+      {{ csrf_input(request) }}
+      <input type="hidden" name="batch_ref" value="{{ r.batch_ref }}">
+      <button type="submit" class="btn btn-sm" style="background:oklch(0.65 0.18 280 / 0.1);color:var(--accent);border-color:oklch(0.65 0.18 280 / 0.2);">Vrátit do hlavní rezervace</button>
+    </form>
   </div>
   {% endif %}
 

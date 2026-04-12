@@ -1,4 +1,5 @@
 import os
+import re as _re
 
 from fastapi import Depends, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -667,6 +668,63 @@ def register(app, state) -> None:
         except Exception:
             state["mark_report_month_stale"](conn, slug, year, month)
         state["_set_flash"](request, "success", "Rezervace byla vrácena do výpočtu.")
+        return RedirectResponse(f"/property/{slug}/{year}/{month}", status_code=303)
+
+    @app.post("/property/{slug}/{year}/{month}/reservation/{code}/split-transaction")
+    async def reservation_split_transaction(
+        request: Request,
+        slug: str,
+        year: int,
+        month: int,
+        code: str,
+        batch_ref: str = Form(...),
+        _csrf=Depends(require_csrf),
+        _=Depends(require_auth),
+        _w=Depends(require_write_access),
+        conn=Depends(get_db),
+        config=Depends(get_config),
+    ):
+        state["_ensure_month_open"](conn, slug, year, month)
+        rows = state["get_report_rows"](conn, slug=slug, year=year, month=month)
+        row = next((r for r in rows if r.get("confirmation_code") == code), None)
+        if row is None:
+            raise HTTPException(404, "Rezervace nenalezena")
+        if not batch_ref.strip():
+            raise HTTPException(400, "Chybí batch_ref")
+        base_code = _re.sub(r"__(SP|ADJ|AC)\d*$", "", code)
+        state["create_split_transaction"](
+            conn, slug, base_code, batch_ref.strip(),
+            actor=state["_get_actor_username"](request),
+        )
+        try:
+            state["generate_report_in_process"](conn, slug, year, month, config)
+        except Exception:
+            state["mark_report_month_stale"](conn, slug, year, month)
+        state["_set_flash"](request, "success", "Transakce byla oddělena.")
+        return RedirectResponse(f"/property/{slug}/{year}/{month}", status_code=303)
+
+    @app.post("/property/{slug}/{year}/{month}/reservation/{code}/merge-transaction")
+    async def reservation_merge_transaction(
+        request: Request,
+        slug: str,
+        year: int,
+        month: int,
+        code: str,
+        batch_ref: str = Form(...),
+        _csrf=Depends(require_csrf),
+        _=Depends(require_auth),
+        _w=Depends(require_write_access),
+        conn=Depends(get_db),
+        config=Depends(get_config),
+    ):
+        state["_ensure_month_open"](conn, slug, year, month)
+        base_code = _re.sub(r"__(SP|ADJ|AC)\d*$", "", code)
+        state["delete_split_transaction"](conn, slug, base_code, batch_ref.strip())
+        try:
+            state["generate_report_in_process"](conn, slug, year, month, config)
+        except Exception:
+            state["mark_report_month_stale"](conn, slug, year, month)
+        state["_set_flash"](request, "success", "Transakce byla vrácena do hlavní rezervace.")
         return RedirectResponse(f"/property/{slug}/{year}/{month}", status_code=303)
 
     @app.post("/categories/add")

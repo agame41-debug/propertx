@@ -441,7 +441,7 @@ def apply_checkin_city_tax_overrides(
             )
             continue
 
-        if row.get("is_aircover"):
+        if row.get("is_aircover") or row.get("is_split_transaction"):
             skipped = {
                 **row,
                 "tax_verification_required": False,

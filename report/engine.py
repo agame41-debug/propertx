@@ -44,6 +44,7 @@ from report.db import (
     get_pending_payments,
     get_report_month_state,
     get_report_row_by_code,
+    get_split_transactions,
     list_checkin_reservations,
     log_report_generated,
     mark_report_month_has_data,
@@ -162,6 +163,46 @@ def _build_aircover_reservation(parent_row: dict, ac_item: dict, suffix: str = "
         "batch_ref": ac_item.get("gref") or ac_item.get("batch_ref", ""),
         "batch_payout_date": ac_item.get("payout_date", ""),
         "batch_amount_czk": ac_item.get("batch_czk") or ac_item.get("amount_czk"),
+    }
+
+
+def _build_split_reservation(parent_row: dict, batch_info: dict, suffix: str = "__SP") -> dict:
+    """
+    Build a synthetic reservation for a manually split transaction.
+    Represents an individual payout batch separated from the parent for
+    independent month management. Cleaning, city tax, and balíčky are
+    zeroed out to avoid double-counting (same as adjustments).
+    """
+    parent_code = parent_row.get("confirmation_code", "")
+    source = parent_row.get("source", "")
+    payout_eur = float(batch_info.get("payout_eur") or 0.0)
+    return {
+        "confirmation_code": f"{parent_code}{suffix}",
+        "split_parent_code": parent_code,
+        "guest_name": parent_row.get("guest_name", ""),
+        "check_in": parent_row.get("check_in", ""),
+        "check_out": parent_row.get("check_out", ""),
+        "nights": parent_row.get("nights") or 0,
+        "adults": parent_row.get("adults") or 0,
+        "children": 0,
+        "infants": 0,
+        "source": source,
+        "status": "split",
+        "is_cancelled": False,
+        "is_split_transaction": True,
+        "listing_nickname": parent_row.get("listing_nickname", ""),
+        "listing_id": parent_row.get("listing_id"),
+        "confirmed_at": parent_row.get("check_in", ""),
+        "cleaning_fee_eur": 0.0,
+        "city_tax_eur": 0.0,
+        "channel_commission_eur": float(batch_info.get("commission_eur") or 0.0),
+        "payout_price_eur": payout_eur,
+        "effective_payout_eur": payout_eur,
+        "airbnb_batch_rate": float(batch_info.get("airbnb_rate") or 0.0),
+        "airbnb_payout_date": batch_info.get("payout_date", ""),
+        "batch_ref": batch_info.get("gref") or batch_info.get("batch_ref", ""),
+        "batch_payout_date": batch_info.get("payout_date", ""),
+        "batch_amount_czk": batch_info.get("payout_czk"),
     }
 
 
@@ -345,7 +386,7 @@ def generate_report_in_process(
             raw_code = asgn["confirmation_code"]
             if asgn.get("is_adjustment"):
                 # Strip __ADJ/__ADJ2 suffix to match original code in all_batches_map
-                base_code = re.sub(r"__ADJ\d*$", "", raw_code)
+                base_code = re.sub(r"__(ADJ|SP)\d*$", "", raw_code)
                 adj_grefs_out.add((base_code, asgn.get("batch_ref", "")))
                 codes_adj_out.add(raw_code)
             else:
@@ -371,7 +412,7 @@ def generate_report_in_process(
         code = raw_code
         if asgn.get("is_adjustment"):
             # Strip __ADJ/__ADJ2 suffix to match original code in all_batches_map
-            base_code = re.sub(r"__ADJ\d*$", "", raw_code)
+            base_code = re.sub(r"__(ADJ|SP)\d*$", "", raw_code)
             adj_codes_in.add(base_code)
             adj_grefs_in.add((base_code, asgn.get("batch_ref", "")))
         elif code not in current_codes:
@@ -520,6 +561,41 @@ def generate_report_in_process(
             log.info("AirCover item for %s: %.2f EUR (%s)",
                      code, ac_item.get("amount_eur", 0), ac_item.get("details", ""))
 
+    # ── Split transaction rows ─────────────────────────────────────────────
+    split_records = get_split_transactions(conn, slug)
+    splits_by_code: dict[str, list[dict]] = {}
+    for sr in split_records:
+        splits_by_code.setdefault(sr["confirmation_code"], []).append(sr)
+
+    split_batch_refs_by_code: dict[str, set[str]] = {}
+    for code, splits in splits_by_code.items():
+        parent_res = next(
+            (r for r in reservations if r.get("confirmation_code") == code),
+            None,
+        )
+        if parent_res is None:
+            continue
+        all_batches = airbnb_all_batches.get(code, [])
+        if not all_batches:
+            continue
+        sp_count = 0
+        for sr in splits:
+            batch_ref = sr["batch_ref"]
+            batch_info = next(
+                (b for b in all_batches if b.get("gref", "") == batch_ref),
+                None,
+            )
+            if batch_info is None:
+                continue
+            sp_count += 1
+            suffix = "__SP" if sp_count == 1 else f"__SP{sp_count}"
+            reservations.append(_build_split_reservation(parent_res, batch_info, suffix=suffix))
+            split_batch_refs_by_code.setdefault(code, set()).add(batch_ref)
+            log.info(
+                "Split transaction for %s: batch %s, %.2f EUR",
+                code, batch_ref, batch_info.get("payout_eur", 0),
+            )
+
     # ── Verify against CSV ──────────────────────────────────────────────────
     booking_codes = [
         code for code, row in booking_index.items()
@@ -559,6 +635,8 @@ def generate_report_in_process(
         if row.get("is_payout_adjustment"):
             continue
         if row.get("is_aircover"):
+            continue
+        if row.get("is_split_transaction"):
             continue
         if "airbnb" in source:
             pinfo = gref_map.get(code, {})
@@ -607,6 +685,27 @@ def generate_report_in_process(
             log.debug(
                 "Split payout %s: limited to %.2f EUR (full=%.2f EUR)",
                 code, window_eur, sum(b.get("payout_eur", 0) for b in batches),
+            )
+
+    # ── Reduce parent effective_payout_eur by split transaction amounts ────
+    for row in all_verified:
+        code = row.get("confirmation_code", "")
+        if code not in split_batch_refs_by_code:
+            continue
+        if row.get("is_split_transaction") or row.get("is_payout_adjustment") or row.get("is_aircover"):
+            continue
+        split_refs = split_batch_refs_by_code[code]
+        batches = airbnb_all_batches.get(code, [])
+        split_eur = sum(
+            b.get("payout_eur", 0.0) for b in batches
+            if b.get("gref", "") in split_refs
+        )
+        if split_eur > 0:
+            current = float(row.get("effective_payout_eur") or 0.0)
+            row["effective_payout_eur"] = max(current - split_eur, 0.0)
+            log.info(
+                "Split deduction for %s: -%.2f EUR (new effective: %.2f EUR)",
+                code, split_eur, row["effective_payout_eur"],
             )
 
     # ── CNB rates per reservation ───────────────────────────────────────────
