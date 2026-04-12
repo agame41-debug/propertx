@@ -229,9 +229,10 @@
       updateDisplay(ym);
     }, 50);
   });
-  // After HTMX pushes URL, sync month display
+  // After HTMX pushes URL, sync month display AND localStorage
   document.addEventListener('htmx:pushedIntoHistory', function() {
     var ym = curYM();
+    writeYM(ym.y, ym.m);
     updateDisplay(ym);
   });
   // After HTMX content settles, re-sync month-aware links.
@@ -242,8 +243,7 @@
     if (stored) refreshMonthAwareNav(stored);
   });
   // Ensure month-aware HTMX requests always carry current year/month from localStorage.
-  // This is the single source of truth — even if a stale link has old month params,
-  // the request will use the month the user actually selected.
+  // Belt 1: modify evt.detail.path in configRequest (may not work for all HTMX versions).
   document.body.addEventListener('htmx:configRequest', function(evt) {
     if (evt.detail.verb !== 'GET') return;
     try {
@@ -256,6 +256,21 @@
       evt.detail.path = url.pathname + url.search;
     } catch(e) {}
   });
+
+  // Belt 2: intercept clicks on month-aware links in CAPTURING phase (before HTMX
+  // reads href). This guarantees the href contains the correct month at click time,
+  // regardless of whether configRequest path modification works.
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('a[data-month-aware]');
+    if (!link) return;
+    var stored = getStoredYM();
+    if (!stored) return;
+    var base = link.dataset.baseHref || link.getAttribute('href') || '/';
+    // Strip existing query params to get clean base path
+    try { base = new URL(base, location.origin).pathname; } catch(ex) {}
+    if (!isMonthAwarePath(base) && base !== '/inventory') return;
+    link.setAttribute('href', base + '?year=' + stored.y + '&month=' + stored.m);
+  }, true); // true = capturing phase, runs BEFORE HTMX
 
   window.RenteroMonthNav = {
     getCurrent: curYM,
