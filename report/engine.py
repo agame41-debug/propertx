@@ -117,15 +117,21 @@ def _build_adjustment_reservation(past_row: dict, batch_info: dict) -> dict:
     }
 
 
-def _build_aircover_reservation(parent_row: dict, ac_item: dict) -> dict:
+def _build_aircover_reservation(parent_row: dict, ac_item: dict, suffix: str = "__AC") -> dict:
     """
     Build a synthetic reservation for an AirCover compensation item.
     These are separate payouts from Airbnb for guest damages, not regular stays.
     Auto-excluded from financial calculations, marked KE KONTROLE.
+
+    Uses a modified confirmation_code ({code}__AC) to avoid DB collision with
+    the main reservation (UNIQUE on slug+year+month+code).
+    batch_ref is cleared so bank enrichment doesn't steal the main row's match.
     """
+    parent_code = parent_row.get("confirmation_code", "")
     amount_eur = abs(float(ac_item.get("amount_eur", 0)))
     return {
-        "confirmation_code": parent_row.get("confirmation_code", ""),
+        "confirmation_code": f"{parent_code}{suffix}",
+        "aircover_parent_code": parent_code,
         "guest_name": ac_item.get("guest_name") or parent_row.get("guest_name", ""),
         "check_in": ac_item.get("check_in") or parent_row.get("check_in", ""),
         "check_out": ac_item.get("check_out") or parent_row.get("check_out", ""),
@@ -150,9 +156,9 @@ def _build_aircover_reservation(parent_row: dict, ac_item: dict) -> dict:
         "effective_payout_eur": amount_eur,
         "airbnb_batch_rate": float(ac_item.get("airbnb_rate") or 0.0),
         "airbnb_payout_date": ac_item.get("payout_date", ""),
-        "batch_ref": ac_item.get("gref") or ac_item.get("batch_ref", ""),
-        "batch_payout_date": ac_item.get("payout_date", ""),
-        "batch_amount_czk": ac_item.get("amount_czk"),
+        "batch_ref": "",
+        "batch_payout_date": "",
+        "batch_amount_czk": None,
     }
 
 
@@ -490,10 +496,13 @@ def generate_report_in_process(
                 parent_row = db_row
         if parent_row is None:
             continue
+        ac_count = 0
         for ac_item in ac_items:
             if not _payout_date_in_window(ac_item.get("payout_date", "")):
                 continue
-            reservations.append(_build_aircover_reservation(parent_row, ac_item))
+            ac_count += 1
+            suffix = "__AC" if ac_count == 1 else f"__AC{ac_count}"
+            reservations.append(_build_aircover_reservation(parent_row, ac_item, suffix=suffix))
             log.info("AirCover item for %s: %.2f EUR (%s)",
                      code, ac_item.get("amount_eur", 0), ac_item.get("details", ""))
 
@@ -607,6 +616,14 @@ def generate_report_in_process(
     )
     save_payout_batch_bank_matches(conn, "airbnb", airbnb_matches)
     save_payout_batch_bank_matches(conn, "booking", booking_matches)
+
+    # ── AirCover rows: override bank status to N/A ───────────────────────────
+    for row in calc_rows:
+        if row.get("is_aircover"):
+            row["bank_status"] = "N/A"
+            row["bank_datum"] = ""
+            row["bank_amount_czk"] = None
+            row["bank_tx_key"] = ""
 
     # ── Booking CHYBÍ_V_HOSTIFY → KE_KONTROLE ──────────────────────────────
     for row in calc_rows:

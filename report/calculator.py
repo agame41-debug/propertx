@@ -204,6 +204,7 @@ def calculate_row(
         "is_excluded": bool(reservation.get("is_excluded")),
         "is_aircover": bool(reservation.get("is_aircover")),
         "aircover_details": reservation.get("aircover_details", ""),
+        "aircover_parent_code": reservation.get("aircover_parent_code", ""),
         "adjustment_original_year": reservation.get("adjustment_original_year"),
         "adjustment_original_month": reservation.get("adjustment_original_month"),
     }
@@ -273,6 +274,7 @@ def _null_row(reservation: dict, order: int, comment: str) -> dict:
         "is_excluded": bool(reservation.get("is_excluded")),
         "is_aircover": bool(reservation.get("is_aircover")),
         "aircover_details": reservation.get("aircover_details", ""),
+        "aircover_parent_code": reservation.get("aircover_parent_code", ""),
         "adjustment_original_year": reservation.get("adjustment_original_year"),
         "adjustment_original_month": reservation.get("adjustment_original_month"),
     }
