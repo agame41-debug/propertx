@@ -299,6 +299,15 @@
     .main-content::after  { animation: none; }
   }
 
+  /* ── HTMX smooth content transitions ── */
+  #content {
+    transition: opacity 0.15s ease;
+  }
+  #content.htmx-swapping {
+    opacity: 0;
+    transition: opacity 0.1s ease;
+  }
+
   /* ── Property page header ── */
   .prop-page-header {
     position: sticky;

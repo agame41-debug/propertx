@@ -145,11 +145,22 @@
   function goToMonth(y, m) {
     writeYM(y, m);
     updateDisplay({ y: y, m: m });
+    var targetUrl;
     var pp = location.pathname.match(/^(\/property\/[^/]+\/)(\d+)\/(\d+)(.*)/);
-    if (pp) { location.href = pp[1] + y + '/' + m + (pp[4] || ''); return; }
-    var url = new URL(location.href);
-    url.searchParams.set('year', y); url.searchParams.set('month', m);
-    location.href = url.toString();
+    if (pp) {
+      targetUrl = pp[1] + y + '/' + m + (pp[4] || '');
+    } else {
+      var url = new URL(location.href);
+      url.searchParams.set('year', y); url.searchParams.set('month', m);
+      targetUrl = url.pathname + url.search;
+    }
+    htmx.ajax('GET', targetUrl, {
+      target: '#content',
+      swap: 'innerHTML transition:true',
+      headers: { 'HX-Boosted': 'true' }
+    }).then(function() {
+      history.pushState(null, '', targetUrl);
+    });
   }
   function navigate(delta) {
     var cur = curYM(), m = cur.m + delta, y = cur.y;
@@ -192,6 +203,16 @@
     if (e.altKey && e.key === 'ArrowLeft')  navigate(-1);
     if (e.altKey && e.key === 'ArrowRight') navigate(1);
     if (e.key === 'Escape') closePicker();
+  });
+  // Sync month display after HTMX content swaps (back/forward, boosted links)
+  window.addEventListener('popstate', function() {
+    var ym = curYM();
+    writeYM(ym.y, ym.m);
+    updateDisplay(ym);
+  });
+  document.addEventListener('htmx:pushedIntoHistory', function() {
+    var ym = curYM();
+    updateDisplay(ym);
   });
   window.RenteroMonthNav = {
     getCurrent: curYM,
@@ -252,6 +273,14 @@ function _sbLoadObjects() {
   var sp = _sbGetScrollParent();
   var savedScroll = sp ? sp.scrollTop : 0;
   if (!savedScroll) { var ss = sessionStorage.getItem('rentero_sb_scroll'); if (ss) savedScroll = parseInt(ss, 10); }
+  // Show cached sidebar immediately to avoid "Načítám…" flash
+  var cached = sessionStorage.getItem('rentero_sb_html');
+  if (cached && p.querySelector('.sb-obj-item') === null) {
+    p.innerHTML = cached;
+    htmx.process(p);
+    _sbUpdateActiveSlug();
+    if (sp) sp.scrollTop = savedScroll;
+  }
   var ym = (window.RenteroMonthNav && window.RenteroMonthNav.getCurrent) ? window.RenteroMonthNav.getCurrent() : null;
   var url = '/sidebar/objects';
   if (ym) url += '?year=' + ym.y + '&month=' + ym.m;
@@ -259,11 +288,14 @@ function _sbLoadObjects() {
     .then(function(r) { return r.text(); })
     .then(function(html) {
       p.innerHTML = html;
+      sessionStorage.setItem('rentero_sb_html', html);
       htmx.process(p);
       _sbUpdateActiveSlug();
       if (sp) sp.scrollTop = savedScroll;
     })
-    .catch(function() { p.innerHTML = '<div style="padding:8px 16px;font-size:11px;color:var(--text-300);">Chyba načítání</div>'; });
+    .catch(function() {
+      if (!cached) p.innerHTML = '<div style="padding:8px 16px;font-size:11px;color:var(--text-300);">Chyba načítání</div>';
+    });
 }
 function sbToggleObj() {
   var p = document.getElementById('sb-obj-panel');
