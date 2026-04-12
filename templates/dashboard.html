@@ -73,7 +73,7 @@
     <div class="kpi-label">Stav portfolia</div>
     <div id="kpi-health-value">
     {% if dashboard_summary.issues > 0 %}
-    <div class="kpi-value" style="font-size:24px;color:var(--color-red);">{{ dashboard_summary.issues }}</div>
+    <div class="kpi-value" style="font-size:24px;color:var(--color-amber);">{{ dashboard_summary.issues }}</div>
     <div class="kpi-sub">objekt{{ 'y' if dashboard_summary.issues > 1 else '' }} s problémy</div>
     {% else %}
     <div class="kpi-value" style="font-size:var(--text-xl);color:var(--color-green);">Vše OK</div>
@@ -318,9 +318,9 @@ function _applyFilters() {
   var kpiHealthVal = document.getElementById('kpi-health-value');
   if (kpiHealthVal) {
     if (issues > 0) {
-      kpiHealthCard.className = 'kpi-card kpi-card-red';
+      kpiHealthCard.className = 'kpi-card kpi-card-amber';
       var suffix = issues > 1 ? 'y' : '';
-      kpiHealthVal.innerHTML = '<div class="kpi-value" style="font-size:24px;color:var(--color-red);">' + issues + '</div><div class="kpi-sub">objekt' + suffix + ' s problémy</div>';
+      kpiHealthVal.innerHTML = '<div class="kpi-value" style="font-size:24px;color:var(--color-amber);">' + issues + '</div><div class="kpi-sub">objekt' + suffix + ' s problémy</div>';
     } else {
       kpiHealthCard.className = 'kpi-card kpi-card-green';
       kpiHealthVal.innerHTML = '<div class="kpi-value" style="font-size:var(--text-xl);color:var(--color-green);">Vše OK</div><div class="kpi-sub">žádné nesrovnalosti</div>';

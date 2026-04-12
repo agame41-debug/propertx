@@ -48,12 +48,12 @@
       transform var(--duration-fast) var(--ease-out),
       box-shadow var(--duration-fast) var(--ease-out);
   }
-  /* Status variants — subtle full-border tint, no colored bars */
-  .kpi-card-green   { border-color: oklch(0.72 0.19 155 / 0.18); }
-  .kpi-card-blue    { border-color: oklch(0.68 0.15 250 / 0.18); }
-  .kpi-card-amber   { border-color: oklch(0.78 0.14 75  / 0.18); }
-  .kpi-card-red     { border-color: oklch(0.68 0.20 25  / 0.18); }
-  .kpi-card-primary { border-color: oklch(0.65 0.18 280 / 0.18); }
+  /* Status variants — visible colored borders */
+  .kpi-card-green   { border-color: oklch(0.72 0.19 155 / 0.45); }
+  .kpi-card-blue    { border-color: oklch(0.68 0.15 250 / 0.45); }
+  .kpi-card-amber   { border-color: oklch(0.78 0.14 75  / 0.50); }
+  .kpi-card-red     { border-color: oklch(0.68 0.20 25  / 0.45); }
+  .kpi-card-primary { border-color: oklch(0.65 0.18 280 / 0.45); }
   .kpi-card-neutral { }
 
   @media (hover: hover) and (pointer: fine) {
@@ -480,9 +480,9 @@
   }
 
   /* Health states — full border color, no left bar */
-  .prop-row[data-health="ok"]      { border-color: oklch(0.72 0.19 155 / 0.18); }
-  .prop-row[data-health="issues"]  { border-color: oklch(0.78 0.14 75  / 0.30); }
-  .prop-row[data-health="action"]  { border-color: oklch(0.68 0.15 250 / 0.20); }
+  .prop-row[data-health="ok"]      { border-color: oklch(0.72 0.19 155 / 0.40); }
+  .prop-row[data-health="issues"]  { border-color: oklch(0.78 0.14 75  / 0.50); }
+  .prop-row[data-health="action"]  { border-color: oklch(0.68 0.15 250 / 0.40); }
   .prop-row[data-has-new="true"]   { border-color: oklch(0.72 0.12 180 / 0.25); }
   .prop-row[data-locked="true"]    { opacity: 0.40; }
 
@@ -1222,11 +1222,11 @@
   [data-theme="light"] .card-header { background: oklch(0 0 0 / 0.025); border-bottom-color: oklch(0 0 0 / 0.07); }
   [data-theme="light"] .kpi-card { border-color: oklch(0 0 0 / 0.12); }
   [data-theme="light"] .kpi-card:hover { border-color: oklch(0 0 0 / 0.20); }
-  [data-theme="light"] .kpi-card-green   { border-color: oklch(0.50 0.14 155 / 0.30); }
-  [data-theme="light"] .kpi-card-blue    { border-color: oklch(0.50 0.12 250 / 0.30); }
-  [data-theme="light"] .kpi-card-amber   { border-color: oklch(0.60 0.12 75  / 0.30); }
-  [data-theme="light"] .kpi-card-red     { border-color: oklch(0.55 0.16 25  / 0.30); }
-  [data-theme="light"] .kpi-card-primary { border-color: oklch(0.50 0.14 280 / 0.30); }
+  [data-theme="light"] .kpi-card-green   { border-color: oklch(0.50 0.14 155 / 0.50); }
+  [data-theme="light"] .kpi-card-blue    { border-color: oklch(0.50 0.12 250 / 0.50); }
+  [data-theme="light"] .kpi-card-amber   { border-color: oklch(0.60 0.12 75  / 0.55); }
+  [data-theme="light"] .kpi-card-red     { border-color: oklch(0.55 0.16 25  / 0.50); }
+  [data-theme="light"] .kpi-card-primary { border-color: oklch(0.50 0.14 280 / 0.50); }
   [data-theme="light"] .kpi-label { color: oklch(0 0 0 / 0.44); }
   [data-theme="light"] .kpi-sub { color: oklch(0 0 0 / 0.4); }
 
@@ -1271,9 +1271,9 @@
 
   /* Property rows */
   [data-theme="light"] .prop-row { border-color: oklch(0 0 0 / 0.12); box-shadow: var(--shadow-sm); }
-  [data-theme="light"] .prop-row[data-health="ok"]     { border-color: oklch(0.45 0.14 155 / 0.28); }
-  [data-theme="light"] .prop-row[data-health="issues"] { border-color: oklch(0.55 0.12 75 / 0.35); }
-  [data-theme="light"] .prop-row[data-health="action"] { border-color: oklch(0.50 0.12 250 / 0.28); }
+  [data-theme="light"] .prop-row[data-health="ok"]     { border-color: oklch(0.45 0.14 155 / 0.45); }
+  [data-theme="light"] .prop-row[data-health="issues"] { border-color: oklch(0.55 0.12 75 / 0.50); }
+  [data-theme="light"] .prop-row[data-health="action"] { border-color: oklch(0.50 0.12 250 / 0.45); }
   [data-theme="light"] .prop-row:hover { border-color: oklch(0 0 0 / 0.22); box-shadow: var(--shadow-md); }
 
   /* Misc */
