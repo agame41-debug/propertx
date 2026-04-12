@@ -188,10 +188,21 @@
     document.getElementById('sheet').classList.add('open');
     document.body.style.overflow = 'hidden';
   }
-  function closeSheet() {
-    document.getElementById('sheet-backdrop').classList.remove('open');
-    document.getElementById('sheet').classList.remove('open');
+  function closeSheet(instant) {
+    var sheet = document.getElementById('sheet');
+    var backdrop = document.getElementById('sheet-backdrop');
+    if (instant) {
+      sheet.style.transition = 'none';
+      backdrop.style.transition = 'none';
+    }
+    backdrop.classList.remove('open');
+    sheet.classList.remove('open');
     document.body.style.overflow = '';
+    if (instant) {
+      sheet.offsetHeight;
+      sheet.style.transition = '';
+      backdrop.style.transition = '';
+    }
   }
 
   /* Objects sheet open/close */
@@ -225,10 +236,23 @@
         });
     }
   }
-  function closeObjSheet() {
-    document.getElementById('obj-sheet-backdrop').classList.remove('open');
-    document.getElementById('obj-sheet').classList.remove('open');
+  function closeObjSheet(instant) {
+    var sheet = document.getElementById('obj-sheet');
+    var backdrop = document.getElementById('obj-sheet-backdrop');
+    if (instant) {
+      /* Skip animation — used when navigating away */
+      sheet.style.transition = 'none';
+      backdrop.style.transition = 'none';
+    }
+    backdrop.classList.remove('open');
+    sheet.classList.remove('open');
     document.body.style.overflow = '';
+    if (instant) {
+      /* Force reflow then restore transitions */
+      sheet.offsetHeight;
+      sheet.style.transition = '';
+      backdrop.style.transition = '';
+    }
   }
   /* Search filter */
   function _objSheetFilter(q) {
@@ -246,6 +270,16 @@
   document.addEventListener('input', function(e) {
     if (e.target.id !== 'obj-sheet-search') return;
     _objSheetFilter(e.target.value.toLowerCase().trim());
+  });
+  /* Instant close on object link click — before navigation starts */
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#obj-sheet-list .sb-obj-item');
+    if (link) closeObjSheet(true);
+  });
+  /* Same for "Více" sheet nav links */
+  document.addEventListener('click', function(e) {
+    var link = e.target.closest('#sheet .sheet-nav-item[href]');
+    if (link) closeSheet(true);
   });
   /* Reload objects on month change */
   document.addEventListener('rentero:month-change', function() {
@@ -351,10 +385,10 @@
     document.body.addEventListener('htmx:sendError', finishBar);
   })();
 
-  /* Close sheets on navigation (HTMX) */
+  /* Close sheets on navigation (HTMX) — instant, no animation needed */
   document.body.addEventListener('htmx:afterSwap', function(evt) {
-    closeSheet();
-    closeObjSheet();
+    closeSheet(true);
+    closeObjSheet(true);
     /* Execute page-specific <script> tags inside swapped #page-body */
     var target = document.getElementById('page-body');
     if (target) {
