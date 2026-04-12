@@ -267,17 +267,32 @@ function _sbUpdateActiveSlug() {
     }
   });
 }
-function _sbLoadObjects() {
+function _sbUpdateMonthLinks(y, m) {
+  var panel = document.getElementById('sb-obj-panel');
+  if (!panel) return;
+  panel.querySelectorAll('.sb-obj-item').forEach(function(a) {
+    var href = a.getAttribute('href') || '';
+    var match = href.match(/^(\/property\/[^/]+\/)\d+\/\d+(.*)/);
+    if (match) a.setAttribute('href', match[1] + y + '/' + m + (match[2] || ''));
+  });
+}
+function _sbLoadObjects(backgroundOnly) {
   var p = document.getElementById('sb-obj-panel');
   if (!p) return;
   var sp = _sbGetScrollParent();
   var savedScroll = sp ? sp.scrollTop : 0;
   if (!savedScroll) { var ss = sessionStorage.getItem('rentero_sb_scroll'); if (ss) savedScroll = parseInt(ss, 10); }
-  // Show cached sidebar immediately to avoid "Načítám…" flash
-  var cached = sessionStorage.getItem('rentero_sb_html');
-  if (cached && p.querySelector('.sb-obj-item') === null) {
-    p.innerHTML = cached;
-    htmx.process(p);
+  var hasContent = p.querySelector('.sb-obj-item') !== null;
+  // Show cached sidebar immediately on first load
+  if (!hasContent) {
+    var cached = sessionStorage.getItem('rentero_sb_html');
+    if (cached) {
+      p.innerHTML = cached;
+      htmx.process(p);
+      hasContent = true;
+    }
+  }
+  if (hasContent) {
     _sbUpdateActiveSlug();
     if (sp) sp.scrollTop = savedScroll;
   }
@@ -287,14 +302,15 @@ function _sbLoadObjects() {
   fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
     .then(function(r) { return r.text(); })
     .then(function(html) {
+      var scrollBefore = sp ? sp.scrollTop : 0;
       p.innerHTML = html;
       sessionStorage.setItem('rentero_sb_html', html);
       htmx.process(p);
       _sbUpdateActiveSlug();
-      if (sp) sp.scrollTop = savedScroll;
+      if (sp) sp.scrollTop = scrollBefore;
     })
     .catch(function() {
-      if (!cached) p.innerHTML = '<div style="padding:8px 16px;font-size:11px;color:var(--text-300);">Chyba načítání</div>';
+      if (!hasContent) p.innerHTML = '<div style="padding:8px 16px;font-size:11px;color:var(--text-300);">Chyba načítání</div>';
     });
 }
 function sbToggleObj() {
@@ -313,12 +329,13 @@ function sbToggleObj() {
 (function() {
   if (localStorage.getItem('rentero_sb_obj') === '1') sbToggleObj();
   if (location.pathname.startsWith('/property/') && !_sbObjLoaded) sbToggleObj();
-  // Reload sidebar when month changes so indicators and links stay current
-  document.addEventListener('rentero:month-change', function() {
-    _sbSaveScroll();
+  // On month change: instantly update links, then background-refresh health indicators
+  document.addEventListener('rentero:month-change', function(e) {
+    var ym = e.detail || (window.RenteroMonthNav ? window.RenteroMonthNav.getCurrent() : null);
+    if (ym) _sbUpdateMonthLinks(ym.y, ym.m);
     var p = document.getElementById('sb-obj-panel');
     if (p && p.style.display !== 'none') {
-      _sbLoadObjects();
+      _sbLoadObjects(true);
     }
   });
   // Update active highlight when navigating between properties via HTMX
