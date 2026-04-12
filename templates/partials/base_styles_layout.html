@@ -9,6 +9,16 @@
     min-height: 100vh;
   }
 
+  /* ── Cosmic particle canvas ── */
+  #cosmos {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 0;
+    pointer-events: none;
+  }
+  [data-theme="light"] #cosmos { display: none; }
+
   /* ── Desktop sidebar ────────────────────────────────────────────────── */
   .sidebar {
     width: var(--sidebar-w);
@@ -203,6 +213,7 @@
     background:
       var(--ambient-primary),
       var(--ambient-secondary),
+      var(--ambient-tertiary),
       var(--bg-1);
     min-height: 100vh;
     padding: var(--space-3xl) var(--space-2xl);
