@@ -669,10 +669,10 @@ def get_connection(db_path: str | None = None) -> sqlite3.Connection:
         dir_name = os.path.dirname(path)
         if dir_name:
             os.makedirs(dir_name, exist_ok=True)
-    conn = sqlite3.connect(path, check_same_thread=False, timeout=10)
+    conn = sqlite3.connect(path, check_same_thread=False, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")        # concurrent reads + one writer
-    conn.execute("PRAGMA busy_timeout = 5000")     # retry up to 5s on lock contention
+    conn.execute("PRAGMA busy_timeout = 30000")    # retry up to 30s on lock contention
     conn.execute("PRAGMA wal_autocheckpoint = 1000")  # checkpoint every 1000 pages
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(_SCHEMA)

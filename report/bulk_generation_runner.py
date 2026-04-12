@@ -12,7 +12,9 @@ import argparse
 import inspect
 import logging
 import os
+import sqlite3
 import sys
+import time
 import traceback
 
 from report.config import (
@@ -47,6 +49,18 @@ from report.engine import build_csv_cache, generate_report_in_process
 log = logging.getLogger(__name__)
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _db_retry(fn, *args, retries: int = 5, delay: float = 2.0, **kwargs):
+    """Retry a DB operation on sqlite3.OperationalError (database is locked)."""
+    for attempt in range(retries):
+        try:
+            return fn(*args, **kwargs)
+        except sqlite3.OperationalError as e:
+            if "locked" not in str(e) or attempt == retries - 1:
+                raise
+            log.warning("DB locked (attempt %d/%d), retrying in %.1fs…", attempt + 1, retries, delay)
+            time.sleep(delay)
 
 
 def _truncate_generation_detail(detail: str, max_chars: int = 40000) -> str:
@@ -126,14 +140,14 @@ def main() -> int:
 
     conn = get_connection(args.db_path)
     try:
-        set_bulk_generation_run_running(conn, args.run_id, pid=os.getpid())
+        _db_retry(set_bulk_generation_run_running, conn, args.run_id, pid=os.getpid())
         run = get_bulk_generation_run(conn, args.run_id)
         if not run:
             return 1
         config = load_runtime_config(args.config, db_conn=conn)
         properties = _get_active_properties(config)
         total = len(properties)
-        update_bulk_generation_run_progress(
+        _db_retry(update_bulk_generation_run_progress,
             conn,
             args.run_id,
             message=f"Sekvenční generování {args.month:02d}/{args.year} — načítání CSV…",
@@ -146,7 +160,7 @@ def main() -> int:
                  len(cache["airbnb_index"]), len(cache["booking_index"]),
                  len(cache["bank_rows_all"]))
 
-        update_bulk_generation_run_progress(
+        _db_retry(update_bulk_generation_run_progress,
             conn,
             args.run_id,
             message=f"Sekvenční generování {args.month:02d}/{args.year} běží.",
@@ -164,7 +178,7 @@ def main() -> int:
             slug = str(prop.get("slug") or "").strip()
             if not slug:
                 continue
-            update_bulk_generation_run_progress(
+            _db_retry(update_bulk_generation_run_progress,
                 conn,
                 args.run_id,
                 current_slug=slug,
@@ -188,14 +202,15 @@ def main() -> int:
             elif get_active_report_generation_job(conn, slug, args.year, args.month):
                 skipped_running += 1
             else:
-                job = create_report_generation_job(
+                job = _db_retry(
+                    create_report_generation_job,
                     conn,
                     slug,
                     args.year,
                     args.month,
                     requested_by=str(run.get("requested_by") or ""),
                 )
-                set_report_generation_job_running(conn, int(job["id"]), pid=os.getpid())
+                _db_retry(set_report_generation_job_running, conn, int(job["id"]), pid=os.getpid())
                 try:
                     result = generate_report_in_process(
                         conn,
@@ -207,7 +222,8 @@ def main() -> int:
                     )
                     if result.get("skipped"):
                         skipped_locked += 1
-                        finish_report_generation_job(
+                        _db_retry(
+                            finish_report_generation_job,
                             conn,
                             int(job["id"]),
                             status=GENERATION_JOB_SUCCEEDED,
@@ -217,7 +233,8 @@ def main() -> int:
                     else:
                         succeeded += 1
                         detail = f"rows={result.get('rows_count', 0)} {result.get('status_counts', {})}"
-                        finish_report_generation_job(
+                        _db_retry(
+                            finish_report_generation_job,
                             conn,
                             int(job["id"]),
                             status=GENERATION_JOB_SUCCEEDED,
@@ -228,7 +245,8 @@ def main() -> int:
                     failed += 1
                     detail = _truncate_generation_detail(traceback.format_exc())
                     failure_lines.append(f"{slug}: {_summarize_generation_error(str(exc))}")
-                    finish_report_generation_job(
+                    _db_retry(
+                        finish_report_generation_job,
                         conn,
                         int(job["id"]),
                         status=GENERATION_JOB_FAILED,
@@ -236,7 +254,7 @@ def main() -> int:
                         detail=detail,
                     )
 
-            update_bulk_generation_run_progress(
+            _db_retry(update_bulk_generation_run_progress,
                 conn,
                 args.run_id,
                 current_slug=slug,
@@ -260,7 +278,8 @@ def main() -> int:
             year=args.year,
             month=args.month,
         )
-        finish_bulk_generation_run(
+        _db_retry(
+            finish_bulk_generation_run,
             conn,
             args.run_id,
             status=BULK_GENERATION_FAILED if failed else BULK_GENERATION_SUCCEEDED,
@@ -270,14 +289,18 @@ def main() -> int:
         )
         return 1 if failed else 0
     except Exception as exc:
-        finish_bulk_generation_run(
-            conn,
-            args.run_id,
-            status=BULK_GENERATION_FAILED,
-            current_slug="",
-            message="Sekvenční generování selhalo.",
-            detail=_truncate_generation_detail(traceback.format_exc()),
-        )
+        try:
+            _db_retry(
+                finish_bulk_generation_run,
+                conn,
+                args.run_id,
+                status=BULK_GENERATION_FAILED,
+                current_slug="",
+                message="Sekvenční generování selhalo.",
+                detail=_truncate_generation_detail(traceback.format_exc()),
+            )
+        except Exception:
+            log.error("Could not mark run %d as FAILED: %s", args.run_id, traceback.format_exc())
         return 1
     finally:
         conn.close()
