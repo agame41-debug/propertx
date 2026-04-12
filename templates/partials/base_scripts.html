@@ -1026,6 +1026,8 @@ var FloatingPanel = (function() {
 
   function closeTab(code) {
     var idx = _state.tabs.findIndex(function(t) { return _tabKey(t) === code; });
+    // Fallback: match by confirmation_code alone (form onsubmit passes bare code)
+    if (idx === -1) idx = _state.tabs.findIndex(function(t) { return t.code === code; });
     if (idx === -1) return;
     _state.tabs.splice(idx, 1);
     delete _tabContent[code];
