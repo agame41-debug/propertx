@@ -122,7 +122,11 @@ def register(app, state) -> None:
         row = next((item for item in rows if item.get("confirmation_code") == code), None)
         if row is None:
             raise HTTPException(status_code=404, detail="Reservation not found")
-        bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [code])
+        lookup_code = row.get("aircover_parent_code") or code if row.get("is_aircover") else code
+        bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [lookup_code])
+        bank_txns = bank_txns_map.get(lookup_code, [])
+        if row.get("is_aircover") and row.get("batch_ref"):
+            bank_txns = [t for t in bank_txns if t.get("batch_ref") == row["batch_ref"]]
         month_state = state["get_report_month_state"](conn, slug, year, month)
         assignment, moved_here = _resolve_assignment(
             state, conn, slug, code, year, month,
@@ -143,7 +147,7 @@ def register(app, state) -> None:
                 "year": year,
                 "month": month,
                 "month_state": month_state,
-                "bank_txns": bank_txns_map.get(code, []),
+                "bank_txns": bank_txns,
             },
         )
 
@@ -175,7 +179,11 @@ def register(app, state) -> None:
         rows_with_overrides = state["apply_overrides_to_rows"](conn, [row], slug, year, month)
         row = rows_with_overrides[0] if rows_with_overrides else row
 
-        bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [code])
+        lookup_code = row.get("aircover_parent_code") or code if row.get("is_aircover") else code
+        bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [lookup_code])
+        bank_txns = bank_txns_map.get(lookup_code, [])
+        if row.get("is_aircover") and row.get("batch_ref"):
+            bank_txns = [t for t in bank_txns if t.get("batch_ref") == row["batch_ref"]]
         month_state = state["get_report_month_state"](conn, slug, year, month)
         assignment, moved_here = _resolve_assignment(
             state, conn, slug, code, year, month,
@@ -197,7 +205,7 @@ def register(app, state) -> None:
                 "year": year,
                 "month": month,
                 "month_state": month_state,
-                "bank_txns": bank_txns_map.get(code, []),
+                "bank_txns": bank_txns,
             },
         )
 
