@@ -210,16 +210,12 @@
       </div>
     </div>
 
-    {# Col 3: Financial #}
+    {# Col 3: Financial — green: from platforms, blue: client payout #}
     <div class="pr-financial" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
       {% if cur_cell and cur_cell.kind == 'report' %}
-        {% if row.is_rentero %}
-        <div style="font-size:var(--text-sm);font-weight:600;color:var(--text-100);font-variant-numeric:tabular-nums;">{{ "{:,.0f}".format(cena_ubyt).replace(",", " ") }} Kč</div>
-        {% else %}
         <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;">{{ "{:,.0f}".format(payout).replace(",", " ") }} Kč</div>
-        {% if provize > 0 %}
-        <div style="font-size:10px;color:var(--text-300);font-variant-numeric:tabular-nums;">odměna {{ "{:,.0f}".format(provize).replace(",", " ") }}</div>
-        {% endif %}
+        {% if client_payout > 0 %}
+        <div style="font-size:10px;color:var(--color-blue);font-variant-numeric:tabular-nums;">klient {{ "{:,.0f}".format(client_payout).replace(",", " ") }}</div>
         {% endif %}
       {% else %}
       <span style="color:var(--text-300);font-size:var(--text-xs);">—</span>
@@ -302,11 +298,7 @@ function _applyFilters() {
   if (kpiPayout) kpiPayout.innerHTML = _formatNumber(totalPayout) + ' Kč';
 
   var kpiPayoutSub = document.getElementById('kpi-payout-sub');
-  if (kpiPayoutSub) {
-    if (hasRentero && !hasClient) kpiPayoutSub.textContent = 'cena ubytování celkem';
-    else if (!hasRentero && hasClient) kpiPayoutSub.textContent = 'výplata klientům celkem';
-    else kpiPayoutSub.textContent = 'platformy → rentero';
-  }
+  if (kpiPayoutSub) kpiPayoutSub.textContent = 'platformy → rentero';
 
   var kpiRez = document.getElementById('kpi-reservations');
   if (kpiRez) {
