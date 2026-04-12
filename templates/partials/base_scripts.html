@@ -21,8 +21,13 @@
   function toggle() {
     var cur   = document.documentElement.getAttribute('data-theme') || 'light';
     var next  = cur === 'dark' ? 'light' : 'dark';
+    // smooth transition between themes
+    document.documentElement.classList.add('theme-switching');
     localStorage.setItem('rentero_theme', next);
     applyTheme(next);
+    setTimeout(function() {
+      document.documentElement.classList.remove('theme-switching');
+    }, 600);
   }
 
   document.addEventListener('DOMContentLoaded', function() {
@@ -1032,11 +1037,11 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
     'rgb(180, 200, 255)',  // ice blue
   ];
   var lightColors = [
-    'rgb(100, 60, 150)',   // purple
-    'rgb(60, 70, 140)',    // indigo
-    'rgb(140, 80, 50)',    // warm brown
-    'rgb(80, 50, 130)',    // deep violet
-    'rgb(50, 90, 140)',    // steel blue
+    'rgb(140, 80, 200)',   // vivid purple
+    'rgb(100, 70, 190)',   // indigo
+    'rgb(180, 90, 160)',   // orchid pink
+    'rgb(80, 100, 200)',   // periwinkle
+    'rgb(160, 60, 180)',   // magenta-violet
   ];
 
   function resize() {

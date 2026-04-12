@@ -1270,8 +1270,11 @@
   [data-theme="light"] .notify-dismiss:hover { background: oklch(0 0 0 / 0.08); }
 
   /* Property rows */
-  [data-theme="light"] .prop-row { border-color: oklch(0 0 0 / 0.10); box-shadow: none; }
-  [data-theme="light"] .prop-row:hover { border-color: oklch(0 0 0 / 0.18); box-shadow: var(--shadow-sm); }
+  [data-theme="light"] .prop-row { border-color: oklch(0 0 0 / 0.12); box-shadow: var(--shadow-sm); }
+  [data-theme="light"] .prop-row[data-health="ok"]     { border-color: oklch(0.45 0.14 155 / 0.28); }
+  [data-theme="light"] .prop-row[data-health="issues"] { border-color: oklch(0.55 0.12 75 / 0.35); }
+  [data-theme="light"] .prop-row[data-health="action"] { border-color: oklch(0.50 0.12 250 / 0.28); }
+  [data-theme="light"] .prop-row:hover { border-color: oklch(0 0 0 / 0.22); box-shadow: var(--shadow-md); }
 
   /* Misc */
   [data-theme="light"] .meta-chip { background: oklch(0 0 0 / 0.05); color: var(--text-200); }

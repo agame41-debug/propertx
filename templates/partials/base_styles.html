@@ -223,4 +223,14 @@
   }
   details > summary { list-style: none; }
   details > summary::-webkit-details-marker { display: none; }
+
+  /* ── Smooth theme switching ── */
+  html.theme-switching,
+  html.theme-switching *,
+  html.theme-switching *::before,
+  html.theme-switching *::after {
+    transition: background-color 500ms ease, color 500ms ease,
+                border-color 500ms ease, box-shadow 500ms ease,
+                fill 500ms ease, stroke 500ms ease !important;
+  }
 </style>
