@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from calendar import monthrange
 from collections import Counter
 from datetime import date as date_cls, datetime as datetime_cls
@@ -341,12 +342,14 @@ def generate_report_in_process(
 
     for asgn in all_assignments:
         if asgn["original_year"] == year and asgn["original_month"] == month:
-            code = asgn["confirmation_code"]
+            raw_code = asgn["confirmation_code"]
             if asgn.get("is_adjustment"):
-                adj_grefs_out.add((code, asgn.get("batch_ref", "")))
-                codes_adj_out.add(code)
+                # Strip __ADJ/__ADJ2 suffix to match original code in all_batches_map
+                base_code = re.sub(r"__ADJ\d*$", "", raw_code)
+                adj_grefs_out.add((base_code, asgn.get("batch_ref", "")))
+                codes_adj_out.add(raw_code)
             else:
-                codes_main_out.add(code)
+                codes_main_out.add(raw_code)
 
     hidden_confirmation_codes = codes_main_out | codes_adj_out
 
@@ -364,10 +367,13 @@ def generate_report_in_process(
     adj_codes_in: set[str] = set()
     adj_grefs_in: set[tuple[str, str]] = set()
     for asgn in moved_in:
-        code = asgn["confirmation_code"]
+        raw_code = asgn["confirmation_code"]
+        code = raw_code
         if asgn.get("is_adjustment"):
-            adj_codes_in.add(code)
-            adj_grefs_in.add((code, asgn.get("batch_ref", "")))
+            # Strip __ADJ/__ADJ2 suffix to match original code in all_batches_map
+            base_code = re.sub(r"__ADJ\d*$", "", raw_code)
+            adj_codes_in.add(base_code)
+            adj_grefs_in.add((base_code, asgn.get("batch_ref", "")))
         elif code not in current_codes:
             # Pull main reservation from hostify_reservations
             row = conn.execute(
