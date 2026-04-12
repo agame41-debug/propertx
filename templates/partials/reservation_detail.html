@@ -77,7 +77,7 @@
   <div style="font-size:12px;color:var(--text-300);margin-top:2px;">{{ r.aircover_details }}</div>
   {% endif %}
   <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">
-    Tato položka je automaticky vyřazena z finančního výpočtu a označena ke kontrole.
+    Tato položka je ve výchozím stavu vyřazena z finančního výpočtu a označena ke kontrole.
   </div>
 </div>
 {% endif %}
@@ -277,10 +277,7 @@
   </div>
 
   {% if r.is_aircover %}
-  {# AirCover items — no move/exclude controls, auto-managed #}
-  <div style="padding:10px 12px;background:rgba(245,161,74,0.06);border:1px solid rgba(245,161,74,0.15);border-radius:8px;font-size:12px;color:var(--text-300);">
-    Položka AirCover je automaticky vyřazena z finančního výpočtu.
-  </div>
+  {# AirCover items — no move controls, but exclude/reinstate available #}
   {% else %}
   {# ── Move reservation ──────────────────────────────────────── #}
   {% set prev_m = (month - 1) if month > 1 else 12 %}
@@ -330,6 +327,7 @@
     </div>
     {% endif %}
   </div>
+  {% endif %}{# /is_aircover else #}
 
   {# ── Exclude / reinstate ────────────────────────────────────── #}
   <div>
@@ -337,7 +335,7 @@
     {% if r.is_excluded %}
     {% set excl = r.get('_exclusion') %}
     <div style="padding:10px 12px;background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.15);border-radius:8px;font-size:12px;color:var(--red);margin-bottom:8px;">
-      Vyřazeno z výpočtu{% if excl and excl.reason %} — {{ excl.reason }}{% endif %}
+      Vyřazeno z výpočtu{% if r.is_aircover %} (AirCover – automaticky){% endif %}{% if excl and excl.reason %} — {{ excl.reason }}{% endif %}
     </div>
     <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/reinstate" hx-boost="false" onsubmit="event.preventDefault();if(typeof FloatingPanel!=='undefined')FloatingPanel.submitAction(this,'{{ r.confirmation_code }}','Vráceno do výpočtu')">
       {{ csrf_input(request) }}
@@ -363,7 +361,6 @@
     Úklid, city tax a balíčky nejsou zahrnuty (již zaúčtováno v původním měsíci).
   </div>
   {% endif %}
-  {% endif %}{# /is_aircover else #}
 
 </div>
 {% endif %}
