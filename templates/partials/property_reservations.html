@@ -223,7 +223,7 @@
               <div class="rcs-group" style="flex:0;">
                 <div class="rcs-item">
                   <span class="rcs-label">Kód rezervace</span>
-                  {% set display_code = r.aircover_parent_code if r.is_aircover and r.aircover_parent_code else r.confirmation_code %}
+                  {% set display_code = r.aircover_parent_code if r.is_aircover and r.aircover_parent_code else r.adjustment_parent_code if r.is_payout_adjustment and r.adjustment_parent_code else r.confirmation_code %}
                   <span class="rcs-val rcs-val-muted" data-copy="{{ display_code }}" title="Kopírovat" style="font-family:monospace;font-size:10.5px;letter-spacing:0.02em;">{{ display_code }}</span>
                 </div>
               </div>

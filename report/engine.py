@@ -73,20 +73,22 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 log = logging.getLogger(__name__)
 
 
-def _build_adjustment_reservation(past_row: dict, batch_info: dict) -> dict:
+def _build_adjustment_reservation(past_row: dict, batch_info: dict, suffix: str = "__ADJ") -> dict:
     """
     Build a synthetic reservation dict for a payout adjustment.
     Represents money arriving this month for a reservation from a past month.
     Cleaning, city tax, and balíčky are zeroed out to avoid double-counting.
     """
     source = past_row.get("source", "")
+    parent_code = past_row.get("confirmation_code", "")
     payout_eur = float(
         batch_info.get("payout_eur")
         or batch_info.get("payout_czk", 0) / max(float(batch_info.get("airbnb_rate") or 25.0), 1.0)
         or 0.0
     )
     return {
-        "confirmation_code": past_row.get("confirmation_code", ""),
+        "confirmation_code": f"{parent_code}{suffix}",
+        "adjustment_parent_code": parent_code,
         "guest_name": past_row.get("guest_name", ""),
         "check_in": past_row.get("check_in", ""),
         "check_out": past_row.get("check_out", ""),
@@ -414,6 +416,12 @@ def generate_report_in_process(
     # adj_grefs_in / adj_codes_in: pull in adjustments moved INTO this month
     #   (bypass date-window check for their batches)
     seen_adjustment_grefs: set[str] = set()
+    adj_suffix_counter: dict[str, int] = {}  # code -> next suffix number
+    def _next_adj_suffix(code: str) -> str:
+        n = adj_suffix_counter.get(code, 0) + 1
+        adj_suffix_counter[code] = n
+        return "__ADJ" if n == 1 else f"__ADJ{n}"
+
     for code, batch_list in airbnb_all_batches.items():
         if code in current_codes:
             continue
@@ -442,7 +450,7 @@ def generate_report_in_process(
             elif not _payout_date_in_window(batch_info.get("payout_date", "")):
                 continue
             seen_adjustment_grefs.add(gref)
-            reservations.append(_build_adjustment_reservation(past_row, batch_info))
+            reservations.append(_build_adjustment_reservation(past_row, batch_info, suffix=_next_adj_suffix(code)))
 
     # Booking adjustments (single batch per code)
     for code, pinfo in booking_batch_map.items():
@@ -462,7 +470,7 @@ def generate_report_in_process(
             continue
         if code not in adj_codes_in and not _payout_date_in_window(pinfo.get("payout_date", "")):
             continue
-        reservations.append(_build_adjustment_reservation(past_row, pinfo))
+        reservations.append(_build_adjustment_reservation(past_row, pinfo, suffix=_next_adj_suffix(code)))
 
     # Fallback: codes in gref_map but not in all_batches (shouldn't happen, but safe)
     for code in gref_map:
@@ -481,7 +489,7 @@ def generate_report_in_process(
             continue
         if code not in adj_codes_in and not _payout_date_in_window(batch_info.get("payout_date", "")):
             continue
-        reservations.append(_build_adjustment_reservation(past_row, batch_info))
+        reservations.append(_build_adjustment_reservation(past_row, batch_info, suffix=_next_adj_suffix(code)))
 
     # ── AirCover items (separate compensation rows) ──────────────────────────
     aircover_map = airbnb_payout_data.get("aircover_map", {})

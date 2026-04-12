@@ -207,6 +207,7 @@ def calculate_row(
         "aircover_parent_code": reservation.get("aircover_parent_code", ""),
         "adjustment_original_year": reservation.get("adjustment_original_year"),
         "adjustment_original_month": reservation.get("adjustment_original_month"),
+        "adjustment_parent_code": reservation.get("adjustment_parent_code", ""),
     }
 
 
@@ -277,6 +278,7 @@ def _null_row(reservation: dict, order: int, comment: str) -> dict:
         "aircover_parent_code": reservation.get("aircover_parent_code", ""),
         "adjustment_original_year": reservation.get("adjustment_original_year"),
         "adjustment_original_month": reservation.get("adjustment_original_month"),
+        "adjustment_parent_code": reservation.get("adjustment_parent_code", ""),
     }
 
 

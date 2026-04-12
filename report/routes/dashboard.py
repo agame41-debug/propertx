@@ -32,6 +32,17 @@ def _resolve_assignment(state, conn, slug, code, year, month):
     return None, False
 
 
+def _bank_lookup_code(row, code):
+    """Return the confirmation_code to use for bank transaction lookup.
+    AirCover and adjustment rows use their parent code since payout_batch_items
+    stores the original confirmation_code without __AC/__ADJ suffix."""
+    if row.get("is_aircover") and row.get("aircover_parent_code"):
+        return row["aircover_parent_code"]
+    if row.get("is_payout_adjustment") and row.get("adjustment_parent_code"):
+        return row["adjustment_parent_code"]
+    return code
+
+
 def _filter_bank_txns_for_row(row, bank_txns, state, conn):
     """Filter bank transactions to show only those relevant to this row.
 
@@ -51,16 +62,18 @@ def _filter_bank_txns_for_row(row, bank_txns, state, conn):
 
     if not is_secondary:
         # Main reservation — exclude batch_refs claimed by sibling rows
+        # Siblings have codes like CODE__ADJ, CODE__ADJ2, CODE__AC etc.
         code = row.get("confirmation_code", "")
         sibling_batch_refs = set()
         if code:
             siblings = conn.execute(
                 """SELECT json_extract(data, '$.batch_ref') AS br
                    FROM report_rows
-                   WHERE confirmation_code = ?
+                   WHERE (confirmation_code LIKE ? OR confirmation_code = ?)
+                     AND confirmation_code != ?
                      AND (json_extract(data, '$.is_payout_adjustment') = 1
                           OR json_extract(data, '$.is_aircover') = 1)""",
-                (code,),
+                (code + "__%", code, code),
             ).fetchall()
             for s in siblings:
                 if s["br"]:
@@ -161,7 +174,7 @@ def register(app, state) -> None:
         row = next((item for item in rows if item.get("confirmation_code") == code), None)
         if row is None:
             raise HTTPException(status_code=404, detail="Reservation not found")
-        lookup_code = row.get("aircover_parent_code") or code if row.get("is_aircover") else code
+        lookup_code = _bank_lookup_code(row, code)
         bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [lookup_code])
         bank_txns = bank_txns_map.get(lookup_code, [])
         bank_txns = _filter_bank_txns_for_row(row, bank_txns, state, conn)
@@ -217,7 +230,7 @@ def register(app, state) -> None:
         rows_with_overrides = state["apply_overrides_to_rows"](conn, [row], slug, year, month)
         row = rows_with_overrides[0] if rows_with_overrides else row
 
-        lookup_code = row.get("aircover_parent_code") or code if row.get("is_aircover") else code
+        lookup_code = _bank_lookup_code(row, code)
         bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [lookup_code])
         bank_txns = bank_txns_map.get(lookup_code, [])
         bank_txns = _filter_bank_txns_for_row(row, bank_txns, state, conn)
