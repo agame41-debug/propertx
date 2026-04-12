@@ -276,9 +276,6 @@
     <div class="drawer-section-title">Akce</div>
   </div>
 
-  {% if r.is_aircover %}
-  {# AirCover items — no move controls, but exclude/reinstate available #}
-  {% else %}
   {# ── Move reservation ──────────────────────────────────────── #}
   {% set prev_m = (month - 1) if month > 1 else 12 %}
   {% set prev_y = year if month > 1 else (year - 1) %}
@@ -327,7 +324,6 @@
     </div>
     {% endif %}
   </div>
-  {% endif %}{# /is_aircover else #}
 
   {# ── Exclude / reinstate ────────────────────────────────────── #}
   <div>
