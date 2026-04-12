@@ -32,7 +32,7 @@
     <div class="kpi-value" style="color:var(--color-green);font-size:24px;" id="kpi-payout">
       {{ "{:,.0f}".format(dashboard_summary.total_payout_czk).replace(",", " ") }} Kč
     </div>
-    <div class="kpi-sub" id="kpi-payout-sub">platformy → klienti · {{ dashboard_summary.current_month_label }}</div>
+    <div class="kpi-sub" id="kpi-payout-sub">platformy → rentero · {{ dashboard_summary.current_month_label }}</div>
   </div>
 
   {# Total reservations with sparkline #}
@@ -303,7 +303,7 @@ function _applyFilters() {
   if (kpiPayoutSub) {
     if (hasRentero && !hasClient) kpiPayoutSub.textContent = 'cena ubytování celkem';
     else if (!hasRentero && hasClient) kpiPayoutSub.textContent = 'výplata klientům celkem';
-    else kpiPayoutSub.textContent = 'platformy → klienti';
+    else kpiPayoutSub.textContent = 'platformy → rentero';
   }
 
   var kpiRez = document.getElementById('kpi-reservations');
