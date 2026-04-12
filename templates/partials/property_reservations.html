@@ -131,11 +131,13 @@
             {% endif %}
           </td>
 
-          <td data-col="ubytovani" data-val="{{ r.cena_ubytovani_czk or 0 }}" style="text-align:right;" class="num copyable">
+          <td data-col="ubytovani" data-val="{{ r.cena_ubytovani_czk or 0 }}" style="text-align:right;" class="num copyable"
+              {% if r.cena_ubytovani_czk is not none %}data-copy="{{ "%.2f"|format(r.cena_ubytovani_czk) }}"{% endif %}>
             {% if r.cena_ubytovani_czk is not none %}{{ money(r.cena_ubytovani_czk) }}{% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
           </td>
 
-          <td data-col="vyplata" data-val="{{ r.payout_czk or 0 }}" style="text-align:right;" class="num num-strong copyable">
+          <td data-col="vyplata" data-val="{{ r.payout_czk or 0 }}" style="text-align:right;" class="num num-strong copyable"
+              {% if r.payout_czk is not none %}data-copy="{{ "%.2f"|format(r.payout_czk) }}"{% endif %}>
             {% if r.payout_czk is not none %}{{ money(r.payout_czk) }}{% else %}—{% endif %}
             {% if 'payout_czk' in overridden %}
             <div style="font-size:10px;color:var(--amber);text-decoration:line-through;font-weight:400;">
