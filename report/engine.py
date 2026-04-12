@@ -117,6 +117,45 @@ def _build_adjustment_reservation(past_row: dict, batch_info: dict) -> dict:
     }
 
 
+def _build_aircover_reservation(parent_row: dict, ac_item: dict) -> dict:
+    """
+    Build a synthetic reservation for an AirCover compensation item.
+    These are separate payouts from Airbnb for guest damages, not regular stays.
+    Auto-excluded from financial calculations, marked KE KONTROLE.
+    """
+    amount_eur = abs(float(ac_item.get("amount_eur", 0)))
+    return {
+        "confirmation_code": parent_row.get("confirmation_code", ""),
+        "guest_name": ac_item.get("guest_name") or parent_row.get("guest_name", ""),
+        "check_in": ac_item.get("check_in") or parent_row.get("check_in", ""),
+        "check_out": ac_item.get("check_out") or parent_row.get("check_out", ""),
+        "nights": ac_item.get("nights") or parent_row.get("nights") or 0,
+        "adults": parent_row.get("adults") or 0,
+        "children": 0,
+        "infants": 0,
+        "source": "Airbnb",
+        "status": "aircover",
+        "is_cancelled": False,
+        "is_aircover": True,
+        "is_excluded": True,
+        "aircover_details": ac_item.get("details", ""),
+        "aircover_item_type": ac_item.get("item_type", ""),
+        "listing_nickname": parent_row.get("listing_nickname", ""),
+        "listing_id": parent_row.get("listing_id"),
+        "confirmed_at": parent_row.get("check_in", ""),
+        "cleaning_fee_eur": 0.0,
+        "city_tax_eur": 0.0,
+        "channel_commission_eur": 0.0,
+        "payout_price_eur": amount_eur,
+        "effective_payout_eur": amount_eur,
+        "airbnb_batch_rate": float(ac_item.get("airbnb_rate") or 0.0),
+        "airbnb_payout_date": ac_item.get("payout_date", ""),
+        "batch_ref": ac_item.get("gref") or ac_item.get("batch_ref", ""),
+        "batch_payout_date": ac_item.get("payout_date", ""),
+        "batch_amount_czk": ac_item.get("amount_czk"),
+    }
+
+
 def _resolve_sources(conn, source_type: str) -> list:
     """Return active DB-backed source file records for the given type."""
     return get_active_source_files(conn, source_type)
@@ -437,6 +476,26 @@ def generate_report_in_process(
         if code not in adj_codes_in and not _payout_date_in_window(batch_info.get("payout_date", "")):
             continue
         reservations.append(_build_adjustment_reservation(past_row, batch_info))
+
+    # ── AirCover items (separate compensation rows) ──────────────────────────
+    aircover_map = airbnb_payout_data.get("aircover_map", {})
+    for code, ac_items in aircover_map.items():
+        # Find parent reservation — either in this month or a past month
+        parent_row = None
+        if code in current_codes:
+            parent_row = next((r for r in reservations if r.get("confirmation_code") == code and not r.get("is_aircover")), None)
+        if parent_row is None:
+            db_row = get_report_row_by_code(conn, code)
+            if db_row is not None and db_row.get("slug") == slug:
+                parent_row = db_row
+        if parent_row is None:
+            continue
+        for ac_item in ac_items:
+            if not _payout_date_in_window(ac_item.get("payout_date", "")):
+                continue
+            reservations.append(_build_aircover_reservation(parent_row, ac_item))
+            log.info("AirCover item for %s: %.2f EUR (%s)",
+                     code, ac_item.get("amount_eur", 0), ac_item.get("details", ""))
 
     # ── Verify against CSV ──────────────────────────────────────────────────
     booking_codes = [

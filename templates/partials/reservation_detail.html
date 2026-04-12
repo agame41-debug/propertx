@@ -44,6 +44,9 @@
       {% else %}
       <span class="drawer-code">{{ source_label(r.source) }}</span>
       {% endif %}
+      {% if r.is_aircover %}
+      <span class="badge" style="font-size:9.5px;font-weight:700;letter-spacing:0.04em;background:rgba(245,161,74,0.12);color:var(--amber);border:1px solid rgba(245,161,74,0.2);">AirCover</span>
+      {% endif %}
       {% set vs = r.display_verification_status or r.verification_status or "" %}
       {% if vs %}
       <span class="badge {% if vs == 'MATCHED' %}badge-green{% elif vs == 'ROZDÍL' %}badge-orange{% elif vs == 'KE KONTROLE' %}badge-amber{% elif 'CHYBÍ' in vs %}badge-red{% else %}badge-neutral{% endif %}" style="font-size:9.5px;font-weight:700;letter-spacing:0.04em;">{{ vs }}</span>
@@ -62,6 +65,22 @@
     <div class="drawer-code">{{ r.confirmation_code or "" }}</div>
   </div>
 </div>
+
+{% if r.is_aircover %}
+{# ── AirCover Banner ──────────────────────────────────────────────────────── #}
+<div style="margin:12px 16px 0;padding:10px 14px;background:rgba(245,161,74,0.08);border:1px solid rgba(245,161,74,0.2);border-radius:8px;">
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <span style="font-weight:600;font-size:13px;color:var(--amber);">AirCover – Kompenzace za škodu</span>
+  </div>
+  {% if r.aircover_details %}
+  <div style="font-size:12px;color:var(--text-300);margin-top:2px;">{{ r.aircover_details }}</div>
+  {% endif %}
+  <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">
+    Tato položka je automaticky vyřazena z finančního výpočtu a označena ke kontrole.
+  </div>
+</div>
+{% endif %}
 
 {# ── EUR Inputs ────────────────────────────────────────────────────────────── #}
 <div class="drawer-section">
@@ -257,6 +276,12 @@
     <div class="drawer-section-title">Akce</div>
   </div>
 
+  {% if r.is_aircover %}
+  {# AirCover items — no move/exclude controls, auto-managed #}
+  <div style="padding:10px 12px;background:rgba(245,161,74,0.06);border:1px solid rgba(245,161,74,0.15);border-radius:8px;font-size:12px;color:var(--text-300);">
+    Položka AirCover je automaticky vyřazena z finančního výpočtu.
+  </div>
+  {% else %}
   {# ── Move reservation ──────────────────────────────────────── #}
   {% set prev_m = (month - 1) if month > 1 else 12 %}
   {% set prev_y = year if month > 1 else (year - 1) %}
@@ -338,6 +363,7 @@
     Úklid, city tax a balíčky nejsou zahrnuty (již zaúčtováno v původním měsíci).
   </div>
   {% endif %}
+  {% endif %}{# /is_aircover else #}
 
 </div>
 {% endif %}

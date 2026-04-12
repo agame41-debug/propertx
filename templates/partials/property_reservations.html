@@ -74,6 +74,8 @@
             {% endif %}
             {% if r.is_payout_adjustment and r.adjustment_original_month %}
             <span class="adjustment-sublabel">Doplatek ↗ {{ "%02d/%d"|format(r.adjustment_original_month, r.adjustment_original_year) }}</span>
+            {% elif r.is_aircover %}
+            <span class="adjustment-sublabel" style="color:var(--amber);">AirCover</span>
             {% endif %}
           </td>
 
@@ -81,7 +83,8 @@
             <div style="font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">
               {{ r.guest_name or "—" }}
               {% if has_override %}<span class="override-badge">upraveno</span>{% endif %}
-              {% if r.is_excluded %}<span class="override-badge" style="background:rgba(239,68,68,0.12);color:var(--red);border-color:rgba(239,68,68,0.2);">Vyřazeno</span>{% endif %}
+              {% if r.is_aircover %}<span class="override-badge" style="background:rgba(245,161,74,0.12);color:var(--amber);border-color:rgba(245,161,74,0.2);">AirCover</span>
+              {% elif r.is_excluded %}<span class="override-badge" style="background:rgba(239,68,68,0.12);color:var(--red);border-color:rgba(239,68,68,0.2);">Vyřazeno</span>{% endif %}
             </div>
             {% if r.comment %}
             <div style="font-size:11px;color:var(--amber);margin-top:2px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ r.comment }}">

@@ -302,6 +302,18 @@ def verify_reservation(
     effective_booking_city_tax_eur = 0.0
     inferred_booking_city_tax_eur = 0.0
 
+    # AirCover items — separate compensation, excluded from calculation
+    if reservation.get("is_aircover"):
+        return {
+            **reservation,
+            "verification_status": STATUS_KE_KONTROLE,
+            "effective_payout_eur": float(reservation.get("effective_payout_eur") or hostify_payout),
+            "csv_payout_eur": None,
+            "verification_diff": None,
+            "csv_source_file": None,
+            "verification_comment": reservation.get("aircover_details") or "AirCover – kompenzace od Airbnb",
+        }
+
     # Payout adjustments use their own amount, not CSV totals
     if reservation.get("is_payout_adjustment"):
         return {
@@ -431,6 +443,7 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
 
     reservation_map: dict[str, dict] = {}
     all_batches_map: dict[str, list[dict]] = {}  # code → [batch_info, ...]
+    aircover_map: dict[str, list[dict]] = {}  # code → [aircover_item, ...]
     batches_out: list[dict] = []
     items_out: list[dict] = []
     seen_batches: set[str] = set()
@@ -515,10 +528,31 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
                 all_batches_map.setdefault(code, []).append(new_entry)
                 if code not in reservation_map or abs(eur_amount) > reservation_map[code].get("_res_eur", 0):
                     reservation_map[code] = new_entry
+            elif typ != "Rezervace" and code and "řešení" in typ.lower():
+                aircover_map.setdefault(code, []).append({
+                    "batch_ref": cur_gref,
+                    "gref": cur_gref,
+                    "payout_date": batch["payout_date"],
+                    "airbnb_rate": batch["implied_rate"],
+                    "amount_eur": eur_amount,
+                    "amount_czk": round(eur_amount * batch["implied_rate"], 2) if batch["implied_rate"] else None,
+                    "guest_name": (row.get("Host") or "").strip(),
+                    "listing_name": (row.get("Nabídka") or "").strip(),
+                    "check_in": _parse_date(row.get("Datum zahájení", "")).isoformat() if _parse_date(row.get("Datum zahájení", "")) else "",
+                    "check_out": _parse_date(row.get("Datum ukončení", "")).isoformat() if _parse_date(row.get("Datum ukončení", "")) else "",
+                    "nights": int(_safe_float(row.get("Počet nocí", 0))),
+                    "item_type": typ,
+                    "details": (row.get("Podrobnosti") or "").strip(),
+                })
+
+    if aircover_map:
+        logger.info("AirCover items: %d codes, %d items total",
+                     len(aircover_map), sum(len(v) for v in aircover_map.values()))
 
     return {
         "reservation_map": reservation_map,
         "all_batches_map": all_batches_map,
+        "aircover_map": aircover_map,
         "batches": batches_out,
         "items": items_out,
     }
