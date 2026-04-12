@@ -271,20 +271,20 @@
       ⚠ Přesunuto do {{ "%02d/%d"|format(r._assignment.target_month, r._assignment.target_year) }}
       {% if r._assignment.reason %} — {{ r._assignment.reason }}{% endif %}
     </div>
-    <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/move-revert">
+    <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/move-revert" onsubmit="if(typeof FloatingPanel!=='undefined')FloatingPanel.closeTab('{{ r.confirmation_code }}')">
       {{ csrf_input(request) }}
       <button type="submit" class="btn btn-ghost btn-sm">Vrátit přesun zpět</button>
     </form>
     {% else %}
     <div style="display:flex;gap:8px;">
-      <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/move" style="flex:1;">
+      <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/move" style="flex:1;" onsubmit="if(typeof FloatingPanel!=='undefined')FloatingPanel.closeTab('{{ r.confirmation_code }}')">
         {{ csrf_input(request) }}
         <input type="hidden" name="target_year" value="{{ prev_y }}">
         <input type="hidden" name="target_month" value="{{ prev_m }}">
         <input type="hidden" name="reason" value="">
         <button type="submit" class="btn btn-ghost btn-sm" style="width:100%;">← {{ "%02d/%d"|format(prev_m, prev_y) }}</button>
       </form>
-      <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/move" style="flex:1;">
+      <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/move" style="flex:1;" onsubmit="if(typeof FloatingPanel!=='undefined')FloatingPanel.closeTab('{{ r.confirmation_code }}')">
         {{ csrf_input(request) }}
         <input type="hidden" name="target_year" value="{{ next_y }}">
         <input type="hidden" name="target_month" value="{{ next_m }}">
