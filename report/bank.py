@@ -258,6 +258,8 @@ def enrich_rows_with_bank(
     index_by_gref: dict,
     no_ref_rows: list[dict],
     all_batches_map: dict[str, list[dict]] | None = None,
+    bank_index_full: dict | None = None,
+    bank_no_ref_full: list | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """
     Add bank arrival info to each calculated row.
@@ -293,6 +295,15 @@ def enrich_rows_with_bank(
             gref, payout_czk, payout_date_str, index_by_gref, no_ref_rows,
             used_tx_keys=used_tx_keys,
         )
+        # Fallback: adjustment/split rows may have bank txns beyond cutoff
+        if bank_row is None and bank_index_full and gref and (
+            row.get("is_payout_adjustment") or row.get("is_split_transaction")
+        ):
+            bank_row = match_bank_transaction(
+                gref, payout_czk, payout_date_str,
+                bank_index_full, bank_no_ref_full or [],
+                used_tx_keys=used_tx_keys,
+            )
         batch_matches[batch_key] = bank_row
         if bank_row:
             used_tx_keys.add(bank_row.get("tx_key", ""))

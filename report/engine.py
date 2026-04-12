@@ -320,12 +320,14 @@ def generate_report_in_process(
     if bank_rows_all or bank_csvs:
         bank_rows = filter_bank_by_cutoff(bank_rows_all, cutoff_date)
         bank_index, bank_no_ref = build_bank_index(bank_rows)
+        bank_index_full, bank_no_ref_full = build_bank_index(bank_rows_all)
         booking_bank_idx = {
             pid: [r for r in rows if r.get("datum") and r["datum"] <= cutoff_date]
             for pid, rows in booking_bank_idx_all.items()
         }
     else:
         bank_rows_all, bank_index, bank_no_ref = [], {}, []
+        bank_index_full, bank_no_ref_full = {}, []
         booking_bank_idx, booking_bank_idx_all = {}, {}
 
     # ── Checkin groups ──────────────────────────────────────────────────────
@@ -749,6 +751,8 @@ def generate_report_in_process(
     calc_rows, airbnb_matches = enrich_rows_with_bank(
         calc_rows, gref_map, bank_index, bank_no_ref,
         all_batches_map=airbnb_all_batches,
+        bank_index_full=bank_index_full,
+        bank_no_ref_full=bank_no_ref_full,
     )
     calc_rows, booking_matches = enrich_booking_rows_with_bank(
         calc_rows, booking_bank_idx, prop, year=year, month=month,
