@@ -210,7 +210,7 @@
   .main-content {
     margin-left: var(--sidebar-w);
     flex: 1;
-    background: var(--bg-1);
+    background: transparent;
     min-height: 100vh;
     padding: var(--space-3xl) var(--space-2xl);
     position: relative;
@@ -283,14 +283,14 @@
     }
   }
 
-  /* Light theme aurora — warm amber + rose + lavender */
+  /* Light theme aurora — gentle warm wash, barely there */
   [data-theme="light"] .main-content::before {
     background:
-      radial-gradient(ellipse 60% 45%, rgba(210, 120, 40, 0.16) 0%, transparent 70%),
-      radial-gradient(ellipse 55% 42%, rgba(140, 70, 180, 0.14) 0%, transparent 65%),
-      radial-gradient(ellipse 50% 48%, rgba(190, 75, 90, 0.12) 0%, transparent 62%),
-      radial-gradient(ellipse 45% 40%, rgba(60, 100, 170, 0.10) 0%, transparent 60%),
-      radial-gradient(ellipse 48% 38%, rgba(180, 140, 50, 0.08) 0%, transparent 65%);
+      radial-gradient(ellipse 65% 50%, rgba(200, 140, 80, 0.07) 0%, transparent 70%),
+      radial-gradient(ellipse 55% 45%, rgba(150, 100, 180, 0.06) 0%, transparent 65%),
+      radial-gradient(ellipse 50% 45%, rgba(180, 90, 100, 0.05) 0%, transparent 62%),
+      radial-gradient(ellipse 50% 42%, rgba(80, 110, 170, 0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 45% 38%, rgba(160, 130, 60, 0.04) 0%, transparent 65%);
     background-size: 200% 200%;
   }
 
