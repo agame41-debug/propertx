@@ -1078,43 +1078,64 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
     for (var i = 0; i < COUNT; i++) stars.push(create());
   }
 
+  // Parse 'rgb(r, g, b)' to [r,g,b]
+  function parseRGB(col) {
+    var m = col.match(/(\d+)/g);
+    return [+m[0], +m[1], +m[2]];
+  }
+
   function drawStar(s, a) {
     var colors = isLight ? lightColors : darkColors;
     var col = colors[s.colorIdx];
-    ctx.fillStyle = col;
 
     if (isLight) {
-      // Large soft glow halo — the main visible part
-      ctx.shadowColor = col;
-      ctx.shadowBlur = s.bright ? 25 : 14;
-      ctx.globalAlpha = a * 0.7;
-      ctx.fillRect(s.x - 0.5, s.y - 0.5, 1, 1);
+      var rgb = parseRGB(col);
+      var r = rgb[0], g = rgb[1], b = rgb[2];
 
-      // Second glow pass for intensity
-      if (s.bright) {
-        ctx.shadowBlur = 35;
-        ctx.globalAlpha = a * 0.5;
-        ctx.fillRect(s.x - 0.5, s.y - 0.5, 1, 1);
-      }
+      // Outer glow — large soft radial gradient
+      var glowR = s.bright ? 18 : 10;
+      var grd = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, glowR);
+      grd.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + (a * 0.55) + ')');
+      grd.addColorStop(0.35, 'rgba(' + r + ',' + g + ',' + b + ',' + (a * 0.25) + ')');
+      grd.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)');
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = grd;
+      ctx.fillRect(s.x - glowR, s.y - glowR, glowR * 2, glowR * 2);
 
-      // Tiny sharp core
-      ctx.shadowBlur = 0;
-      ctx.globalAlpha = a * 0.9;
-      var cs = s.size * 0.4;
-      ctx.fillRect(s.x - cs * 0.5, s.y - cs * 0.5, cs, cs);
-
-      // Cross spikes — thin, with glow
+      // 4-point star shape via two triangles (diamond)
       var spike = s.spike * (0.5 + 0.5 * Math.sin(s.phase));
       if (spike > 0) {
-        ctx.shadowColor = col;
-        ctx.shadowBlur = 8;
-        ctx.globalAlpha = a * 0.35;
-        ctx.fillRect(s.x - spike, s.y - 0.5, spike * 2, 1);
-        ctx.fillRect(s.x - 0.5, s.y - spike, 1, spike * 2);
-        ctx.shadowBlur = 0;
+        var armLen = spike * 1.2;
+        var armW = 1.2;
+        // Gradient arms
+        ctx.globalAlpha = a * 0.5;
+        ctx.fillStyle = col;
+        // Horizontal arm
+        ctx.beginPath();
+        ctx.moveTo(s.x - armLen, s.y);
+        ctx.lineTo(s.x, s.y - armW);
+        ctx.lineTo(s.x + armLen, s.y);
+        ctx.lineTo(s.x, s.y + armW);
+        ctx.closePath();
+        ctx.fill();
+        // Vertical arm
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y - armLen);
+        ctx.lineTo(s.x - armW, s.y);
+        ctx.lineTo(s.x, s.y + armLen);
+        ctx.lineTo(s.x + armW, s.y);
+        ctx.closePath();
+        ctx.fill();
       }
+
+      // Bright core dot
+      ctx.globalAlpha = a * 0.85;
+      ctx.fillStyle = 'rgba(' + Math.min(r+60,255) + ',' + Math.min(g+60,255) + ',' + Math.min(b+60,255) + ',1)';
+      ctx.fillRect(s.x - 0.8, s.y - 0.8, 1.6, 1.6);
+
     } else {
       // Sharp pixel stars for dark theme
+      ctx.fillStyle = col;
       ctx.globalAlpha = a;
       ctx.fillRect(s.x - s.size * 0.5, s.y - s.size * 0.5, s.size, s.size);
 
