@@ -582,11 +582,22 @@ var FloatingPanel = (function() {
 
   function _show() {
     _panel.style.display = 'flex';
+    _panel.classList.remove('fp-exiting');
+    _panel.classList.add('fp-entering');
     _applyAll();
+    _panel.addEventListener('animationend', function onEnd() {
+      _panel.classList.remove('fp-entering');
+      _panel.removeEventListener('animationend', onEnd);
+    });
   }
 
   function _hide() {
-    _panel.style.display = 'none';
+    _panel.classList.add('fp-exiting');
+    _panel.addEventListener('animationend', function onEnd() {
+      _panel.style.display = 'none';
+      _panel.classList.remove('fp-exiting');
+      _panel.removeEventListener('animationend', onEnd);
+    });
   }
 
   // ── Snap to viewport edges ─────────────────────────────────────────
@@ -976,4 +987,24 @@ var FloatingPanel = (function() {
 })();
 
 document.addEventListener('DOMContentLoaded', FloatingPanel.init);
+
+/* ── Sparkline scroll-triggered animation ── */
+(function() {
+  if (!('IntersectionObserver' in window)) return;
+  function observeSparklines() {
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('spark-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.3, rootMargin: '-20px' });
+    document.querySelectorAll('.pr-spark').forEach(function(el) {
+      observer.observe(el);
+    });
+  }
+  document.addEventListener('DOMContentLoaded', observeSparklines);
+  document.body.addEventListener('htmx:afterSwap', observeSparklines);
+})();
 </script>

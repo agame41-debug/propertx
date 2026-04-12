@@ -133,9 +133,9 @@
 {% if dashboard_rows %}
 <div id="property-grid" class="stagger-list">
   {# Header row (desktop only) #}
-  <div class="desktop-only" style="display:grid;grid-template-columns:2fr 160px 140px 100px 20px;gap:var(--space-md);
-              padding:4px var(--space-lg) var(--space-sm);font-size:10px;font-weight:600;letter-spacing:.08em;
-              text-transform:uppercase;color:var(--text-300);">
+  <div class="desktop-only" style="display:grid;grid-template-columns:2fr 160px 140px 100px 24px;gap:var(--space-md);
+              padding:4px var(--space-lg) var(--space-sm);font-size:var(--text-2xs);font-weight:600;letter-spacing:.1em;
+              text-transform:uppercase;color:var(--text-300);font-family:var(--font-mono);">
     <div>Objekt</div>
     <div>Rezervace</div>
     <div style="text-align:right;">Výplata</div>
@@ -193,7 +193,7 @@
         {% set bar_h = [((cell.rows_count / max_rez) * 24) | round | int, 2] | max if cell.rows_count else 2 %}
         {% set bx = loop.index0 * 12 %}
         <rect x="{{ bx }}" y="{{ 28 - bar_h }}" width="8" height="{{ bar_h }}" rx="2"
-              fill="{% if cell.is_current and issues_count > 0 %}var(--color-amber){% elif cell.is_current %}oklch(0.72 0.22 280){% else %}oklch(var(--fg) / 0.10){% endif %}"/>
+              fill="{% if cell.is_current and issues_count > 0 %}var(--color-amber){% elif cell.is_current %}var(--accent){% else %}oklch(1 0 0 / 0.06){% endif %}"/>
         {% endfor %}
       </svg>
       <div class="pr-rez">

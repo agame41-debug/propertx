@@ -1,6 +1,7 @@
 <style>
   /* ═══════════════════════════════════════════════════════════════════════
      RESPONSIVE — Mobile, tablet, desktop breakpoints
+     Rentero Design System v3
      ═══════════════════════════════════════════════════════════════════════ */
 
   /* ── Mobile (< 640px) ───────────────────────────────────────────────── */
@@ -73,11 +74,12 @@
       flex-shrink: 0;
       margin-right: var(--space-md);
       min-width: 60px;
+      font-family: var(--font-mono);
     }
-    /* Hide expand/caret column in card mode (redundant — tap row to expand) */
+    /* Hide expand/caret column in card mode */
     .data-table.responsive-cards .recon-arrow-col,
     .data-table.responsive-cards .bank-expand-col { display: none !important; }
-    /* Detail rows span full width with scrollable inner content */
+    /* Detail rows span full width */
     .data-table.responsive-cards tbody tr.recon-detail,
     .data-table.responsive-cards tbody tr.drilldown-row { display: table-row; }
     .data-table.responsive-cards tbody tr.recon-detail td,
@@ -93,11 +95,9 @@
     .filter-tabs { overflow-x: auto; flex-wrap: nowrap; }
 
     /* Res compact strip — stack vertical */
-    .res-compact-strip {
-      flex-direction: column;
-    }
+    .res-compact-strip { flex-direction: column; }
     .rcs-group { flex-wrap: wrap; }
-    .rcs-right { border-left: none; border-top: 1px solid oklch(0.50 0 0 / 0.05); }
+    .rcs-right { border-left: none; border-top: 1px solid oklch(1 0 0 / 0.04); }
 
     /* Floating panel — full width at bottom on mobile */
     .fp-panel {
@@ -119,7 +119,7 @@
     /* Hide elements marked desktop-only */
     .desktop-only { display: none !important; }
 
-    /* Prevent iOS auto-zoom on input focus (requires font-size >= 16px) */
+    /* Prevent iOS auto-zoom on input focus */
     .form-input, select.form-input, input.form-input, textarea.form-input {
       font-size: 16px !important;
     }
@@ -134,49 +134,33 @@
     .card form[style*="display:flex"] .btn { width: 100%; }
 
     /* Bank drilldown cards — stack content vertically */
-    .drilldown-row td > div > div > div {
-      flex-wrap: wrap;
-    }
+    .drilldown-row td > div > div > div { flex-wrap: wrap; }
     .drilldown-row td [style*="align-items:center;gap:16px"] {
       flex-direction: column !important;
       align-items: flex-start !important;
     }
-    .drilldown-row td [style*="text-align:right;flex-shrink:0"] {
-      text-align: left !important;
-    }
-    .drilldown-row td [style*="padding:16px 20px 16px 56px"] {
-      padding: 12px 16px 12px 16px !important;
-    }
+    .drilldown-row td [style*="text-align:right;flex-shrink:0"] { text-align: left !important; }
+    .drilldown-row td [style*="padding:16px 20px 16px 56px"] { padding: 12px 16px 12px 16px !important; }
     .drilldown-row td .btn { width: 100%; justify-content: center; }
 
     /* Reconciliation detail tables — scroll horizontal */
     .recon-detail td > div { overflow-x: auto; }
 
-    /* Two-column page layouts (e.g. expenses) — stack vertically */
-    div[style*="grid-template-columns:1fr 320px"] {
-      grid-template-columns: 1fr !important;
-    }
+    /* Two-column page layouts — stack vertically */
+    div[style*="grid-template-columns:1fr 320px"] { grid-template-columns: 1fr !important; }
 
     /* Page headers with flex — wrap tightly */
-    div[style*="justify-content:space-between"] {
-      gap: 8px !important;
-    }
+    div[style*="justify-content:space-between"] { gap: 8px !important; }
 
     /* Page titles — smaller on mobile */
-    h1[style*="font-size:22px"] {
-      font-size: 18px !important;
-    }
+    h1[style*="font-size:22px"] { font-size: 18px !important; }
 
     /* Card 2-column grids — single column on mobile */
-    .card div[style*="grid-template-columns:1fr 1fr"] {
-      grid-template-columns: 1fr !important;
-    }
+    .card div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
 
     /* Card padding — tighter on mobile */
     .card div[style*="padding:16px 20px"],
-    .card div[style*="padding:14px 20px"] {
-      padding: 12px 14px !important;
-    }
+    .card div[style*="padding:14px 20px"] { padding: 12px 14px !important; }
 
     /* Badge font — slightly larger for touch targets */
     .filter-tab { padding: 6px 14px !important; font-size: 12px !important; }
@@ -185,6 +169,7 @@
   /* ── Tablet (640px – 1024px) ────────────────────────────────────────── */
   @media (min-width: 640px) and (max-width: 1024px) {
     .sidebar { width: 60px; overflow: hidden; }
+    .sidebar::before { display: none; }
     .sidebar .sidebar-logo div:last-child { display: none; }
     .sidebar .sidebar-section-label { display: none; }
     .sidebar .nav-item span { display: none; }

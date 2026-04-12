@@ -1,74 +1,130 @@
 <style>
   /* ═══════════════════════════════════════════════════════════════════════
-     ANIMATIONS — Keyframes, transitions, stagger system, reduced motion
+     ANIMATIONS — Emil Kowalski system: keyframes, stagger, sparklines,
+     accordion, view transitions, reduced motion
+     Rentero Design System v3
      ═══════════════════════════════════════════════════════════════════════ */
 
   /* ── Keyframes ── */
-  @keyframes fadeSlideUp {
-    from { opacity: 0; transform: translateY(8px); }
+
+  /* Page content entry — subtle slide from below */
+  @keyframes contentIn {
+    from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 
+  /* Row stagger entry — slightly less movement than page */
+  @keyframes rowIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* Sparkline bar grow — bars animate height from 0 */
+  @keyframes barGrow {
+    from { transform: scaleY(0); }
+    to   { transform: scaleY(1); }
+  }
+
+  /* Fade in — for overlays, backdrop */
   @keyframes fadeIn {
     from { opacity: 0; }
     to   { opacity: 1; }
   }
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
+  /* Fade + slide (legacy alias) */
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
-  @keyframes rowIn {
-    from { opacity: 0; transform: translateY(-3px); }
-    to   { opacity: 1; transform: none; }
+  /* Scale in — for floating panel, modals.
+     Never from scale(0). Start at 0.96 (Emil rule). */
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
   }
 
-  @keyframes copyFlash {
-    0%   { background: oklch(0.55 0.15 280 / 0.18); }
-    100% { background: transparent; }
+  /* Scale out — exit animation for panels */
+  @keyframes scaleOut {
+    from { opacity: 1; transform: scale(1) translateY(0); }
+    to   { opacity: 0; transform: scale(0.96) translateY(8px); }
   }
 
-  @keyframes pulse-ring {
-    0%   { box-shadow: 0 0 0 0 oklch(0.72 0.12 180 / 0.4); }
-    70%  { box-shadow: 0 0 0 6px oklch(0.72 0.12 180 / 0); }
-    100% { box-shadow: 0 0 0 0 oklch(0.72 0.12 180 / 0); }
-  }
-
+  /* Sheet slide up — mobile bottom sheet */
   @keyframes sheetSlideUp {
     from { transform: translate3d(0, 100%, 0); }
     to   { transform: translate3d(0, 0, 0); }
   }
 
-  /* ── Skeleton shimmer ── */
+  /* Toast entry — slides up from below with opacity */
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateY(12px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* Toast exit — slides down, fades */
+  @keyframes toastOut {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to   { opacity: 0; transform: translateY(8px) scale(0.97); }
+  }
+
+  /* Copy flash — accent color flash on click-to-copy */
+  @keyframes copyFlash {
+    0%   { background: var(--accent-dim); }
+    100% { background: transparent; }
+  }
+
+  /* Pulse ring — "new data" badge attention */
+  @keyframes pulseRing {
+    0%   { box-shadow: 0 0 0 0 oklch(0.72 0.12 180 / 0.35); }
+    70%  { box-shadow: 0 0 0 6px oklch(0.72 0.12 180 / 0); }
+    100% { box-shadow: 0 0 0 0 oklch(0.72 0.12 180 / 0); }
+  }
+
+  /* Skeleton shimmer */
   @keyframes shimmer {
     0%   { background-position: -400px 0; }
     100% { background-position: 400px 0; }
   }
 
+  /* Spinner — constant rotation, linear */
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ── Floating panel enter/exit ── */
+  .fp-panel.fp-entering {
+    animation: scaleIn 300ms var(--ease-out-expo) both;
+  }
+  .fp-panel.fp-exiting {
+    animation: scaleOut 200ms var(--ease-out) both;
+  }
+
+  /* ── Skeleton loading ── */
   .skeleton {
     pointer-events: none;
     user-select: none;
     animation: fadeIn var(--duration-fast) var(--ease-out) both;
   }
   .skeleton-bone {
-    background: oklch(var(--fg) / 0.06);
+    background: oklch(1 0 0 / 0.04);
     background-image: linear-gradient(
       90deg,
-      oklch(var(--fg) / 0.06) 0%,
-      oklch(var(--fg) / 0.12) 40%,
-      oklch(var(--fg) / 0.06) 80%
+      oklch(1 0 0 / 0.04) 0%,
+      oklch(1 0 0 / 0.08) 40%,
+      oklch(1 0 0 / 0.04) 80%
     );
     background-size: 400px 100%;
     background-repeat: no-repeat;
     animation: shimmer 1.4s linear infinite;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
   }
-  .skeleton-bone-sm { border-radius: var(--radius-sm); }
+  .skeleton-bone-sm { border-radius: var(--radius-xs); }
   .skeleton-bone-full { border-radius: var(--radius-full); }
   .skeleton-bone-card {
     background: var(--bg-3);
     border: 1px solid var(--border-base);
-    border-radius: 14px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     position: relative;
   }
@@ -79,7 +135,7 @@
     background-image: linear-gradient(
       90deg,
       transparent 0%,
-      oklch(var(--fg) / 0.04) 40%,
+      oklch(1 0 0 / 0.03) 40%,
       transparent 80%
     );
     background-size: 400px 100%;
@@ -90,25 +146,51 @@
   /* ── Utility classes ── */
   .animate-spin { animation: spin 1.2s linear infinite; }
   .animate-fade-in { animation: fadeIn var(--duration-normal) var(--ease-out) both; }
-  .animate-slide-up { animation: fadeSlideUp var(--duration-normal) var(--ease-out-expo) both; }
+  .animate-slide-up { animation: contentIn var(--duration-normal) var(--ease-out-expo) both; }
 
-  /* ── Stagger system for lists ── */
+  /* ── Stagger system for lists (25ms increments, capped at 250ms) ── */
   .stagger-list > * {
-    animation: fadeSlideUp var(--duration-normal) var(--ease-out-expo) both;
+    animation: rowIn var(--duration-normal) var(--ease-out-expo) both;
   }
   .stagger-list > *:nth-child(1)  { animation-delay: 0ms; }
-  .stagger-list > *:nth-child(2)  { animation-delay: 30ms; }
-  .stagger-list > *:nth-child(3)  { animation-delay: 60ms; }
-  .stagger-list > *:nth-child(4)  { animation-delay: 90ms; }
-  .stagger-list > *:nth-child(5)  { animation-delay: 120ms; }
-  .stagger-list > *:nth-child(6)  { animation-delay: 150ms; }
-  .stagger-list > *:nth-child(7)  { animation-delay: 180ms; }
-  .stagger-list > *:nth-child(8)  { animation-delay: 210ms; }
-  .stagger-list > *:nth-child(9)  { animation-delay: 240ms; }
-  .stagger-list > *:nth-child(10) { animation-delay: 270ms; }
-  .stagger-list > *:nth-child(n+11) { animation-delay: 300ms; }
+  .stagger-list > *:nth-child(2)  { animation-delay: 25ms; }
+  .stagger-list > *:nth-child(3)  { animation-delay: 50ms; }
+  .stagger-list > *:nth-child(4)  { animation-delay: 75ms; }
+  .stagger-list > *:nth-child(5)  { animation-delay: 100ms; }
+  .stagger-list > *:nth-child(6)  { animation-delay: 125ms; }
+  .stagger-list > *:nth-child(7)  { animation-delay: 150ms; }
+  .stagger-list > *:nth-child(8)  { animation-delay: 175ms; }
+  .stagger-list > *:nth-child(9)  { animation-delay: 200ms; }
+  .stagger-list > *:nth-child(10) { animation-delay: 225ms; }
+  .stagger-list > *:nth-child(n+11) { animation-delay: 250ms; }
 
-  /* ── Accordion expand (grid-rows trick) ── */
+  /* ── KPI grid stagger — slightly faster ── */
+  .kpi-grid > * {
+    animation: rowIn 200ms var(--ease-out-expo) both;
+  }
+  .kpi-grid > *:nth-child(1) { animation-delay: 0ms; }
+  .kpi-grid > *:nth-child(2) { animation-delay: 40ms; }
+  .kpi-grid > *:nth-child(3) { animation-delay: 80ms; }
+  .kpi-grid > *:nth-child(4) { animation-delay: 120ms; }
+
+  /* ── Sparkline bar animation (scroll-triggered via JS) ── */
+  .pr-spark rect {
+    transform-origin: center bottom;
+    transform: scaleY(0);
+    transition: transform 400ms var(--ease-out-expo);
+  }
+  .spark-visible rect {
+    transform: scaleY(1);
+  }
+  /* Stagger per bar */
+  .pr-spark rect:nth-child(1) { transition-delay: 0ms; }
+  .pr-spark rect:nth-child(2) { transition-delay: 50ms; }
+  .pr-spark rect:nth-child(3) { transition-delay: 100ms; }
+  .pr-spark rect:nth-child(4) { transition-delay: 150ms; }
+  .pr-spark rect:nth-child(5) { transition-delay: 200ms; }
+  .pr-spark rect:nth-child(6) { transition-delay: 250ms; }
+
+  /* ── Accordion expand (grid-rows trick — interruptible) ── */
   .accordion-content {
     display: grid;
     grid-template-rows: 0fr;
@@ -127,32 +209,35 @@
   td.copy-flash { animation: copyFlash 0.4s ease forwards; }
 
   /* ── Badge pulse ── */
-  .badge-teal.pulse { animation: pulse-ring 2s ease-out infinite; }
+  .badge-teal.pulse { animation: pulseRing 2s ease-out infinite; }
 
-  /* ── View Transitions ── */
+  /* ── View Transitions (HTMX page navigation — fast crossfade) ── */
   @view-transition {
     navigation: auto;
   }
   ::view-transition-old(root) {
-    animation: fadeIn var(--duration-fast) var(--ease-out) reverse;
+    animation: fadeIn 120ms var(--ease-out) reverse;
   }
   ::view-transition-new(root) {
-    animation: fadeIn var(--duration-fast) var(--ease-out);
+    animation: fadeIn 120ms var(--ease-out);
   }
 
-  /* ── Reduced motion — keep opacity fades, remove position/transform ── */
+  /* ── Reduced motion — keep color/opacity, remove transform/position ── */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       scroll-behavior: auto !important;
     }
-    /* Keep color/opacity transitions, remove transform/position */
-    *:not(.animate-fade-in) {
+    * {
       transition-property: opacity, color, background-color, border-color, box-shadow !important;
       transition-duration: var(--duration-fast) !important;
     }
     .stagger-list > * { animation: none; opacity: 1; transform: none; }
+    .kpi-grid > * { animation: none; opacity: 1; transform: none; }
+    .pr-spark rect { transform: scaleY(1); transition: none; }
+    .fp-panel.fp-entering,
+    .fp-panel.fp-exiting { animation: none; }
     ::view-transition-old(root),
     ::view-transition-new(root) { animation: none; }
   }

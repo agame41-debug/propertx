@@ -322,7 +322,7 @@
 
   {# ── Payout adjustment info ─────────────────────────────────── #}
   {% if r.is_payout_adjustment %}
-  <div style="margin-top:12px;padding:10px 12px;background:rgba(124,109,255,0.07);border:1px solid rgba(124,109,255,0.2);border-radius:8px;font-size:12px;color:var(--color-primary);">
+  <div style="margin-top:12px;padding:10px 12px;background:var(--accent-dim);border:1px solid oklch(0.72 0.19 155 / 0.2);border-radius:8px;font-size:12px;color:var(--accent);">
     Toto je platební korekce (Doplatek) k rezervaci z {{ "%02d/%d"|format(r.adjustment_original_month, r.adjustment_original_year) if r.adjustment_original_month else "minulého měsíce" }}.
     Úklid, city tax a balíčky nejsou zahrnuty (již zaúčtováno v původním měsíci).
   </div>
