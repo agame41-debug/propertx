@@ -1,6 +1,9 @@
 <script>
 /* ─── Theme Toggle ───────────────────────────────────────────────────── */
 (function() {
+  if (window._RenteroThemeInit) return;
+  window._RenteroThemeInit = true;
+
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     var moon = document.getElementById('theme-icon-moon');
@@ -40,6 +43,9 @@
 
 /* ─── Dismissible Notifications ─────────────────────────────────────── */
 (function() {
+  if (window._RenteroDismissInit) return;
+  window._RenteroDismissInit = true;
+
   function ensureDismissButton(banner) {
     if (!banner || banner.querySelector('[data-dismiss-banner]')) return;
     var btn = document.createElement('button');
@@ -82,6 +88,13 @@
 
 /* ─── Month Navigator ────────────────────────────────────────────────── */
 (function() {
+  // Guard: HTMX boost injects full response body into #content, and
+  // htmx:afterSwap re-creates <script> tags causing this IIFE to re-run.
+  // On re-run curYM() reads the OLD URL (not yet pushed) and corrupts
+  // the month selector/links. Run only once.
+  if (window._RenteroMonthNavInit) return;
+  window._RenteroMonthNavInit = true;
+
   function isMonthAwarePath(pathname) {
     return pathname === '/' || pathname === '/bank' || pathname === '/expenses' || pathname === '/reconciliation';
   }
@@ -252,6 +265,9 @@
 
 /* ─── Scroll State + Back-to-top ─────────────────────────────────────── */
 (function() {
+  if (window._RenteroScrollInit) return;
+  window._RenteroScrollInit = true;
+
   var KEY = 'scroll_' + location.pathname;
   var saved = sessionStorage.getItem(KEY);
   if (saved) window.addEventListener('load', function() { window.scrollTo(0, parseInt(saved)); });
@@ -356,6 +372,9 @@ function sbToggleObj() {
   }
 }
 (function() {
+  if (window._RenteroSbAccInit) return;
+  window._RenteroSbAccInit = true;
+
   if (localStorage.getItem('rentero_sb_obj') === '1') sbToggleObj();
   if (location.pathname.startsWith('/property/') && !_sbObjLoaded) sbToggleObj();
   // On month change: instantly update links, then background-refresh health indicators
@@ -377,6 +396,9 @@ function sbToggleObj() {
 
 /* ─── Click-to-copy on .copyable cells ──────────────────────────────── */
 (function() {
+  if (window._RenteroCopyInit) return;
+  window._RenteroCopyInit = true;
+
   var _toastTimer = null;
   function showCopyToast(text) {
     var toast = document.getElementById('copy-toast');
@@ -1137,6 +1159,9 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
 
 /* ─── Cosmos — floating particle field (both themes) ───────────────── */
 (function() {
+  if (window._RenteroCosmosInit) return;
+  window._RenteroCosmosInit = true;
+
   var canvas = document.getElementById('cosmos');
   if (!canvas) return;
   var ctx = canvas.getContext('2d');
