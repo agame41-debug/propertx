@@ -396,11 +396,14 @@
     })();
   });
 
-  /* Swipe-to-close for sheets */
+  /* Swipe-to-close for sheets — velocity-based dismissal */
   function initSwipeClose(sheetEl, closeFn) {
-    var startY = 0, currentY = 0, dragging = false;
+    var startY = 0, currentY = 0, startTime = 0, dragging = false;
     sheetEl.addEventListener('touchstart', function(e) {
+      if (dragging) return; /* multi-touch protection */
       startY = e.touches[0].clientY;
+      currentY = startY;
+      startTime = Date.now();
       dragging = true;
     }, { passive: true });
     sheetEl.addEventListener('touchmove', function(e) {
@@ -408,15 +411,35 @@
       currentY = e.touches[0].clientY;
       var diff = currentY - startY;
       if (diff > 0) {
+        /* Direct transform — no CSS variable overhead */
         sheetEl.style.transform = 'translate3d(0,' + diff + 'px,0)';
         sheetEl.style.transition = 'none';
       }
     }, { passive: true });
     sheetEl.addEventListener('touchend', function() {
+      if (!dragging) return;
       dragging = false;
-      sheetEl.style.transition = '';
-      if (currentY - startY > 80) closeFn();
-      sheetEl.style.transform = '';
+      var diff = currentY - startY;
+      var elapsed = Date.now() - startTime;
+      var velocity = Math.abs(diff) / elapsed;
+      /* Dismiss on threshold OR quick flick (momentum) */
+      if (diff > 60 || velocity > 0.11) {
+        /* Animate out from current position */
+        sheetEl.style.transition = 'transform 200ms cubic-bezier(0.23, 1, 0.32, 1), opacity 150ms cubic-bezier(0.23, 1, 0.32, 1)';
+        sheetEl.style.transform = 'translate3d(0, 100%, 0)';
+        sheetEl.style.opacity = '0';
+        setTimeout(function() {
+          closeFn();
+          sheetEl.style.transition = '';
+          sheetEl.style.transform = '';
+          sheetEl.style.opacity = '';
+        }, 210);
+      } else {
+        /* Snap back with spring-like easing */
+        sheetEl.style.transition = 'transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1)';
+        sheetEl.style.transform = '';
+        setTimeout(function() { sheetEl.style.transition = ''; }, 260);
+      }
       currentY = 0;
     });
   }

@@ -453,17 +453,20 @@
 
   /* ── Sheet overlay (mobile "Více" menu) ── */
   .sheet-backdrop {
-    display: none;
     position: fixed;
     inset: 0;
     background: oklch(0 0 0 / 0.5);
     z-index: 50;
     opacity: 0;
-    transition: opacity var(--duration-normal) var(--ease-out);
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 200ms var(--ease-out), visibility 0s linear 200ms;
   }
   .sheet-backdrop.open {
-    display: block;
     opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity 250ms var(--ease-out), visibility 0s;
   }
   .sheet {
     position: fixed;
@@ -474,13 +477,17 @@
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     z-index: 51;
     transform: translate3d(0, 100%, 0);
-    transition: transform var(--duration-slow) var(--ease-drawer);
+    opacity: 0;
+    transition: transform 200ms var(--ease-out), opacity 150ms var(--ease-out);
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-bottom: env(safe-area-inset-bottom, 0);
+    will-change: transform, opacity;
   }
   .sheet.open {
     transform: translate3d(0, 0, 0);
+    opacity: 1;
+    transition: transform 340ms var(--ease-drawer), opacity 200ms var(--ease-out);
   }
   .sheet-handle {
     width: 36px;
@@ -505,7 +512,7 @@
     font-weight: 500;
     color: var(--text-200);
     text-decoration: none;
-    transition: background var(--duration-fast);
+    transition: background var(--duration-fast), transform 100ms var(--ease-out);
     border: none;
     background: none;
     cursor: pointer;
@@ -515,6 +522,7 @@
   }
   .sheet-nav-item:active {
     background: oklch(1 0 0 / 0.04);
+    transform: scale(0.97);
   }
   .sheet-nav-item svg { width: 20px; height: 20px; opacity: 0.5; }
   .sheet-section-label {
@@ -685,6 +693,28 @@
     font-size: var(--text-base);
     justify-content: flex-start;
     gap: 12px;
+    /* Stagger entrance */
+    opacity: 0;
+    transform: translateY(6px);
+    animation: objItemIn 250ms var(--ease-out) forwards;
+  }
+  #obj-sheet-list .sb-obj-item:nth-child(1)  { animation-delay: 0ms; }
+  #obj-sheet-list .sb-obj-item:nth-child(2)  { animation-delay: 30ms; }
+  #obj-sheet-list .sb-obj-item:nth-child(3)  { animation-delay: 60ms; }
+  #obj-sheet-list .sb-obj-item:nth-child(4)  { animation-delay: 90ms; }
+  #obj-sheet-list .sb-obj-item:nth-child(5)  { animation-delay: 120ms; }
+  #obj-sheet-list .sb-obj-item:nth-child(6)  { animation-delay: 150ms; }
+  #obj-sheet-list .sb-obj-item:nth-child(7)  { animation-delay: 180ms; }
+  #obj-sheet-list .sb-obj-item:nth-child(8)  { animation-delay: 210ms; }
+  #obj-sheet-list .sb-obj-item:nth-child(9)  { animation-delay: 240ms; }
+  #obj-sheet-list .sb-obj-item:nth-child(10) { animation-delay: 270ms; }
+  #obj-sheet-list .sb-obj-item:nth-child(n+11) { animation-delay: 300ms; }
+  @keyframes objItemIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+  #obj-sheet-list .sb-obj-item:active {
+    transform: scale(0.97);
+    transition: transform 100ms var(--ease-out);
   }
   #obj-sheet-list .sb-obj-dot {
     width: 8px;
