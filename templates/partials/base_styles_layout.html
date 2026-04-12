@@ -17,7 +17,7 @@
     z-index: 0;
     pointer-events: none;
   }
-  [data-theme="light"] #cosmos { display: none; }
+  /* light theme: canvas stays visible for sun rays */
 
   /* ── Desktop sidebar ────────────────────────────────────────────────── */
   .sidebar {
@@ -283,65 +283,10 @@
     }
   }
 
-  /* Light theme — subtle purple glow */
+  /* Light theme — no CSS aurora, canvas handles sun rays */
   [data-theme="light"] .main-content::before {
-    background:
-      /* bright source spot at upper-right */
-      radial-gradient(circle 120px at 94% 4%, rgba(255, 230, 160, 0.35) 0%, rgba(255, 210, 120, 0.12) 40%, transparent 70%),
-      /* tiny purple accent glow */
-      radial-gradient(ellipse 25% 20% at 80% 12%, rgba(160, 120, 220, 0.06) 0%, transparent 55%);
-    background-size: 100% 100%;
+    background: none;
     animation: none;
-  }
-
-  /* ── Sun rays — light theme only ── */
-  .main-content::after {
-    content: '';
-    position: absolute;
-    pointer-events: none;
-    z-index: -1;
-    display: none;
-  }
-  [data-theme="light"] .main-content::after {
-    display: block;
-    inset: 0;
-    background: conic-gradient(
-      from 200deg at 96% 3%,
-      transparent 0deg,
-      rgba(255, 220, 140, 0.28) 4deg,
-      rgba(255, 235, 180, 0.18) 9deg,
-      transparent 15deg,
-      transparent 20deg,
-      rgba(255, 210, 120, 0.22) 25deg,
-      rgba(255, 225, 160, 0.14) 31deg,
-      transparent 38deg,
-      transparent 46deg,
-      rgba(255, 230, 160, 0.18) 50deg,
-      transparent 58deg,
-      transparent 68deg,
-      rgba(255, 215, 130, 0.24) 73deg,
-      rgba(255, 230, 170, 0.15) 79deg,
-      transparent 87deg,
-      transparent 100deg,
-      rgba(255, 220, 140, 0.16) 105deg,
-      transparent 114deg,
-      transparent 130deg,
-      rgba(255, 225, 150, 0.12) 135deg,
-      transparent 145deg,
-      transparent 165deg,
-      rgba(255, 215, 130, 0.10) 170deg,
-      transparent 180deg,
-      transparent 360deg
-    );
-    filter: blur(3px);
-    animation: sunRays 120s ease-in-out infinite alternate;
-    mask-image: radial-gradient(ellipse 85% 80% at 92% 8%, black 0%, transparent 65%);
-    -webkit-mask-image: radial-gradient(ellipse 85% 80% at 92% 8%, black 0%, transparent 65%);
-  }
-
-  @keyframes sunRays {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(8deg); }
   }
 
   @media (prefers-reduced-motion: reduce) {
