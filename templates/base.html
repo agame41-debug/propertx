@@ -276,17 +276,63 @@
     updateMobileMonth();
   })();
 
-  /* Page transition progress bar */
+  /* Page transition progress bar + skeleton loader */
   (function() {
     var bar = document.getElementById('page-progress-bar');
     var _timer = null;
-    document.body.addEventListener('htmx:beforeRequest', function() {
-      if (!bar) return;
-      clearTimeout(_timer);
-      bar.classList.remove('done');
-      bar.classList.add('loading');
+    var _skelTimer = null;
+    var _skeletonShown = false;
+
+    /* Skeleton HTML — mimics the common page layout */
+    var SKELETON_HTML =
+      '<div class="skeleton" style="padding-top:4px;">' +
+        /* Header line */
+        '<div class="skeleton-bone" style="width:180px;height:22px;margin-bottom:6px;"></div>' +
+        '<div class="skeleton-bone" style="width:240px;height:13px;margin-bottom:24px;border-radius:4px;"></div>' +
+        /* KPI row */
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px;">' +
+          '<div class="skeleton-bone-card" style="height:110px;"></div>' +
+          '<div class="skeleton-bone-card" style="height:110px;"></div>' +
+          '<div class="skeleton-bone-card" style="height:110px;"></div>' +
+          '<div class="skeleton-bone-card" style="height:110px;"></div>' +
+        '</div>' +
+        /* Section label */
+        '<div class="skeleton-bone" style="width:60px;height:10px;margin-bottom:16px;border-radius:4px;"></div>' +
+        /* List rows */
+        '<div style="display:flex;flex-direction:column;gap:6px;">' +
+          '<div class="skeleton-bone-card" style="height:62px;"></div>' +
+          '<div class="skeleton-bone-card" style="height:62px;"></div>' +
+          '<div class="skeleton-bone-card" style="height:62px;"></div>' +
+          '<div class="skeleton-bone-card" style="height:62px;"></div>' +
+          '<div class="skeleton-bone-card" style="height:62px;"></div>' +
+          '<div class="skeleton-bone-card" style="height:62px;"></div>' +
+        '</div>' +
+      '</div>';
+
+    document.body.addEventListener('htmx:beforeRequest', function(evt) {
+      /* Only show skeleton for full-page navigations (#content swap) */
+      var target = evt.detail.target || evt.detail.elt;
+      if (target && target.id !== 'content') return;
+
+      if (bar) {
+        clearTimeout(_timer);
+        bar.classList.remove('done');
+        bar.classList.add('loading');
+      }
+      /* Show skeleton after a short delay — skip for fast loads */
+      _skeletonShown = false;
+      clearTimeout(_skelTimer);
+      _skelTimer = setTimeout(function() {
+        var content = document.getElementById('content');
+        if (content) {
+          content.innerHTML = SKELETON_HTML;
+          _skeletonShown = true;
+        }
+      }, 120);
     });
     function finishBar() {
+      clearTimeout(_skelTimer);
+      _skeletonShown = false;
       if (!bar) return;
       bar.classList.remove('loading');
       bar.classList.add('done');

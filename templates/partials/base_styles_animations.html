@@ -39,6 +39,54 @@
     to   { transform: translate3d(0, 0, 0); }
   }
 
+  /* ── Skeleton shimmer ── */
+  @keyframes shimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+
+  .skeleton {
+    pointer-events: none;
+    user-select: none;
+    animation: fadeIn var(--duration-fast) var(--ease-out) both;
+  }
+  .skeleton-bone {
+    background: oklch(var(--fg) / 0.06);
+    background-image: linear-gradient(
+      90deg,
+      oklch(var(--fg) / 0.06) 0%,
+      oklch(var(--fg) / 0.12) 40%,
+      oklch(var(--fg) / 0.06) 80%
+    );
+    background-size: 400px 100%;
+    background-repeat: no-repeat;
+    animation: shimmer 1.4s linear infinite;
+    border-radius: var(--radius-md);
+  }
+  .skeleton-bone-sm { border-radius: var(--radius-sm); }
+  .skeleton-bone-full { border-radius: var(--radius-full); }
+  .skeleton-bone-card {
+    background: var(--bg-3);
+    border: 1px solid var(--border-base);
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+  }
+  .skeleton-bone-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      oklch(var(--fg) / 0.04) 40%,
+      transparent 80%
+    );
+    background-size: 400px 100%;
+    background-repeat: no-repeat;
+    animation: shimmer 1.4s linear infinite;
+  }
+
   /* ── Utility classes ── */
   .animate-spin { animation: spin 1.2s linear infinite; }
   .animate-fade-in { animation: fadeIn var(--duration-normal) var(--ease-out) both; }
@@ -49,16 +97,16 @@
     animation: fadeSlideUp var(--duration-normal) var(--ease-out-expo) both;
   }
   .stagger-list > *:nth-child(1)  { animation-delay: 0ms; }
-  .stagger-list > *:nth-child(2)  { animation-delay: 40ms; }
-  .stagger-list > *:nth-child(3)  { animation-delay: 80ms; }
-  .stagger-list > *:nth-child(4)  { animation-delay: 120ms; }
-  .stagger-list > *:nth-child(5)  { animation-delay: 160ms; }
-  .stagger-list > *:nth-child(6)  { animation-delay: 200ms; }
-  .stagger-list > *:nth-child(7)  { animation-delay: 240ms; }
-  .stagger-list > *:nth-child(8)  { animation-delay: 280ms; }
-  .stagger-list > *:nth-child(9)  { animation-delay: 320ms; }
-  .stagger-list > *:nth-child(10) { animation-delay: 360ms; }
-  .stagger-list > *:nth-child(n+11) { animation-delay: 400ms; }
+  .stagger-list > *:nth-child(2)  { animation-delay: 30ms; }
+  .stagger-list > *:nth-child(3)  { animation-delay: 60ms; }
+  .stagger-list > *:nth-child(4)  { animation-delay: 90ms; }
+  .stagger-list > *:nth-child(5)  { animation-delay: 120ms; }
+  .stagger-list > *:nth-child(6)  { animation-delay: 150ms; }
+  .stagger-list > *:nth-child(7)  { animation-delay: 180ms; }
+  .stagger-list > *:nth-child(8)  { animation-delay: 210ms; }
+  .stagger-list > *:nth-child(9)  { animation-delay: 240ms; }
+  .stagger-list > *:nth-child(10) { animation-delay: 270ms; }
+  .stagger-list > *:nth-child(n+11) { animation-delay: 300ms; }
 
   /* ── Accordion expand (grid-rows trick) ── */
   .accordion-content {
@@ -92,13 +140,17 @@
     animation: fadeIn var(--duration-fast) var(--ease-out);
   }
 
-  /* ── Reduced motion ── */
+  /* ── Reduced motion — keep opacity fades, remove position/transform ── */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
+    }
+    /* Keep color/opacity transitions, remove transform/position */
+    *:not(.animate-fade-in) {
+      transition-property: opacity, color, background-color, border-color, box-shadow !important;
+      transition-duration: var(--duration-fast) !important;
     }
     .stagger-list > * { animation: none; opacity: 1; transform: none; }
     ::view-transition-old(root),
