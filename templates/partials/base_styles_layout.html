@@ -283,11 +283,13 @@
     }
   }
 
-  /* Light theme — soft purple glow + sun rays */
+  /* Light theme — subtle purple glow */
   [data-theme="light"] .main-content::before {
     background:
-      radial-gradient(ellipse 45% 35% at 85% 8%, rgba(160, 120, 220, 0.09) 0%, transparent 60%),
-      radial-gradient(ellipse 35% 30% at 10% 80%, rgba(120, 90, 200, 0.05) 0%, transparent 55%);
+      /* bright source spot at upper-right */
+      radial-gradient(circle 120px at 94% 4%, rgba(255, 230, 160, 0.35) 0%, rgba(255, 210, 120, 0.12) 40%, transparent 70%),
+      /* tiny purple accent glow */
+      radial-gradient(ellipse 25% 20% at 80% 12%, rgba(160, 120, 220, 0.06) 0%, transparent 55%);
     background-size: 100% 100%;
     animation: none;
   }
@@ -303,41 +305,43 @@
   [data-theme="light"] .main-content::after {
     display: block;
     inset: 0;
-    overflow: hidden;
     background: conic-gradient(
-      from 220deg at 95% 5%,
+      from 200deg at 96% 3%,
       transparent 0deg,
-      rgba(255, 210, 120, 0.12) 6deg,
-      transparent 14deg,
-      transparent 22deg,
-      rgba(255, 195, 90, 0.09) 28deg,
-      transparent 36deg,
-      transparent 48deg,
-      rgba(255, 220, 140, 0.07) 53deg,
-      transparent 62deg,
-      transparent 76deg,
-      rgba(255, 200, 100, 0.10) 81deg,
-      transparent 90deg,
-      transparent 108deg,
-      rgba(255, 185, 80, 0.06) 113deg,
-      transparent 122deg,
-      transparent 140deg,
-      rgba(255, 215, 130, 0.05) 145deg,
-      transparent 154deg,
-      transparent 175deg,
-      rgba(255, 190, 90, 0.04) 180deg,
-      transparent 190deg,
+      rgba(255, 220, 140, 0.28) 4deg,
+      rgba(255, 235, 180, 0.18) 9deg,
+      transparent 15deg,
+      transparent 20deg,
+      rgba(255, 210, 120, 0.22) 25deg,
+      rgba(255, 225, 160, 0.14) 31deg,
+      transparent 38deg,
+      transparent 46deg,
+      rgba(255, 230, 160, 0.18) 50deg,
+      transparent 58deg,
+      transparent 68deg,
+      rgba(255, 215, 130, 0.24) 73deg,
+      rgba(255, 230, 170, 0.15) 79deg,
+      transparent 87deg,
+      transparent 100deg,
+      rgba(255, 220, 140, 0.16) 105deg,
+      transparent 114deg,
+      transparent 130deg,
+      rgba(255, 225, 150, 0.12) 135deg,
+      transparent 145deg,
+      transparent 165deg,
+      rgba(255, 215, 130, 0.10) 170deg,
+      transparent 180deg,
       transparent 360deg
     );
-    filter: blur(8px);
-    animation: sunRays 180s linear infinite;
-    mask-image: radial-gradient(ellipse 80% 70% at 90% 10%, black 0%, transparent 70%);
-    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 90% 10%, black 0%, transparent 70%);
+    filter: blur(3px);
+    animation: sunRays 120s ease-in-out infinite alternate;
+    mask-image: radial-gradient(ellipse 85% 80% at 92% 8%, black 0%, transparent 65%);
+    -webkit-mask-image: radial-gradient(ellipse 85% 80% at 92% 8%, black 0%, transparent 65%);
   }
 
   @keyframes sunRays {
     from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
+    to   { transform: rotate(8deg); }
   }
 
   @media (prefers-reduced-motion: reduce) {
