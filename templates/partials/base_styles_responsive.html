@@ -6,9 +6,6 @@
 
   /* ── Mobile (< 640px) ───────────────────────────────────────────────── */
   @media (max-width: 639px) {
-    /* Prevent horizontal overflow / zoom effect */
-    html, body { overflow-x: hidden; }
-
     /* Hide desktop sidebar, show bottom bar */
     .sidebar { display: none; }
     .bottom-bar { display: block; }
@@ -18,7 +15,9 @@
       margin-left: 0;
       padding: var(--space-lg);
       padding-bottom: calc(var(--bottombar-h) + var(--space-lg));
+      max-width: 100vw;
     }
+    #page-body { max-width: 100%; overflow-x: hidden; }
 
     /* Prop page header — full width on mobile */
     .prop-page-header {
@@ -27,14 +26,15 @@
     }
     .prop-page-title { font-size: var(--text-lg); }
 
-    /* KPI cards — 2x2 grid */
+    /* KPI cards — 2x2 grid, fit within viewport */
     .kpi-grid {
       grid-template-columns: 1fr 1fr !important;
-      gap: var(--space-sm) !important;
+      gap: var(--space-xs) !important;
     }
-    .kpi-card { padding: var(--space-md) var(--space-lg); }
-    .kpi-value { font-size: var(--text-xl); }
-    .kpi-label { font-size: 9px; margin-bottom: var(--space-sm); }
+    .kpi-card { padding: var(--space-sm) var(--space-md); overflow: hidden; }
+    .kpi-value { font-size: 16px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kpi-label { font-size: 9px; margin-bottom: 2px; }
+    .kpi-sub { font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* Dashboard prop rows — single flex row on mobile */
     .prop-row {
@@ -53,6 +53,19 @@
     /* Dashboard filter bar — stack on mobile */
     #owner-filter { max-width: 100% !important; width: 100% !important; }
     #card-search  { width: 100% !important; }
+
+    /* Property page KPI — 2x2 grid */
+    div[style*="grid-template-columns:repeat(4,1fr)"] {
+      grid-template-columns: 1fr 1fr !important;
+      gap: var(--space-xs) !important;
+    }
+    /* Property page header buttons — wrap */
+    .prop-page-header div[style*="flex-shrink:0"] {
+      flex-shrink: 1 !important;
+    }
+
+    /* Cards with tables — horizontal scroll on mobile */
+    .card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
     /* Tables → card layout (exclude detail/drilldown expansion rows) */
     .data-table.responsive-cards thead { display: none; }
