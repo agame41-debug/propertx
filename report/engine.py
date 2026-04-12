@@ -541,8 +541,10 @@ def generate_report_in_process(
     for row in all_verified:
         code = row.get("confirmation_code", "")
         source = (row.get("source") or "").lower()
-        # Payout adjustments already have their own batch info — don't overwrite
+        # Payout adjustments / AirCover already have their own batch info — don't overwrite
         if row.get("is_payout_adjustment"):
+            continue
+        if row.get("is_aircover"):
             continue
         if "airbnb" in source:
             pinfo = gref_map.get(code, {})
