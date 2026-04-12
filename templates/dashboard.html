@@ -29,7 +29,8 @@
   {# Total payout #}
   <div class="kpi-card kpi-card-green">
     <div class="kpi-label">Celková výplata</div>
-    <div class="kpi-value" style="color:var(--color-green);font-size:24px;" id="kpi-payout">
+    <div class="kpi-value" style="color:var(--color-green);font-size:24px;" id="kpi-payout"
+         data-copy="{{ "%.2f"|format(dashboard_summary.total_payout_czk) }}">
       {{ "{:,.2f}".format(dashboard_summary.total_payout_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
     </div>
     <div class="kpi-sub" id="kpi-payout-sub">platformy → rentero · {{ dashboard_summary.current_month_label }}</div>
@@ -38,7 +39,8 @@
   {# Client payout #}
   <div class="kpi-card kpi-card-blue">
     <div class="kpi-label">Výplata klientům</div>
-    <div class="kpi-value" style="color:var(--color-blue);font-size:24px;" id="kpi-client-payout">
+    <div class="kpi-value" style="color:var(--color-blue);font-size:24px;" id="kpi-client-payout"
+         data-copy="{{ "%.2f"|format(dashboard_summary.total_client_payout_czk) }}">
       {{ "{:,.2f}".format(dashboard_summary.total_client_payout_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
     </div>
     <div class="kpi-sub">rentero → klienti · {{ dashboard_summary.current_month_label }}</div>
@@ -47,7 +49,8 @@
   {# Total reservations with sparkline #}
   <div class="kpi-card kpi-card-primary">
     <div class="kpi-label">Celkem rezervací</div>
-    <div class="kpi-value" style="font-size:24px;" id="kpi-reservations">
+    <div class="kpi-value" style="font-size:24px;" id="kpi-reservations"
+         data-copy="{{ dashboard_summary.total_reservations }}">
       {{ dashboard_summary.total_reservations }}
       {% set d = dashboard_summary.reservations_delta %}
       <span id="kpi-delta" class="kpi-delta {% if d > 0 %}kpi-delta-pos{% elif d < 0 %}kpi-delta-neg{% endif %}" {% if d == 0 %}style="display:none;"{% endif %}>{{ '+' if d > 0 else '' }}{{ d }}</span>
@@ -213,9 +216,9 @@
     {# Col 3: Financial — green: from platforms, blue: client payout #}
     <div class="pr-financial" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
       {% if cur_cell and cur_cell.kind == 'report' %}
-        <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;">{{ "{:,.2f}".format(payout).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč</div>
+        <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(payout) }}">{{ "{:,.2f}".format(payout).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč</div>
         {% if client_payout > 0 %}
-        <div style="font-size:10px;color:var(--color-blue);font-variant-numeric:tabular-nums;">klient {{ "{:,.2f}".format(client_payout).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
+        <div style="font-size:10px;color:var(--color-blue);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(client_payout) }}">klient {{ "{:,.2f}".format(client_payout).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
         {% endif %}
       {% else %}
       <span style="color:var(--text-300);font-size:var(--text-xs);">—</span>

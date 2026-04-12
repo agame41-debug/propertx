@@ -234,7 +234,8 @@
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:12px;">
   <div class="kpi-card kpi-card-green">
     <div class="kpi-label">Klientovi bude vyplaceno</div>
-    <div class="kpi-value" style="color:var(--color-green);">
+    <div class="kpi-value" style="color:var(--color-green);"
+         data-copy="{{ "%.2f"|format(summary.client_payout_after_expenses_czk) }}">
       {{ money(summary.client_payout_after_expenses_czk) }}
     </div>
     <div class="kpi-sub">
@@ -249,7 +250,8 @@
 
   <div class="kpi-card kpi-card-blue">
     <div class="kpi-label">Vyplaceno platformami</div>
-    <div class="kpi-value" style="font-size:21px;">
+    <div class="kpi-value" style="font-size:21px;"
+         data-copy="{{ "%.2f"|format(summary.gross_payout_czk) }}">
       {{ money(summary.gross_payout_czk) }}
     </div>
     <div class="kpi-sub">
@@ -261,7 +263,8 @@
     <div class="kpi-label">
       Rentero fee ({{ "%.0f"|format(summary.rentero_commission_rate * 100) }}%)
     </div>
-    <div class="kpi-value" style="font-size:21px;color:var(--color-red);">
+    <div class="kpi-value" style="font-size:21px;color:var(--color-red);"
+         data-copy="{{ "%.2f"|format(summary.rentero_fee_czk + summary.vat_rentero_fee_czk) }}">
       &#8722; {{ money(summary.rentero_fee_czk + summary.vat_rentero_fee_czk) }}
     </div>
     <div class="kpi-sub">
@@ -272,7 +275,8 @@
   {% set has_expenses = summary.expenses_total_czk and summary.expenses_total_czk != 0 %}
   <div class="kpi-card {% if has_expenses %}kpi-card-amber{% else %}kpi-card-neutral{% endif %}">
     <div class="kpi-label">Výdaje</div>
-    <div class="kpi-value" style="font-size:21px;{% if has_expenses %}color:var(--color-amber);{% else %}color:var(--text-300);{% endif %}">
+    <div class="kpi-value" style="font-size:21px;{% if has_expenses %}color:var(--color-amber);{% else %}color:var(--text-300);{% endif %}"
+         {% if has_expenses %}data-copy="{{ "%.2f"|format(summary.expenses_total_czk) }}"{% endif %}>
       {% if has_expenses %}&#8722; {{ money(summary.expenses_total_czk) }}{% else %}&#8212;{% endif %}
     </div>
     {% if has_expenses %}

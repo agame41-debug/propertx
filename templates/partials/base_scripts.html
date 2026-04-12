@@ -446,6 +446,15 @@ function sbToggleObj() {
     if (rv) {
       e.stopPropagation();
       _doCopy(rv, rv.dataset.copy);
+      return;
+    }
+    // generic [data-copy] elements (KPI values, financial numbers, etc.)
+    var cp = e.target.closest('[data-copy]');
+    if (cp) {
+      // prevent navigation when inside a link (e.g. prop-row <a>)
+      if (cp.closest('a')) e.preventDefault();
+      e.stopPropagation();
+      _doCopy(cp, cp.dataset.copy);
     }
   });
 })();
