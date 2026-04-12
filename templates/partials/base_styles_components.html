@@ -48,20 +48,13 @@
       transform var(--duration-fast) var(--ease-out),
       box-shadow var(--duration-fast) var(--ease-out);
   }
-  /* Top accent line — thin, solid, no glow */
-  .kpi-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: oklch(1 0 0 / 0.06);
-  }
-  .kpi-card-green::before   { background: var(--color-green); }
-  .kpi-card-blue::before    { background: var(--color-blue); }
-  .kpi-card-amber::before   { background: var(--color-amber); }
-  .kpi-card-red::before     { background: var(--color-red); }
-  .kpi-card-primary::before { background: var(--accent); }
-  .kpi-card-neutral::before { background: oklch(1 0 0 / 0.08); }
+  /* Status variants — subtle full-border tint, no colored bars */
+  .kpi-card-green   { border-color: oklch(0.72 0.19 155 / 0.18); }
+  .kpi-card-blue    { border-color: oklch(0.68 0.15 250 / 0.18); }
+  .kpi-card-amber   { border-color: oklch(0.78 0.14 75  / 0.18); }
+  .kpi-card-red     { border-color: oklch(0.68 0.20 25  / 0.18); }
+  .kpi-card-primary { border-color: oklch(0.72 0.19 155 / 0.18); }
+  .kpi-card-neutral { }
 
   @media (hover: hover) and (pointer: fine) {
     .kpi-card:hover {
@@ -262,8 +255,8 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--text-300);
-    border-bottom: 1px solid var(--border-base);
-    background: oklch(0 0 0 / 0.2);
+    border-bottom: 1px solid oklch(1 0 0 / 0.06);
+    background: oklch(1 0 0 / 0.02);
     white-space: nowrap;
     font-family: var(--font-mono);
   }
@@ -271,21 +264,18 @@
   .data-table th.text-center { text-align: center; }
   .data-table td {
     padding: 11px var(--space-lg);
-    border-bottom: 1px solid oklch(1 0 0 / 0.03);
+    border-bottom: 1px solid oklch(1 0 0 / 0.04);
     color: var(--text-200);
     vertical-align: middle;
     transition:
       background var(--duration-fast) var(--ease-out),
       color var(--duration-fast) var(--ease-out);
   }
-  .data-table tbody tr:nth-child(odd) td { background: oklch(1 0 0 / 0.01); }
+  .data-table tbody tr:nth-child(odd) td { background: oklch(1 0 0 / 0.015); }
   @media (hover: hover) and (pointer: fine) {
     .data-table tbody tr:hover td {
-      background: oklch(1 0 0 / 0.03);
+      background: oklch(1 0 0 / 0.04);
       color: var(--text-100);
-    }
-    .data-table tbody tr:hover td:first-child {
-      box-shadow: inset 2px 0 0 var(--accent);
     }
   }
   .data-table tbody tr:last-child td { border-bottom: none; }
@@ -464,42 +454,50 @@
     padding: var(--space-md) var(--space-lg);
     background: var(--bg-3);
     border: 1px solid var(--border-base);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     cursor: pointer;
     text-decoration: none;
     color: inherit;
-    margin-bottom: var(--space-xs);
+    margin-bottom: var(--space-sm);
     transition:
       background var(--duration-fast) var(--ease-out),
       border-color var(--duration-fast) var(--ease-out),
       box-shadow var(--duration-fast) var(--ease-out),
       transform 120ms var(--ease-out);
-    --accent-bar: transparent;
-    box-shadow:
-      inset 3px 0 0 var(--accent-bar),
-      var(--glass-highlight);
+    box-shadow: var(--glass-highlight);
   }
   .prop-row:active { transform: scale(0.99); }
   @media (hover: hover) and (pointer: fine) {
     .prop-row:hover {
       background: var(--bg-4);
-      border-color: oklch(1 0 0 / 0.10);
-      box-shadow:
-        inset 3px 0 0 var(--accent-bar),
-        var(--shadow-sm),
-        var(--glass-highlight-strong);
+      border-color: oklch(1 0 0 / 0.12);
+      box-shadow: var(--shadow-sm), var(--glass-highlight-strong);
       transform: translateY(-1px);
     }
   }
 
-  /* Health states */
-  .prop-row[data-health="ok"]      { --accent-bar: oklch(0.72 0.19 155 / 0.40); }
-  .prop-row[data-health="issues"]  { --accent-bar: var(--color-amber); }
-  .prop-row[data-health="action"]  { --accent-bar: var(--color-blue); }
-  .prop-row[data-has-new="true"]   { --accent-bar: var(--color-teal); }
-  .prop-row[data-locked="true"]    { opacity: 0.45; }
+  /* Health states — full border color, no left bar */
+  .prop-row[data-health="ok"]      { border-color: oklch(0.72 0.19 155 / 0.18); }
+  .prop-row[data-health="issues"]  { border-color: oklch(0.78 0.14 75  / 0.30); }
+  .prop-row[data-health="action"]  { border-color: oklch(0.68 0.15 250 / 0.20); }
+  .prop-row[data-has-new="true"]   { border-color: oklch(0.72 0.12 180 / 0.25); }
+  .prop-row[data-locked="true"]    { opacity: 0.40; }
 
-  .pr-name { display: flex; align-items: center; min-width: 0; }
+  .pr-name { display: flex; align-items: center; gap: var(--space-sm); min-width: 0; }
+  /* Status dot — small circle before property name */
+  .pr-name::before {
+    content: '';
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--text-300);
+  }
+  .prop-row[data-health="ok"]     .pr-name::before { background: var(--color-green); }
+  .prop-row[data-health="issues"] .pr-name::before { background: var(--color-amber); }
+  .prop-row[data-health="action"] .pr-name::before { background: var(--color-blue); }
+  .prop-row[data-has-new="true"]  .pr-name::before { background: var(--color-teal); }
+  .prop-row[data-locked="true"]   .pr-name::before { background: var(--text-300); opacity: 0.5; }
+
   .pr-title {
     font-size: var(--text-sm);
     font-weight: 600;
@@ -1220,7 +1218,6 @@
   [data-theme="light"] .kpi-card:hover { border-color: oklch(0 0 0 / 0.14); }
   [data-theme="light"] .kpi-label { color: oklch(0 0 0 / 0.44); }
   [data-theme="light"] .kpi-sub { color: oklch(0 0 0 / 0.4); }
-  [data-theme="light"] .kpi-card-neutral::before { background: oklch(0 0 0 / 0.10); }
 
   /* Badges */
   [data-theme="light"] .badge-neutral { background: oklch(0 0 0 / 0.06); color: oklch(0 0 0 / 0.5); border-color: oklch(0 0 0 / 0.1); }
@@ -1262,8 +1259,8 @@
   [data-theme="light"] .notify-dismiss:hover { background: oklch(0 0 0 / 0.08); }
 
   /* Property rows */
-  [data-theme="light"] .prop-row { box-shadow: inset 3px 0 0 var(--accent-bar); }
-  [data-theme="light"] .prop-row:hover { border-color: oklch(0 0 0 / 0.1); box-shadow: var(--shadow-sm), inset 3px 0 0 var(--accent-bar); }
+  [data-theme="light"] .prop-row { box-shadow: none; }
+  [data-theme="light"] .prop-row:hover { border-color: oklch(0 0 0 / 0.12); box-shadow: var(--shadow-sm); }
 
   /* Misc */
   [data-theme="light"] .meta-chip { background: oklch(0 0 0 / 0.05); color: var(--text-200); }
