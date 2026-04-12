@@ -69,7 +69,7 @@
   </div>
 
   {# Portfolio health #}
-  <div class="kpi-card" id="kpi-health-card">
+  <div class="kpi-card{% if dashboard_summary.issues > 0 %} kpi-card-amber{% endif %}" id="kpi-health-card">
     <div class="kpi-label">Stav portfolia</div>
     <div id="kpi-health-value">
     {% if dashboard_summary.issues > 0 %}
