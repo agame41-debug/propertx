@@ -204,15 +204,40 @@
     if (e.altKey && e.key === 'ArrowRight') navigate(1);
     if (e.key === 'Escape') closePicker();
   });
-  // Sync month display after HTMX content swaps (back/forward, boosted links)
+  // Sync month on back/forward: if global month (localStorage) differs from
+  // the cached page's month, reload content with the correct month.
   window.addEventListener('popstate', function() {
+    var stored = getStoredYM();
+    if (stored && isMonthAwarePath(location.pathname)) {
+      var url = new URL(location.href);
+      var qy = +(url.searchParams.get('year') || 0);
+      var qm = +(url.searchParams.get('month') || 0);
+      if (!qy || !qm || qy !== stored.y || qm !== stored.m) {
+        url.searchParams.set('year', stored.y);
+        url.searchParams.set('month', stored.m);
+        history.replaceState(null, '', url.toString());
+        htmx.ajax('GET', url.pathname + url.search, {
+          target: '#content',
+          swap: 'innerHTML transition:true',
+          headers: { 'HX-Boosted': 'true' }
+        });
+        updateDisplay(stored);
+        return;
+      }
+    }
     var ym = curYM();
-    writeYM(ym.y, ym.m);
     updateDisplay(ym);
   });
+  // After HTMX pushes URL, sync month display
   document.addEventListener('htmx:pushedIntoHistory', function() {
     var ym = curYM();
     updateDisplay(ym);
+  });
+  // After HTMX content settles, re-sync month-aware links (new content may have
+  // fresh data-month-aware links that need year/month params)
+  document.addEventListener('htmx:afterSettle', function() {
+    var ym = (window.RenteroMonthNav && window.RenteroMonthNav.getCurrent) ? window.RenteroMonthNav.getCurrent() : null;
+    if (ym) refreshMonthAwareNav(ym);
   });
   window.RenteroMonthNav = {
     getCurrent: curYM,
