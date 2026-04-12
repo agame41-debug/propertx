@@ -1317,8 +1317,13 @@
   [data-theme="light"] .sb-obj-item.sb-current { color: oklch(0.40 0.16 280); background: oklch(0.50 0.18 280 / 0.06); }
   [data-theme="light"] .sb-obj-dot[data-h="empty"] { background: oklch(0 0 0 / 0.15); }
 
-  /* Main content light */
-  [data-theme="light"] .main-content { background: var(--bg-1); }
+  /* Main content light — preserve ambient gradient layers */
+  [data-theme="light"] .main-content {
+    background:
+      var(--ambient-primary),
+      var(--ambient-secondary),
+      var(--bg-1);
+  }
 
   /* Property header light */
   [data-theme="light"] .prop-page-header { background: oklch(0.96 0.005 260 / 0.88); border-bottom-color: oklch(0 0 0 / 0.09); }
