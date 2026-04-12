@@ -82,7 +82,18 @@ def _pid_is_alive(pid: int | None) -> bool:
         if wpid != 0:
             return False  # was a zombie, now reaped
     except ChildProcessError:
-        pass  # not our child — cannot reap, assume alive
+        # Not our child — cannot reap.  Check /proc/<pid>/stat for zombie
+        # state (Linux).  After server restart, the new process is not the
+        # parent, so waitpid fails, but the zombie is still dead.
+        try:
+            with open(f"/proc/{candidate}/stat", "r") as f:
+                stat_fields = f.read().split(")")
+                if len(stat_fields) >= 2:
+                    state = stat_fields[1].strip().split()[0]
+                    if state == "Z":
+                        return False  # zombie — not alive
+        except (OSError, IndexError):
+            pass
     except OSError:
         pass
     return True
