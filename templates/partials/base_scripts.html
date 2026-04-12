@@ -1080,16 +1080,38 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
 
   function drawStar(s, a) {
     var colors = isLight ? lightColors : darkColors;
-    ctx.fillStyle = colors[s.colorIdx];
+    var col = colors[s.colorIdx];
+    ctx.fillStyle = col;
 
-    ctx.globalAlpha = a;
-    ctx.fillRect(s.x - s.size * 0.5, s.y - s.size * 0.5, s.size, s.size);
+    if (isLight) {
+      // Soft glowing circles for light theme
+      ctx.globalAlpha = a;
+      ctx.shadowColor = col;
+      ctx.shadowBlur = s.bright ? 12 : 6;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.size * 0.8, 0, 6.28);
+      ctx.fill();
 
-    var spike = s.spike * (0.5 + 0.5 * Math.sin(s.phase));
-    if (spike > 0) {
-      ctx.globalAlpha = a * 0.45;
-      ctx.fillRect(s.x - spike, s.y - 0.5, spike * 2, 1);
-      ctx.fillRect(s.x - 0.5, s.y - spike, 1, spike * 2);
+      // Brighter core
+      if (s.bright) {
+        ctx.globalAlpha = a * 0.8;
+        ctx.shadowBlur = 18;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size * 0.4, 0, 6.28);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+    } else {
+      // Sharp pixel stars for dark theme
+      ctx.globalAlpha = a;
+      ctx.fillRect(s.x - s.size * 0.5, s.y - s.size * 0.5, s.size, s.size);
+
+      var spike = s.spike * (0.5 + 0.5 * Math.sin(s.phase));
+      if (spike > 0) {
+        ctx.globalAlpha = a * 0.45;
+        ctx.fillRect(s.x - spike, s.y - 0.5, spike * 2, 1);
+        ctx.fillRect(s.x - 0.5, s.y - spike, 1, spike * 2);
+      }
     }
   }
 
@@ -1108,7 +1130,7 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
       if (s.x > W + 12) s.x = -12;
 
       var a = s.baseA * (1 - s.depth + s.depth * Math.sin(s.phase));
-      if (isLight) a *= 0.75;
+      if (isLight) a *= 0.9;
 
       drawStar(s, a);
     }
