@@ -111,6 +111,7 @@ from report.db import (
     get_reservation_month_assignments,
     get_codes_assigned_to_month,
     get_assignment_for_code,
+    get_all_assignments_for_code,
     create_reservation_exclusion,
     reinstate_reservation,
     get_active_exclusions,

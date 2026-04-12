@@ -281,26 +281,48 @@ def generate_report_in_process(
         ) or None,
     )
 
-    # ── Month assignments ───────────────────────────────────────────────────
-    assignments = get_reservation_month_assignments(conn, slug)
+    # ── Month assignments (month-scoped) ──────────────────────────────────────
+    all_assignments = get_reservation_month_assignments(conn, slug)
     hidden_confirmation_codes: set[str] = set()
-    if assignments:
-        hidden_confirmation_codes = {
-            code
-            for code, assignment in assignments.items()
-            if assignment["target_year"] != year or assignment["target_month"] != month
-        }
+
+    # Codes whose MAIN reservation is moved OUT of this month
+    codes_main_out: set[str] = set()
+    # (code, gref) pairs for adjustments moved OUT of this month
+    adj_grefs_out: set[tuple[str, str]] = set()
+    # Codes for adjustments moved OUT (for hidden_confirmation_codes)
+    codes_adj_out: set[str] = set()
+
+    for asgn in all_assignments:
+        if asgn["original_year"] == year and asgn["original_month"] == month:
+            code = asgn["confirmation_code"]
+            if asgn.get("is_adjustment"):
+                adj_grefs_out.add((code, asgn.get("batch_ref", "")))
+                codes_adj_out.add(code)
+            else:
+                codes_main_out.add(code)
+
+    hidden_confirmation_codes = codes_main_out | codes_adj_out
+
+    # Filter main reservations moved out of this month
+    if codes_main_out:
         reservations = [
             r for r in reservations
-            if r["confirmation_code"] not in assignments
-            or (
-                assignments[r["confirmation_code"]]["target_year"] == year
-                and assignments[r["confirmation_code"]]["target_month"] == month
-            )
+            if r["confirmation_code"] not in codes_main_out
         ]
-        codes_moved_in = get_codes_assigned_to_month(conn, slug, year, month)
-        current_codes = {r["confirmation_code"] for r in reservations}
-        for code in codes_moved_in - current_codes:
+
+    # Pull in main reservations moved INTO this month
+    moved_in = get_codes_assigned_to_month(conn, slug, year, month)
+    current_codes = {r["confirmation_code"] for r in reservations}
+    # Codes for adjustments moved into this month (bypass date window later)
+    adj_codes_in: set[str] = set()
+    adj_grefs_in: set[tuple[str, str]] = set()
+    for asgn in moved_in:
+        code = asgn["confirmation_code"]
+        if asgn.get("is_adjustment"):
+            adj_codes_in.add(code)
+            adj_grefs_in.add((code, asgn.get("batch_ref", "")))
+        elif code not in current_codes:
+            # Pull main reservation from hostify_reservations
             row = conn.execute(
                 "SELECT payload_json FROM hostify_reservations WHERE confirmation_code = ?",
                 (code,),
@@ -343,6 +365,9 @@ def generate_report_in_process(
         return after_prev_cutoff <= payout_dt <= cutoff_date
 
     # Collect all Airbnb codes with ANY batch in this month's window
+    # adj_grefs_out: suppress adjustments moved OUT of this month
+    # adj_grefs_in / adj_codes_in: pull in adjustments moved INTO this month
+    #   (bypass date-window check for their batches)
     seen_adjustment_grefs: set[str] = set()
     for code, batch_list in airbnb_all_batches.items():
         if code in current_codes:
@@ -353,13 +378,23 @@ def generate_report_in_process(
         if past_row.get("year") == year and past_row.get("month") == month:
             continue
         # Only adjustments from past months (not future reservations with early payouts)
-        if (past_row.get("year"), past_row.get("month")) > (year, month):
+        # But allow codes moved into this month regardless of chronology
+        if code not in adj_codes_in and (past_row.get("year"), past_row.get("month")) > (year, month):
             continue
         for batch_info in batch_list:
             gref = batch_info.get("gref", "")
             if gref in seen_adjustment_grefs:
                 continue
-            if not _payout_date_in_window(batch_info.get("payout_date", "")):
+            # Skip if this specific gref was moved OUT of this month
+            if (code, gref) in adj_grefs_out:
+                continue
+            # For codes moved IN: bypass date window; otherwise enforce it
+            if code in adj_codes_in:
+                # Only include the specific gref(s) that were moved here
+                if adj_grefs_in and (code, gref) not in adj_grefs_in:
+                    if not _payout_date_in_window(batch_info.get("payout_date", "")):
+                        continue
+            elif not _payout_date_in_window(batch_info.get("payout_date", "")):
                 continue
             seen_adjustment_grefs.add(gref)
             reservations.append(_build_adjustment_reservation(past_row, batch_info))
@@ -375,9 +410,12 @@ def generate_report_in_process(
             continue
         if past_row.get("year") == year and past_row.get("month") == month:
             continue
-        if (past_row.get("year"), past_row.get("month")) > (year, month):
+        if code not in adj_codes_in and (past_row.get("year"), past_row.get("month")) > (year, month):
             continue
-        if not _payout_date_in_window(pinfo.get("payout_date", "")):
+        bref = pinfo.get("gref", "") or pinfo.get("batch_ref", "")
+        if (code, bref) in adj_grefs_out:
+            continue
+        if code not in adj_codes_in and not _payout_date_in_window(pinfo.get("payout_date", "")):
             continue
         reservations.append(_build_adjustment_reservation(past_row, pinfo))
 
@@ -390,10 +428,13 @@ def generate_report_in_process(
             continue
         if past_row.get("year") == year and past_row.get("month") == month:
             continue
-        if (past_row.get("year"), past_row.get("month")) > (year, month):
+        if code not in adj_codes_in and (past_row.get("year"), past_row.get("month")) > (year, month):
             continue
         batch_info = gref_map[code]
-        if not _payout_date_in_window(batch_info.get("payout_date", "")):
+        bref = batch_info.get("gref", "") or batch_info.get("batch_ref", "")
+        if (code, bref) in adj_grefs_out:
+            continue
+        if code not in adj_codes_in and not _payout_date_in_window(batch_info.get("payout_date", "")):
             continue
         reservations.append(_build_adjustment_reservation(past_row, batch_info))
 

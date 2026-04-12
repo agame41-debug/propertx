@@ -121,6 +121,7 @@ from report.db_controls import (
     get_reservation_month_assignments,
     get_codes_assigned_to_month,
     get_assignment_for_code,
+    get_all_assignments_for_code,
     create_reservation_exclusion,
     reinstate_reservation,
     get_active_exclusions,
@@ -599,7 +600,9 @@ CREATE TABLE IF NOT EXISTS reservation_month_assignments (
     created_at        TEXT NOT NULL,
     reverted_at       TEXT,
     reverted_by       TEXT,
-    UNIQUE(slug, confirmation_code)
+    is_adjustment     INTEGER NOT NULL DEFAULT 0,
+    batch_ref         TEXT NOT NULL DEFAULT '',
+    UNIQUE(slug, confirmation_code, original_year, original_month)
 );
 
 CREATE TABLE IF NOT EXISTS reservation_exclusions (
@@ -720,6 +723,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     )
     _backfill_checkin_source_snapshots(conn)
     _backfill_booking_payout_item_guest_names(conn)
+    _migrate_month_assignments_scope(conn)
     _seed_admin_user(conn)
 
 
@@ -1637,6 +1641,57 @@ def _backfill_checkin_source_snapshots(conn: sqlite3.Connection) -> None:
 def _backfill_booking_payout_item_guest_names(conn: sqlite3.Connection) -> None:
     """Backfill legacy Booking payout items that were persisted without guest names."""
     fill_missing_payout_item_guest_names(conn, "booking", commit=True)
+
+
+def _migrate_month_assignments_scope(conn: sqlite3.Connection) -> None:
+    """Migrate reservation_month_assignments to month-scoped unique constraint.
+
+    Old schema: UNIQUE(slug, confirmation_code)  — one assignment per code
+    New schema: UNIQUE(slug, confirmation_code, original_year, original_month)
+                + is_adjustment, batch_ref columns
+
+    This allows separate assignments for a main reservation and its payout
+    adjustments (which may live in different months under the same code).
+    """
+    cols = {
+        r["name"]
+        for r in conn.execute(
+            "PRAGMA table_info(reservation_month_assignments)"
+        ).fetchall()
+    }
+    if "is_adjustment" in cols:
+        return  # already migrated
+
+    conn.execute("""CREATE TABLE IF NOT EXISTS _rma_new (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug              TEXT NOT NULL,
+        confirmation_code TEXT NOT NULL,
+        target_year       INTEGER NOT NULL,
+        target_month      INTEGER NOT NULL,
+        original_year     INTEGER NOT NULL,
+        original_month    INTEGER NOT NULL,
+        reason            TEXT NOT NULL DEFAULT '',
+        actor             TEXT NOT NULL DEFAULT '',
+        created_at        TEXT NOT NULL,
+        reverted_at       TEXT,
+        reverted_by       TEXT,
+        is_adjustment     INTEGER NOT NULL DEFAULT 0,
+        batch_ref         TEXT NOT NULL DEFAULT '',
+        UNIQUE(slug, confirmation_code, original_year, original_month)
+    )""")
+    conn.execute("""INSERT INTO _rma_new
+        (id, slug, confirmation_code, target_year, target_month,
+         original_year, original_month, reason, actor, created_at,
+         reverted_at, reverted_by, is_adjustment, batch_ref)
+        SELECT id, slug, confirmation_code, target_year, target_month,
+               original_year, original_month, reason, actor, created_at,
+               reverted_at, reverted_by, 0, ''
+          FROM reservation_month_assignments""")
+    conn.execute("DROP TABLE reservation_month_assignments")
+    conn.execute(
+        "ALTER TABLE _rma_new RENAME TO reservation_month_assignments"
+    )
+    conn.commit()
 
 
 def list_checkin_reservations(

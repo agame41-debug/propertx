@@ -23,22 +23,27 @@ def create_reservation_month_assignment(
 ) -> None:
     """
     Create or replace a month assignment for a reservation.
-    Only one active assignment per (slug, confirmation_code).
+
+    With month-scoped uniqueness, one code can have separate assignments for
+    different source months (e.g. main reservation in Feb, adjustment in Mar).
+    UNIQUE(slug, confirmation_code, original_year, original_month).
     """
     conn.execute(
         """INSERT INTO reservation_month_assignments
                (slug, confirmation_code, target_year, target_month,
-                original_year, original_month, reason, actor, created_at)
+                original_year, original_month, reason, actor, created_at,
+                is_adjustment, batch_ref)
            VALUES (:slug, :confirmation_code, :target_year, :target_month,
-                   :original_year, :original_month, :reason, :actor, :created_at)
-           ON CONFLICT(slug, confirmation_code) DO UPDATE SET
+                   :original_year, :original_month, :reason, :actor, :created_at,
+                   :is_adjustment, :batch_ref)
+           ON CONFLICT(slug, confirmation_code, original_year, original_month) DO UPDATE SET
                target_year    = excluded.target_year,
                target_month   = excluded.target_month,
-               original_year  = excluded.original_year,
-               original_month = excluded.original_month,
                reason         = excluded.reason,
                actor          = excluded.actor,
                created_at     = excluded.created_at,
+               is_adjustment  = excluded.is_adjustment,
+               batch_ref      = excluded.batch_ref,
                reverted_at    = NULL,
                reverted_by    = NULL""",
         {
@@ -51,6 +56,8 @@ def create_reservation_month_assignment(
             "reason": str(data.get("reason") or "").strip(),
             "actor": str(data.get("actor") or "").strip(),
             "created_at": _now(),
+            "is_adjustment": 1 if data.get("is_adjustment") else 0,
+            "batch_ref": str(data.get("batch_ref") or "").strip(),
         },
     )
     conn.commit()
@@ -61,37 +68,52 @@ def revert_reservation_month_assignment(
     slug: str,
     confirmation_code: str,
     *,
+    original_year: int | None = None,
+    original_month: int | None = None,
     actor: str = "",
 ) -> None:
-    """Mark an assignment as reverted (soft-delete)."""
-    conn.execute(
-        """UPDATE reservation_month_assignments
-              SET reverted_at = ?, reverted_by = ?
-            WHERE slug = ? AND confirmation_code = ? AND reverted_at IS NULL""",
-        (_now(), actor, slug, confirmation_code),
-    )
+    """Mark an assignment as reverted (soft-delete).
+
+    If original_year/month are given, reverts only that specific assignment.
+    Otherwise reverts ALL active assignments for the code (backward compat).
+    """
+    if original_year is not None and original_month is not None:
+        conn.execute(
+            """UPDATE reservation_month_assignments
+                  SET reverted_at = ?, reverted_by = ?
+                WHERE slug = ? AND confirmation_code = ?
+                  AND original_year = ? AND original_month = ?
+                  AND reverted_at IS NULL""",
+            (_now(), actor, slug, confirmation_code,
+             original_year, original_month),
+        )
+    else:
+        conn.execute(
+            """UPDATE reservation_month_assignments
+                  SET reverted_at = ?, reverted_by = ?
+                WHERE slug = ? AND confirmation_code = ? AND reverted_at IS NULL""",
+            (_now(), actor, slug, confirmation_code),
+        )
     conn.commit()
 
 
 def get_reservation_month_assignments(
     conn: sqlite3.Connection,
     slug: str,
-) -> dict[str, dict]:
+) -> list[dict]:
     """
     Return all active (non-reverted) month assignments for a property.
-    Returns {confirmation_code: {target_year, target_month, original_year, original_month, reason}}.
+    Returns a flat list of assignment dicts.
     """
     rows = conn.execute(
         """SELECT confirmation_code, target_year, target_month,
-                  original_year, original_month, reason, actor, created_at
+                  original_year, original_month, reason, actor, created_at,
+                  is_adjustment, batch_ref
              FROM reservation_month_assignments
             WHERE slug = ? AND reverted_at IS NULL""",
         (slug,),
     ).fetchall()
-    return {
-        row["confirmation_code"]: dict(row)
-        for row in rows
-    }
+    return [dict(row) for row in rows]
 
 
 def get_codes_assigned_to_month(
@@ -99,33 +121,63 @@ def get_codes_assigned_to_month(
     slug: str,
     year: int,
     month: int,
-) -> set[str]:
+) -> list[dict]:
     """
-    Return confirmation_codes that are actively assigned INTO (target) this month.
+    Return assignments that are actively assigned INTO (target) this month.
     Used by the pipeline to pull in reservations moved from other months.
+    Returns list of assignment dicts (with is_adjustment, batch_ref, etc.).
     """
     rows = conn.execute(
-        """SELECT confirmation_code
+        """SELECT confirmation_code, original_year, original_month,
+                  is_adjustment, batch_ref
              FROM reservation_month_assignments
             WHERE slug = ? AND target_year = ? AND target_month = ?
               AND reverted_at IS NULL""",
         (slug, year, month),
     ).fetchall()
-    return {row["confirmation_code"] for row in rows}
+    return [dict(row) for row in rows]
 
 
 def get_assignment_for_code(
     conn: sqlite3.Connection,
     slug: str,
     confirmation_code: str,
+    *,
+    original_year: int | None = None,
+    original_month: int | None = None,
 ) -> dict | None:
-    """Return the active assignment for a single code, or None."""
-    row = conn.execute(
-        """SELECT * FROM reservation_month_assignments
-            WHERE slug = ? AND confirmation_code = ? AND reverted_at IS NULL""",
-        (slug, confirmation_code),
-    ).fetchone()
+    """Return the active assignment for a single code, optionally scoped to month."""
+    if original_year is not None and original_month is not None:
+        row = conn.execute(
+            """SELECT * FROM reservation_month_assignments
+                WHERE slug = ? AND confirmation_code = ?
+                  AND original_year = ? AND original_month = ?
+                  AND reverted_at IS NULL""",
+            (slug, confirmation_code, original_year, original_month),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            """SELECT * FROM reservation_month_assignments
+                WHERE slug = ? AND confirmation_code = ? AND reverted_at IS NULL
+                ORDER BY created_at DESC LIMIT 1""",
+            (slug, confirmation_code),
+        ).fetchone()
     return dict(row) if row else None
+
+
+def get_all_assignments_for_code(
+    conn: sqlite3.Connection,
+    slug: str,
+    confirmation_code: str,
+) -> list[dict]:
+    """Return ALL active assignments for a code (may be multiple months)."""
+    rows = conn.execute(
+        """SELECT * FROM reservation_month_assignments
+            WHERE slug = ? AND confirmation_code = ? AND reverted_at IS NULL
+            ORDER BY original_year, original_month""",
+        (slug, confirmation_code),
+    ).fetchall()
+    return [dict(row) for row in rows]
 
 
 # ── Exclusions ─────────────────────────────────────────────────────────────

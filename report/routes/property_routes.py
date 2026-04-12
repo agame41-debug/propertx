@@ -558,6 +558,7 @@ def register(app, state) -> None:
         row = next((r for r in rows if r.get("confirmation_code") == code), None)
         if row is None:
             raise HTTPException(404, "Rezervace nenalezena")
+        is_adj = bool(row.get("is_payout_adjustment"))
         state["create_reservation_month_assignment"](conn, {
             "slug": slug,
             "confirmation_code": code,
@@ -567,8 +568,12 @@ def register(app, state) -> None:
             "original_month": month,
             "reason": reason.strip(),
             "actor": state["_get_actor_username"](request),
+            "is_adjustment": is_adj,
+            "batch_ref": row.get("batch_ref", "") if is_adj else "",
         })
-        for _y, _m in [(year, month), (target_year, target_month)]:
+        # Regenerate in chronological order so past rows exist for adjustments
+        months_to_regen = sorted({(year, month), (target_year, target_month)})
+        for _y, _m in months_to_regen:
             try:
                 state["generate_report_in_process"](conn, slug, _y, _m, config)
             except Exception:
@@ -591,15 +596,20 @@ def register(app, state) -> None:
         config=Depends(get_config),
     ):
         state["_ensure_month_open"](conn, slug, year, month)
-        assignment = state["get_assignment_for_code"](conn, slug, code)
-        state["revert_reservation_month_assignment"](
-            conn, slug, code, actor=state["_get_actor_username"](request)
+        assignment = state["get_assignment_for_code"](
+            conn, slug, code, original_year=year, original_month=month,
         )
-        months_to_regen_set = {(year, month)}
+        actor = state["_get_actor_username"](request)
+        state["revert_reservation_month_assignment"](
+            conn, slug, code,
+            original_year=year, original_month=month, actor=actor,
+        )
+        months_to_regen = {(year, month)}
         if assignment:
-            months_to_regen_set.add((assignment["target_year"], assignment["target_month"]))
-            months_to_regen_set.add((assignment["original_year"], assignment["original_month"]))
-        for _y, _m in months_to_regen_set:
+            months_to_regen.add((assignment["target_year"], assignment["target_month"]))
+            months_to_regen.add((assignment["original_year"], assignment["original_month"]))
+        # Regenerate in chronological order so past rows exist for adjustments
+        for _y, _m in sorted(months_to_regen):
             try:
                 state["generate_report_in_process"](conn, slug, _y, _m, config)
             except Exception:

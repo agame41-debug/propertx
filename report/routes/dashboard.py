@@ -97,7 +97,9 @@ def register(app, state) -> None:
             raise HTTPException(status_code=404, detail="Reservation not found")
         bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [code])
         month_state = state["get_report_month_state"](conn, slug, year, month)
-        assignment = state["get_assignment_for_code"](conn, slug, code)
+        assignment = state["get_assignment_for_code"](
+            conn, slug, code, original_year=year, original_month=month,
+        )
         exclusion = state["get_exclusion_for_code"](conn, slug, code)
         row = dict(row)
         if assignment:
@@ -147,7 +149,9 @@ def register(app, state) -> None:
 
         bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [code])
         month_state = state["get_report_month_state"](conn, slug, year, month)
-        assignment = state["get_assignment_for_code"](conn, slug, code)
+        assignment = state["get_assignment_for_code"](
+            conn, slug, code, original_year=year, original_month=month,
+        )
         exclusion = state["get_exclusion_for_code"](conn, slug, code)
         row = dict(row)
         if assignment:
