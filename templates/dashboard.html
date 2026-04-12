@@ -30,7 +30,7 @@
   <div class="kpi-card kpi-card-green">
     <div class="kpi-label">Celková výplata</div>
     <div class="kpi-value" style="color:var(--color-green);font-size:24px;" id="kpi-payout">
-      {{ "{:,.0f}".format(dashboard_summary.total_payout_czk).replace(",", " ") }} Kč
+      {{ "{:,.2f}".format(dashboard_summary.total_payout_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
     </div>
     <div class="kpi-sub" id="kpi-payout-sub">platformy → rentero · {{ dashboard_summary.current_month_label }}</div>
   </div>
@@ -39,7 +39,7 @@
   <div class="kpi-card kpi-card-blue">
     <div class="kpi-label">Výplata klientům</div>
     <div class="kpi-value" style="color:var(--color-blue);font-size:24px;" id="kpi-client-payout">
-      {{ "{:,.0f}".format(dashboard_summary.total_client_payout_czk).replace(",", " ") }} Kč
+      {{ "{:,.2f}".format(dashboard_summary.total_client_payout_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
     </div>
     <div class="kpi-sub">rentero → klienti · {{ dashboard_summary.current_month_label }}</div>
   </div>
@@ -213,9 +213,9 @@
     {# Col 3: Financial — green: from platforms, blue: client payout #}
     <div class="pr-financial" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
       {% if cur_cell and cur_cell.kind == 'report' %}
-        <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;">{{ "{:,.0f}".format(payout).replace(",", " ") }} Kč</div>
+        <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;">{{ "{:,.2f}".format(payout).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč</div>
         {% if client_payout > 0 %}
-        <div style="font-size:10px;color:var(--color-blue);font-variant-numeric:tabular-nums;">klient {{ "{:,.0f}".format(client_payout).replace(",", " ") }}</div>
+        <div style="font-size:10px;color:var(--color-blue);font-variant-numeric:tabular-nums;">klient {{ "{:,.2f}".format(client_payout).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
         {% endif %}
       {% else %}
       <span style="color:var(--text-300);font-size:var(--text-xs);">—</span>
@@ -262,7 +262,9 @@ var _activeOwner = '';
 var _searchQuery = '';
 
 function _formatNumber(n) {
-  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  var parts = n.toFixed(2).split('.');
+  var intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return intPart + ',' + parts[1];
 }
 
 function _applyFilters() {

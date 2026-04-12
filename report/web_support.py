@@ -449,13 +449,13 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
     agg_rows = conn.execute(
         f"""SELECT r.slug, r.year, r.month,
                 COUNT(*) as rows_count,
-                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.payout_czk') AS REAL)), 0), 0) as payout_sum_czk,
-                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)), 0), 0) as cena_ubytovani_sum_czk,
-                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.provize_czk') AS REAL)), 0), 0) as provize_sum_czk,
+                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.payout_czk') AS REAL)), 0), 2) as payout_sum_czk,
+                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)), 0), 2) as cena_ubytovani_sum_czk,
+                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.provize_czk') AS REAL)), 0), 2) as provize_sum_czk,
                 ROUND(COALESCE(SUM(
                     CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)
                     * (1.0 - COALESCE(o.rentero_commission, 0.15) * (1.0 + COALESCE(o.vat_rate, 0.21)))
-                ), 0), 0) as client_payout_sum_czk,
+                ), 0), 2) as client_payout_sum_czk,
                 SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'MATCHED'
                          AND (NOT json_extract(r.data, '$.tax_verification_required')
                               OR (COALESCE(CAST(json_extract(r.data, '$.checkin_missing_age_guests') AS INTEGER), 0) = 0

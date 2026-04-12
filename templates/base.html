@@ -428,6 +428,11 @@
   }
   initSwipeClose(document.getElementById('sheet'), closeSheet);
   initSwipeClose(document.getElementById('obj-sheet'), closeObjSheet);
+
+  /* Force reload when restored from bfcache (browser back/forward) */
+  window.addEventListener('pageshow', function(e) {
+    if (e.persisted) window.location.reload();
+  });
 </script>
 </body>
 </html>
