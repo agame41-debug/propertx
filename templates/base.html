@@ -10,6 +10,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="view-transition" content="same-origin">
+  <meta name="htmx-config" content='{"historyCacheSize":0}'>
   <title>{% block title %}Rentero{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="apple-touch-icon" href="/static/favicon.svg">
@@ -429,9 +430,11 @@
   initSwipeClose(document.getElementById('sheet'), closeSheet);
   initSwipeClose(document.getElementById('obj-sheet'), closeObjSheet);
 
-  /* Force reload when restored from bfcache (browser back/forward) */
-  window.addEventListener('pageshow', function(e) {
-    if (e.persisted) window.location.reload();
+  /* Re-fetch content on browser back/forward when HTMX history cache is disabled */
+  window.addEventListener('popstate', function() {
+    if (typeof htmx !== 'undefined') {
+      htmx.ajax('GET', location.pathname + location.search, { target: '#content', swap: 'innerHTML transition:true' });
+    }
   });
 </script>
 </body>
