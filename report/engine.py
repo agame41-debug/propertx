@@ -470,10 +470,32 @@ def generate_report_in_process(
         return "__ADJ" if n == 1 else f"__ADJ{n}"
 
     for code, batch_list in airbnb_all_batches.items():
-        if code in current_codes:
+        # Skip codes already in this month UNLESS they have adjustments moved here
+        if code in current_codes and code not in adj_codes_in:
             continue
         past_row = get_report_row_by_code(conn, code)
+        # If past_row not found in DB (cleared during this generation), try in-memory
         if past_row is None or past_row.get("slug") != slug:
+            past_row = next(
+                (r for r in reservations if r.get("confirmation_code") == code),
+                None,
+            )
+        if past_row is None:
+            continue
+        # For codes already in current_codes (main reservation here), use current
+        # reservation as past_row reference for building adjustment
+        if code in current_codes:
+            # Main reservation is here — only process moved-in adjustment grefs
+            for batch_info in batch_list:
+                gref = batch_info.get("gref", "")
+                if gref in seen_adjustment_grefs:
+                    continue
+                if (code, gref) in adj_grefs_out:
+                    continue
+                if (code, gref) not in adj_grefs_in:
+                    continue
+                seen_adjustment_grefs.add(gref)
+                reservations.append(_build_adjustment_reservation(past_row, batch_info, suffix=_next_adj_suffix(code)))
             continue
         if past_row.get("year") == year and past_row.get("month") == month:
             continue
