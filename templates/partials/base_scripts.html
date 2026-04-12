@@ -146,25 +146,10 @@
     writeYM(y, m);
     updateDisplay({ y: y, m: m });
     var pp = location.pathname.match(/^(\/property\/[^/]+\/)(\d+)\/(\d+)(.*)/);
-    var target;
-    if (pp) {
-      target = pp[1] + y + '/' + m + (pp[4] || '');
-    } else {
-      var url = new URL(location.href);
-      url.searchParams.set('year', y); url.searchParams.set('month', m);
-      target = url.pathname + url.search;
-    }
-    if (typeof htmx !== 'undefined') {
-      htmx.ajax('GET', target, {
-        target: '#content',
-        swap: 'innerHTML transition:true',
-        headers: { 'HX-Boosted': 'true' },
-      }).then(function() {
-        history.pushState({}, '', target);
-      });
-    } else {
-      location.href = target;
-    }
+    if (pp) { location.href = pp[1] + y + '/' + m + (pp[4] || ''); return; }
+    var url = new URL(location.href);
+    url.searchParams.set('year', y); url.searchParams.set('month', m);
+    location.href = url.toString();
   }
   function navigate(delta) {
     var cur = curYM(), m = cur.m + delta, y = cur.y;
