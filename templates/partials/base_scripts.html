@@ -1092,12 +1092,14 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
       var rgb = parseRGB(col);
       var r = rgb[0], g = rgb[1], b = rgb[2];
 
-      // Outer glow — large soft radial gradient
-      var glowR = s.bright ? 18 : 10;
+      // Soft glow halo — smooth multi-stop gradient
+      var glowR = s.bright ? 14 : 8;
       var grd = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, glowR);
-      grd.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',' + (a * 0.55) + ')');
-      grd.addColorStop(0.35, 'rgba(' + r + ',' + g + ',' + b + ',' + (a * 0.25) + ')');
-      grd.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0)');
+      grd.addColorStop(0,    'rgba(' + r + ',' + g + ',' + b + ',' + (a * 0.4) + ')');
+      grd.addColorStop(0.15, 'rgba(' + r + ',' + g + ',' + b + ',' + (a * 0.25) + ')');
+      grd.addColorStop(0.35, 'rgba(' + r + ',' + g + ',' + b + ',' + (a * 0.12) + ')');
+      grd.addColorStop(0.6,  'rgba(' + r + ',' + g + ',' + b + ',' + (a * 0.04) + ')');
+      grd.addColorStop(1,    'rgba(' + r + ',' + g + ',' + b + ',0)');
       ctx.globalAlpha = 1;
       ctx.fillStyle = grd;
       ctx.fillRect(s.x - glowR, s.y - glowR, glowR * 2, glowR * 2);
