@@ -161,7 +161,8 @@
     document.body.appendChild(tmp);
     htmx.process(tmp);
     tmp.click();
-    requestAnimationFrame(function() { tmp.remove(); });
+    // Remove after HTMX fully processes the navigation
+    document.addEventListener('htmx:afterSettle', function() { tmp.remove(); }, { once: true });
   }
   function navigate(delta) {
     var cur = curYM(), m = cur.m + delta, y = cur.y;
@@ -219,11 +220,12 @@
     var ym = curYM();
     updateDisplay(ym);
   });
-  // After HTMX content settles, re-sync month-aware links (new content may have
-  // fresh data-month-aware links that need year/month params)
+  // After HTMX content settles, re-sync month-aware links.
+  // IMPORTANT: use localStorage (always current) instead of URL — htmx:afterSettle
+  // fires BEFORE htmx pushes the new URL, so curYM() would read the OLD URL.
   document.addEventListener('htmx:afterSettle', function() {
-    var ym = (window.RenteroMonthNav && window.RenteroMonthNav.getCurrent) ? window.RenteroMonthNav.getCurrent() : null;
-    if (ym) refreshMonthAwareNav(ym);
+    var stored = getStoredYM();
+    if (stored) refreshMonthAwareNav(stored);
   });
   window.RenteroMonthNav = {
     getCurrent: curYM,
