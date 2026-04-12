@@ -5,7 +5,7 @@
 
   /* ── Cards ── */
   .card {
-    background: var(--bg-3);
+    background: linear-gradient(to bottom, oklch(var(--fg) / 0.03), transparent 40%) var(--bg-3);
     border: 1px solid var(--border-base);
     border-top-color: var(--border-top);
     border-radius: 14px;
@@ -35,7 +35,7 @@
     margin-bottom: var(--space-xl);
   }
   .kpi-card {
-    background: var(--bg-3);
+    background: linear-gradient(to bottom, oklch(var(--fg) / 0.03), transparent 50%) var(--bg-3);
     border: 1px solid var(--border-base);
     border-top-color: var(--border-top);
     border-radius: 14px;
@@ -53,24 +53,24 @@
     border-radius: 14px 14px 0 0;
   }
   .kpi-card-green::before   {
-    background: linear-gradient(90deg, var(--color-green), oklch(0.80 0.18 155));
-    box-shadow: 0 0 16px 2px oklch(0.70 0.18 155 / 0.3);
+    background: linear-gradient(90deg, var(--color-green), oklch(0.82 0.20 155));
+    box-shadow: 0 0 20px 3px oklch(0.70 0.18 155 / 0.35);
   }
   .kpi-card-blue::before    {
-    background: linear-gradient(90deg, var(--color-blue), oklch(0.72 0.12 250));
-    box-shadow: 0 0 16px 2px oklch(0.65 0.15 250 / 0.3);
+    background: linear-gradient(90deg, var(--color-blue), oklch(0.75 0.14 250));
+    box-shadow: 0 0 20px 3px oklch(0.65 0.15 250 / 0.35);
   }
   .kpi-card-amber::before   {
     background: linear-gradient(90deg, var(--color-amber), oklch(0.82 0.13 75));
-    box-shadow: 0 0 16px 2px oklch(0.75 0.15 75 / 0.3);
+    box-shadow: 0 0 20px 3px oklch(0.75 0.15 75 / 0.35);
   }
   .kpi-card-red::before     {
     background: linear-gradient(90deg, var(--color-red), oklch(0.72 0.16 20));
-    box-shadow: 0 0 16px 2px oklch(0.65 0.20 20 / 0.3);
+    box-shadow: 0 0 20px 3px oklch(0.65 0.20 20 / 0.35);
   }
   .kpi-card-primary::before {
-    background: linear-gradient(90deg, var(--color-primary), oklch(0.72 0.14 280));
-    box-shadow: 0 0 16px 2px oklch(0.55 0.18 280 / 0.3);
+    background: linear-gradient(90deg, var(--color-primary), oklch(0.75 0.16 280));
+    box-shadow: 0 0 20px 3px oklch(0.55 0.18 280 / 0.35);
   }
   .kpi-card-neutral::before {
     background: linear-gradient(90deg, oklch(var(--fg) / 0.2), oklch(var(--fg) / 0.08));
@@ -433,19 +433,19 @@
     grid-template-columns: 2fr 160px 140px 100px 20px;
     align-items: center; gap: var(--space-md);
     padding: var(--space-md) var(--space-lg);
-    background: var(--bg-3);
+    background: linear-gradient(to bottom, oklch(var(--fg) / 0.025), transparent 50%) var(--bg-3);
     border: 1px solid var(--border-base);
     border-top-color: var(--border-top);
     border-radius: 10px; cursor: pointer; text-decoration: none;
     transition: background var(--duration-fast), box-shadow var(--duration-fast), border-color var(--duration-fast), transform 120ms var(--ease-out);
     box-shadow: none;
-    margin-bottom: 5px; color: inherit;
+    margin-bottom: 6px; color: inherit;
   }
   .prop-row:active { transform: scale(0.985); }
   @media (hover: hover) and (pointer: fine) {
     .prop-row:hover {
-      background: var(--bg-4);
-      border-color: oklch(var(--fg) / 0.09);
+      background: linear-gradient(to bottom, oklch(var(--fg) / 0.04), transparent 50%) var(--bg-4);
+      border-color: oklch(var(--fg) / 0.12);
       box-shadow: var(--shadow-sm), inset 2px 0 0 oklch(0.55 0.18 280 / 0.5);
       transform: translateY(-1px);
     }
@@ -455,19 +455,19 @@
   .prop-row[data-has-new="true"]  { border-left: 2px solid var(--color-teal); }
   .prop-row[data-locked="true"] { opacity: .5; }
   .pr-name { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  .pr-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: oklch(0.50 0 0 / 0.18); }
-  .pr-dot[data-h="ok"]     { background: var(--color-green);   box-shadow: 0 0 5px oklch(0.70 0.18 155 / 0.55); }
-  .pr-dot[data-h="issues"] { background: var(--color-amber);   box-shadow: 0 0 5px oklch(0.75 0.15 75 / 0.55); }
-  .pr-dot[data-h="action"] { background: var(--color-primary); box-shadow: 0 0 5px oklch(0.55 0.18 280 / 0.55); }
+  .pr-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: oklch(0.50 0 0 / 0.18); }
+  .pr-dot[data-h="ok"]     { background: var(--color-green);   box-shadow: 0 0 6px 1px oklch(0.70 0.18 155 / 0.5); }
+  .pr-dot[data-h="issues"] { background: var(--color-amber);   box-shadow: 0 0 6px 1px oklch(0.75 0.15 75 / 0.5); }
+  .pr-dot[data-h="action"] { background: var(--color-primary); box-shadow: 0 0 6px 1px oklch(0.55 0.18 280 / 0.5); }
   .pr-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-100);
               overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pr-slug  { font-size: var(--text-xs); color: var(--text-300); margin-top: 1px; }
 
   /* ── Trend sparkline + reservation count ── */
   .pr-trend { display: flex; align-items: center; gap: 10px; }
-  .pr-spark { width: 68px; height: 24px; flex-shrink: 0; }
+  .pr-spark { width: 68px; height: 28px; flex-shrink: 0; }
   .pr-rez { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
-  .pr-rez-num { font-size: var(--text-sm); font-weight: 600; color: var(--text-100);
+  .pr-rez-num { font-size: var(--text-base); font-weight: 700; color: var(--text-100);
                 font-variant-numeric: tabular-nums; line-height: 1.2; }
   .pr-rez-lbl { font-size: 10px; color: var(--text-300); line-height: 1; }
   .pr-rez-delta { font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }

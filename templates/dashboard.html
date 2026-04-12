@@ -189,12 +189,12 @@
     <div class="pr-trend pr-hide-mobile">
       {% set rez_counts = row.cells | map(attribute='rows_count') | list %}
       {% set max_rez = rez_counts | max if rez_counts and (rez_counts | max) > 0 else 1 %}
-      <svg class="pr-spark" viewBox="0 0 68 24" aria-hidden="true">
+      <svg class="pr-spark" viewBox="0 0 68 28" aria-hidden="true">
         {% for cell in row.cells %}
-        {% set bar_h = [((cell.rows_count / max_rez) * 20) | round | int, 2] | max if cell.rows_count else 2 %}
+        {% set bar_h = [((cell.rows_count / max_rez) * 24) | round | int, 2] | max if cell.rows_count else 2 %}
         {% set bx = loop.index0 * 12 %}
-        <rect x="{{ bx }}" y="{{ 24 - bar_h }}" width="8" height="{{ bar_h }}" rx="2"
-              fill="{% if cell.is_current and issues_count > 0 %}var(--color-amber){% elif cell.is_current %}var(--color-primary){% else %}oklch(var(--fg) / 0.12){% endif %}"/>
+        <rect x="{{ bx }}" y="{{ 28 - bar_h }}" width="8" height="{{ bar_h }}" rx="2"
+              fill="{% if cell.is_current and issues_count > 0 %}var(--color-amber){% elif cell.is_current %}oklch(0.72 0.22 280){% else %}oklch(var(--fg) / 0.10){% endif %}"/>
         {% endfor %}
       </svg>
       <div class="pr-rez">
@@ -207,22 +207,18 @@
           <span class="pr-rez-delta pr-rez-down">{{ rez_delta }}</span>
           {% endif %}
         </div>
-        <span class="pr-rez-lbl">rez.</span>
       </div>
     </div>
 
-    {# Col 3: Financial — payout with optional odměna sub-text #}
+    {# Col 3: Financial #}
     <div class="pr-financial" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
       {% if cur_cell and cur_cell.kind == 'report' %}
         {% if row.is_rentero %}
         <div style="font-size:var(--text-sm);font-weight:600;color:var(--text-100);font-variant-numeric:tabular-nums;">{{ "{:,.0f}".format(cena_ubyt).replace(",", "\u00a0") }} Kč</div>
-        <div style="font-size:10px;color:var(--text-300);">ubytování</div>
         {% else %}
         <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;">{{ "{:,.0f}".format(payout).replace(",", "\u00a0") }} Kč</div>
         {% if provize > 0 %}
         <div style="font-size:10px;color:var(--text-300);font-variant-numeric:tabular-nums;">odměna {{ "{:,.0f}".format(provize).replace(",", "\u00a0") }}</div>
-        {% else %}
-        <div style="font-size:10px;color:var(--text-300);">výplata</div>
         {% endif %}
         {% endif %}
       {% else %}
@@ -230,21 +226,14 @@
       {% endif %}
     </div>
 
-    {# Col 4: Status — merged stav + health + generate action #}
+    {# Col 4: Status — only surfaces when actionable (issues or generate) #}
     <div class="pr-stats pr-hide-mobile">
-      {% if cur_cell and cur_cell.kind == 'report' %}
-        {% if issues_count > 0 %}
-          {% if cur_cell.rozdil %}
-          <span class="badge badge-orange" style="font-size:10px;">&#916;{{ cur_cell.rozdil }}</span>
-          {% endif %}
-          {% if cur_cell.ke_kontrole %}
-          <span class="badge badge-amber" style="font-size:10px;">?{{ cur_cell.ke_kontrole }}</span>
-          {% endif %}
-        {% elif cur_cell.matched %}
-        <span class="badge badge-green" style="font-size:10px;">
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-          OK
-        </span>
+      {% if cur_cell and cur_cell.kind == 'report' and issues_count > 0 %}
+        {% if cur_cell.rozdil %}
+        <span class="badge badge-orange" style="font-size:10px;">&#916;{{ cur_cell.rozdil }}</span>
+        {% endif %}
+        {% if cur_cell.ke_kontrole %}
+        <span class="badge badge-amber" style="font-size:10px;">?{{ cur_cell.ke_kontrole }}</span>
         {% endif %}
       {% elif cur_cell and cur_cell.kind == 'generate' %}
         {% set _user = get_current_user(request) %}
