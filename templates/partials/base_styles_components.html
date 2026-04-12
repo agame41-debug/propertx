@@ -5,11 +5,11 @@
 
   /* ── Cards ── */
   .card {
-    background: linear-gradient(to bottom, oklch(var(--fg) / 0.03), transparent 40%) var(--bg-3);
+    background: var(--bg-3);
     border: 1px solid var(--border-base);
     border-top-color: var(--border-top);
     border-radius: 14px;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 1px 3px oklch(0 0 0 / 0.2), inset 0 1px 0 oklch(1 0 0 / 0.05);
     overflow: hidden;
   }
   .card-header {
@@ -35,12 +35,12 @@
     margin-bottom: var(--space-xl);
   }
   .kpi-card {
-    background: linear-gradient(to bottom, oklch(var(--fg) / 0.03), transparent 50%) var(--bg-3);
+    background: var(--bg-3);
     border: 1px solid var(--border-base);
     border-top-color: var(--border-top);
     border-radius: 14px;
     padding: 18px 20px;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 1px 3px oklch(0 0 0 / 0.2), inset 0 1px 0 oklch(1 0 0 / 0.05);
     transition: box-shadow var(--duration-fast), border-color var(--duration-fast), transform var(--duration-fast);
     position: relative;
     overflow: hidden;
@@ -53,24 +53,24 @@
     border-radius: 14px 14px 0 0;
   }
   .kpi-card-green::before   {
-    background: linear-gradient(90deg, var(--color-green), oklch(0.82 0.20 155));
-    box-shadow: 0 0 20px 3px oklch(0.70 0.18 155 / 0.35);
+    background: linear-gradient(90deg, var(--color-green), oklch(0.80 0.18 155));
+    box-shadow: 0 0 12px oklch(0.70 0.18 155 / 0.25);
   }
   .kpi-card-blue::before    {
-    background: linear-gradient(90deg, var(--color-blue), oklch(0.75 0.14 250));
-    box-shadow: 0 0 20px 3px oklch(0.65 0.15 250 / 0.35);
+    background: linear-gradient(90deg, var(--color-blue), oklch(0.72 0.12 250));
+    box-shadow: 0 0 12px oklch(0.65 0.15 250 / 0.25);
   }
   .kpi-card-amber::before   {
     background: linear-gradient(90deg, var(--color-amber), oklch(0.82 0.13 75));
-    box-shadow: 0 0 20px 3px oklch(0.75 0.15 75 / 0.35);
+    box-shadow: 0 0 12px oklch(0.75 0.15 75 / 0.25);
   }
   .kpi-card-red::before     {
     background: linear-gradient(90deg, var(--color-red), oklch(0.72 0.16 20));
-    box-shadow: 0 0 20px 3px oklch(0.65 0.20 20 / 0.35);
+    box-shadow: 0 0 12px oklch(0.65 0.20 20 / 0.25);
   }
   .kpi-card-primary::before {
-    background: linear-gradient(90deg, var(--color-primary), oklch(0.75 0.16 280));
-    box-shadow: 0 0 20px 3px oklch(0.55 0.18 280 / 0.35);
+    background: linear-gradient(90deg, var(--color-primary), oklch(0.72 0.14 280));
+    box-shadow: 0 0 12px oklch(0.55 0.18 280 / 0.25);
   }
   .kpi-card-neutral::before {
     background: linear-gradient(90deg, oklch(var(--fg) / 0.2), oklch(var(--fg) / 0.08));
@@ -433,32 +433,31 @@
     grid-template-columns: 2fr 160px 140px 100px 20px;
     align-items: center; gap: var(--space-md);
     padding: var(--space-md) var(--space-lg);
-    background: linear-gradient(to bottom, oklch(var(--fg) / 0.025), transparent 50%) var(--bg-3);
+    background: var(--bg-3);
     border: 1px solid var(--border-base);
     border-top-color: var(--border-top);
     border-radius: 10px; cursor: pointer; text-decoration: none;
     transition: background var(--duration-fast), box-shadow var(--duration-fast), border-color var(--duration-fast), transform 120ms var(--ease-out);
-    box-shadow: none;
+    --accent: transparent;
+    box-shadow: inset 3px 0 0 var(--accent), inset 0 1px 0 oklch(1 0 0 / 0.04);
     margin-bottom: 6px; color: inherit;
   }
   .prop-row:active { transform: scale(0.985); }
   @media (hover: hover) and (pointer: fine) {
     .prop-row:hover {
-      background: linear-gradient(to bottom, oklch(var(--fg) / 0.04), transparent 50%) var(--bg-4);
-      border-color: oklch(var(--fg) / 0.12);
-      box-shadow: var(--shadow-sm), inset 2px 0 0 oklch(0.55 0.18 280 / 0.5);
+      background: var(--bg-4);
+      border-color: oklch(1 0 0 / 0.12);
+      box-shadow: var(--shadow-sm), inset 3px 0 0 var(--accent), inset 0 1px 0 oklch(1 0 0 / 0.06);
       transform: translateY(-1px);
     }
     .prop-row:hover .pr-arrow { color: oklch(var(--fg) / 0.55); }
   }
-  .prop-row[data-health="issues"] { border-left: 2px solid var(--color-amber); }
-  .prop-row[data-has-new="true"]  { border-left: 2px solid var(--color-teal); }
+  .prop-row[data-health="ok"]      { --accent: oklch(0.70 0.18 155 / 0.35); }
+  .prop-row[data-health="issues"]  { --accent: var(--color-amber); }
+  .prop-row[data-health="action"]  { --accent: var(--color-primary); }
+  .prop-row[data-has-new="true"]   { --accent: var(--color-teal); }
   .prop-row[data-locked="true"] { opacity: .5; }
-  .pr-name { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  .pr-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: oklch(0.50 0 0 / 0.18); }
-  .pr-dot[data-h="ok"]     { background: var(--color-green);   box-shadow: 0 0 6px 1px oklch(0.70 0.18 155 / 0.5); }
-  .pr-dot[data-h="issues"] { background: var(--color-amber);   box-shadow: 0 0 6px 1px oklch(0.75 0.15 75 / 0.5); }
-  .pr-dot[data-h="action"] { background: var(--color-primary); box-shadow: 0 0 6px 1px oklch(0.55 0.18 280 / 0.5); }
+  .pr-name { display: flex; align-items: center; min-width: 0; }
   .pr-title { font-size: var(--text-sm); font-weight: 600; color: var(--text-100);
               overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pr-slug  { font-size: var(--text-xs); color: var(--text-300); margin-top: 1px; }
@@ -1148,12 +1147,9 @@
   [data-theme="light"] .notify-dismiss:hover { background: oklch(0 0 0 / 0.08); border-color: oklch(0 0 0 / 0.14); }
 
   /* Property rows */
-  [data-theme="light"] .prop-row:hover { border-color: oklch(0 0 0 / 0.1); box-shadow: var(--shadow-sm), inset 2px 0 0 oklch(0.55 0.18 280 / 0.4); }
+  [data-theme="light"] .prop-row { box-shadow: inset 3px 0 0 var(--accent); }
+  [data-theme="light"] .prop-row:hover { border-color: oklch(0 0 0 / 0.1); box-shadow: var(--shadow-sm), inset 3px 0 0 var(--accent); }
   [data-theme="light"] .prop-row:hover .pr-arrow { color: oklch(0 0 0 / 0.5); }
-  [data-theme="light"] .pr-dot:not([data-h]) { background: oklch(0 0 0 / 0.18); }
-  [data-theme="light"] .pr-dot[data-h="ok"]     { box-shadow: 0 0 5px oklch(0.70 0.18 155 / 0.7); }
-  [data-theme="light"] .pr-dot[data-h="issues"] { box-shadow: 0 0 5px oklch(0.75 0.15 75 / 0.7); }
-  [data-theme="light"] .pr-dot[data-h="action"] { box-shadow: 0 0 5px oklch(0.55 0.18 280 / 0.7); }
 
   /* Misc */
   [data-theme="light"] .meta-chip { background: oklch(0 0 0 / 0.05); color: var(--text-200); }

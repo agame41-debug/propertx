@@ -171,9 +171,8 @@
      data-has-data="{{ has_data }}"
      data-issues="{{ issues_count }}">
 
-    {# Col 1: status dot + name #}
+    {# Col 1: name (health indicated by left accent bar via --accent) #}
     <div class="pr-name">
-      <span class="pr-dot" data-h="{{ row.health }}"></span>
       <div style="min-width:0;">
         <div class="pr-title">{{ row.display_name }}
           {% if is_locked %}
