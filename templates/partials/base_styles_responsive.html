@@ -6,6 +6,9 @@
 
   /* ── Mobile (< 640px) ───────────────────────────────────────────────── */
   @media (max-width: 639px) {
+    /* Prevent horizontal overflow / zoom effect */
+    html, body { overflow-x: hidden; }
+
     /* Hide desktop sidebar, show bottom bar */
     .sidebar { display: none; }
     .bottom-bar { display: block; }
@@ -46,6 +49,10 @@
     .prop-row .pr-financial > div { justify-content: flex-end; }
     .prop-row .pr-arrow   { flex-shrink: 0; font-size: 14px; }
     .prop-row .pr-hide-mobile { display: none !important; }
+
+    /* Dashboard filter bar — stack on mobile */
+    #owner-filter { max-width: 100% !important; width: 100% !important; }
+    #card-search  { width: 100% !important; }
 
     /* Tables → card layout (exclude detail/drilldown expansion rows) */
     .data-table.responsive-cards thead { display: none; }
