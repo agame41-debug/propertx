@@ -227,6 +227,21 @@
     var stored = getStoredYM();
     if (stored) refreshMonthAwareNav(stored);
   });
+  // Ensure month-aware HTMX requests always carry year/month from localStorage
+  document.body.addEventListener('htmx:configRequest', function(evt) {
+    if (evt.detail.verb !== 'GET') return;
+    try {
+      var url = new URL(evt.detail.path, location.origin);
+      if (!isMonthAwarePath(url.pathname)) return;
+      if (url.searchParams.get('year') && url.searchParams.get('month')) return;
+      var stored = getStoredYM();
+      if (!stored) return;
+      url.searchParams.set('year', stored.y);
+      url.searchParams.set('month', stored.m);
+      evt.detail.path = url.pathname + url.search;
+    } catch(e) {}
+  });
+
   window.RenteroMonthNav = {
     getCurrent: curYM,
     goToMonth: goToMonth,
