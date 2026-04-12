@@ -42,77 +42,6 @@
 <script>setTimeout(function(){ window.location.reload(); }, 5000);</script>
 {% endif %}
 
-{% if flash %}
-<div class="notify {% if flash.level == 'error' %}notify-error{% elif flash.level == 'info' %}notify-info{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;">
-    {% if flash.level == 'error' %}<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-    {% else %}<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>{% endif %}
-  </svg>
-  <div style="flex:1;">
-    <div style="font-weight:600;">{{ flash.message }}</div>
-    {% if flash.detail %}
-    <details style="margin-top:6px;">
-      <summary style="cursor:pointer;font-size:12px;opacity:0.7;">Technické detaily</summary>
-      <pre style="margin-top:6px;font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-x:auto;opacity:0.75;">{{ flash.detail }}</pre>
-    </details>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
-
-{% if generation_job and generation_job.status in ['PENDING', 'RUNNING'] %}
-<div class="notify notify-info" style="margin-bottom:16px;">
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;animation:spin 1.2s linear infinite;">
-    <path stroke-linecap="round" d="M12 2a10 10 0 010 20A10 10 0 0112 2" opacity=".3"/><path stroke-linecap="round" d="M12 2a10 10 0 0110 10"/>
-  </svg>
-  <div>
-    <div style="font-weight:600;">Generování reportu běží na pozadí.</div>
-    <div style="font-size:12px;opacity:0.75;margin-top:2px;">Stránka se automaticky obnoví za 5 sekund.</div>
-  </div>
-</div>
-<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
-{% elif generation_job and generation_job.status == 'FAILED' %}
-<div class="notify notify-error" style="margin-bottom:16px;">
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-  <div style="flex:1;">
-    <div style="font-weight:600;">{{ generation_job.message or 'Generování reportu selhalo.' }}</div>
-    {% if generation_job.detail %}
-    <details style="margin-top:6px;">
-      <summary style="cursor:pointer;font-size:12px;opacity:0.7;">Technické detaily posledního pokusu</summary>
-      <pre style="margin-top:6px;font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-x:auto;opacity:0.75;">{{ generation_job.detail }}</pre>
-    </details>
-    {% endif %}
-  </div>
-</div>
-{% elif show_generation_success_banner %}
-<div class="notify notify-success" data-dismissible-banner data-auto-dismiss-ms="60000" style="margin-bottom:16px;">
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-  <div style="flex:1;font-weight:600;">{{ generation_job.message or 'Report byl vygenerován.' }}</div>
-</div>
-{% endif %}
-
-{% if month_notifications %}
-<div class="notify notify-amber" style="margin-bottom:16px;">
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-  <div style="flex:1;">
-    <div style="font-weight:600;margin-bottom:6px;">Upozornění pro tento měsíc</div>
-    {% for note in month_notifications %}
-    <div style="{% if not loop.first %}margin-top:6px;{% endif %}">
-      <div>{{ note.message }}</div>
-      <div style="font-size:11px;opacity:0.6;margin-top:2px;">{{ note.created_at[:16].replace('T', ' ') }} · {{ note.source_type or note.event_type }}</div>
-      {% if note.payload and note.payload.change_lines %}
-      <div style="margin-top:4px;font-size:12px;opacity:0.9;">
-        {% for line in note.payload.change_lines %}
-        <div>{{ line }}</div>
-        {% endfor %}
-      </div>
-      {% endif %}
-    </div>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
 <div class="prop-page-header">
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;">
     <div>
@@ -195,6 +124,77 @@
     </div>
   </div>
 </div>
+
+{% if flash %}
+<div class="notify {% if flash.level == 'error' %}notify-error{% elif flash.level == 'info' %}notify-info{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;">
+    {% if flash.level == 'error' %}<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    {% else %}<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>{% endif %}
+  </svg>
+  <div style="flex:1;">
+    <div style="font-weight:600;">{{ flash.message }}</div>
+    {% if flash.detail %}
+    <details style="margin-top:6px;">
+      <summary style="cursor:pointer;font-size:12px;opacity:0.7;">Technické detaily</summary>
+      <pre style="margin-top:6px;font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-x:auto;opacity:0.75;">{{ flash.detail }}</pre>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if generation_job and generation_job.status in ['PENDING', 'RUNNING'] %}
+<div class="notify notify-info" style="margin-bottom:16px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;animation:spin 1.2s linear infinite;">
+    <path stroke-linecap="round" d="M12 2a10 10 0 010 20A10 10 0 0112 2" opacity=".3"/><path stroke-linecap="round" d="M12 2a10 10 0 0110 10"/>
+  </svg>
+  <div>
+    <div style="font-weight:600;">Generování reportu běží na pozadí.</div>
+    <div style="font-size:12px;opacity:0.75;margin-top:2px;">Stránka se automaticky obnoví za 5 sekund.</div>
+  </div>
+</div>
+<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+{% elif generation_job and generation_job.status == 'FAILED' %}
+<div class="notify notify-error" style="margin-bottom:16px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <div style="flex:1;">
+    <div style="font-weight:600;">{{ generation_job.message or 'Generování reportu selhalo.' }}</div>
+    {% if generation_job.detail %}
+    <details style="margin-top:6px;">
+      <summary style="cursor:pointer;font-size:12px;opacity:0.7;">Technické detaily posledního pokusu</summary>
+      <pre style="margin-top:6px;font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-x:auto;opacity:0.75;">{{ generation_job.detail }}</pre>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% elif show_generation_success_banner %}
+<div class="notify notify-success" data-dismissible-banner data-auto-dismiss-ms="60000" style="margin-bottom:16px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+  <div style="flex:1;font-weight:600;">{{ generation_job.message or 'Report byl vygenerován.' }}</div>
+</div>
+{% endif %}
+
+{% if month_notifications %}
+<div class="notify notify-amber" style="margin-bottom:16px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  <div style="flex:1;">
+    <div style="font-weight:600;margin-bottom:6px;">Upozornění pro tento měsíc</div>
+    {% for note in month_notifications %}
+    <div style="{% if not loop.first %}margin-top:6px;{% endif %}">
+      <div>{{ note.message }}</div>
+      <div style="font-size:11px;opacity:0.6;margin-top:2px;">{{ note.created_at[:16].replace('T', ' ') }} · {{ note.source_type or note.event_type }}</div>
+      {% if note.payload and note.payload.change_lines %}
+      <div style="margin-top:4px;font-size:12px;opacity:0.9;">
+        {% for line in note.payload.change_lines %}
+        <div>{{ line }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 {% if month_state.status == 'LOCKED' %}
 <div class="notify notify-amber" style="margin-bottom:20px;">
