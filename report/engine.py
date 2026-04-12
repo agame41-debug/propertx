@@ -611,7 +611,10 @@ def generate_report_in_process(
     calc_rows = apply_overrides_to_rows(conn, calc_rows, slug, year, month)
 
     # ── Bank enrichment ─────────────────────────────────────────────────────
-    calc_rows, airbnb_matches = enrich_rows_with_bank(calc_rows, gref_map, bank_index, bank_no_ref)
+    calc_rows, airbnb_matches = enrich_rows_with_bank(
+        calc_rows, gref_map, bank_index, bank_no_ref,
+        all_batches_map=airbnb_all_batches,
+    )
     calc_rows, booking_matches = enrich_booking_rows_with_bank(
         calc_rows, booking_bank_idx, prop, year=year, month=month,
         booking_bank_idx_all=booking_bank_idx_all,

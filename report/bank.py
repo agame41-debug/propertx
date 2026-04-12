@@ -257,17 +257,20 @@ def enrich_rows_with_bank(
     gref_map: dict[str, dict],
     index_by_gref: dict,
     no_ref_rows: list[dict],
+    all_batches_map: dict[str, list[dict]] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """
     Add bank arrival info to each calculated row.
 
     gref_map: {confirmation_code: {"gref": "G-XXXXX", "payout_date": "MM/DD/YYYY", "payout_czk": float}}
+    all_batches_map: {confirmation_code: [{"gref": ..., "payout_date": ..., "payout_czk": ...}, ...]}
     Adds fields to each row:
         payout_gref     — "G-XXXXXXX" or ""
         bank_datum      — "DD.MM.YYYY" or ""
         bank_amount_czk — float (full batch, all properties)
         bank_status     — "DORAZILO" | "CHYBÍ" | "N/A" (non-Airbnb)
     """
+    all_batches_map = all_batches_map or {}
     used_tx_keys: set[str] = set()
     batch_matches: dict[str, dict | None] = {}
     match_details: list[dict] = []
@@ -299,6 +302,33 @@ def enrich_rows_with_bank(
                 "match_method": "gref" if gref else "amount_date",
                 "matched_amount_czk": bank_row.get("amount_czk"),
             })
+
+    # Match ALL batches for codes that have multiple payouts (split-payout)
+    # so every gref gets a payout_batch_bank_matches entry.
+    for row in calc_rows:
+        source = (row.get("source") or "").lower()
+        if "airbnb" not in source:
+            continue
+        code = row.get("confirmation_code", "")
+        for batch_info in all_batches_map.get(code, []):
+            extra_gref = batch_info.get("gref", "")
+            if not extra_gref or extra_gref in batch_matches:
+                continue
+            bank_row = match_bank_transaction(
+                extra_gref, batch_info.get("payout_czk", 0.0),
+                batch_info.get("payout_date", ""),
+                index_by_gref, no_ref_rows,
+                used_tx_keys=used_tx_keys,
+            )
+            batch_matches[extra_gref] = bank_row
+            if bank_row:
+                used_tx_keys.add(bank_row.get("tx_key", ""))
+                match_details.append({
+                    "batch_ref": extra_gref,
+                    "tx_key": bank_row.get("tx_key", ""),
+                    "match_method": "gref",
+                    "matched_amount_czk": bank_row.get("amount_czk"),
+                })
 
     enriched = []
     for row in calc_rows:
