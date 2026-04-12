@@ -217,15 +217,52 @@
 
 /* ─── Sidebar Objects Accordion ─────────────────────────────────────── */
 var _sbObjLoaded = false;
+function _sbGetScrollParent() {
+  var p = document.getElementById('sb-obj-panel');
+  return p ? p.closest('nav') || p.parentElement : null;
+}
+function _sbSaveScroll() {
+  var sp = _sbGetScrollParent();
+  if (sp) sessionStorage.setItem('rentero_sb_scroll', sp.scrollTop);
+}
+function _sbRestoreScroll() {
+  var sp = _sbGetScrollParent();
+  var v = sessionStorage.getItem('rentero_sb_scroll');
+  if (sp && v) sp.scrollTop = parseInt(v, 10);
+}
+function _sbUpdateActiveSlug() {
+  var pm = location.pathname.match(/\/property\/([^/?#]+)\//);
+  var slug = pm ? pm[1] : '';
+  var panel = document.getElementById('sb-obj-panel');
+  if (!panel) return;
+  panel.querySelectorAll('.sb-obj-item').forEach(function(a) {
+    var href = a.getAttribute('href') || '';
+    var hm = href.match(/\/property\/([^/?#]+)\//);
+    var itemSlug = hm ? hm[1] : '';
+    if (slug && itemSlug === slug) {
+      a.classList.add('sb-current');
+    } else {
+      a.classList.remove('sb-current');
+    }
+  });
+}
 function _sbLoadObjects() {
   var p = document.getElementById('sb-obj-panel');
   if (!p) return;
+  var sp = _sbGetScrollParent();
+  var savedScroll = sp ? sp.scrollTop : 0;
+  if (!savedScroll) { var ss = sessionStorage.getItem('rentero_sb_scroll'); if (ss) savedScroll = parseInt(ss, 10); }
   var ym = (window.RenteroMonthNav && window.RenteroMonthNav.getCurrent) ? window.RenteroMonthNav.getCurrent() : null;
   var url = '/sidebar/objects';
   if (ym) url += '?year=' + ym.y + '&month=' + ym.m;
   fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
     .then(function(r) { return r.text(); })
-    .then(function(html) { p.innerHTML = html; htmx.process(p); })
+    .then(function(html) {
+      p.innerHTML = html;
+      htmx.process(p);
+      _sbUpdateActiveSlug();
+      if (sp) sp.scrollTop = savedScroll;
+    })
     .catch(function() { p.innerHTML = '<div style="padding:8px 16px;font-size:11px;color:var(--text-300);">Chyba načítání</div>'; });
 }
 function sbToggleObj() {
@@ -246,11 +283,18 @@ function sbToggleObj() {
   if (location.pathname.startsWith('/property/') && !_sbObjLoaded) sbToggleObj();
   // Reload sidebar when month changes so indicators and links stay current
   document.addEventListener('rentero:month-change', function() {
+    _sbSaveScroll();
     var p = document.getElementById('sb-obj-panel');
     if (p && p.style.display !== 'none') {
       _sbLoadObjects();
     }
   });
+  // Update active highlight when navigating between properties via HTMX
+  document.addEventListener('htmx:afterSettle', function() {
+    _sbUpdateActiveSlug();
+  });
+  // Save sidebar scroll before page unload so it survives full reloads
+  window.addEventListener('beforeunload', _sbSaveScroll);
 })();
 
 /* ─── Click-to-copy on .copyable cells ──────────────────────────────── */
