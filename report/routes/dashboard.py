@@ -125,8 +125,9 @@ def register(app, state) -> None:
         lookup_code = row.get("aircover_parent_code") or code if row.get("is_aircover") else code
         bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [lookup_code])
         bank_txns = bank_txns_map.get(lookup_code, [])
-        if row.get("is_aircover") and row.get("batch_ref"):
-            bank_txns = [t for t in bank_txns if t.get("batch_ref") == row["batch_ref"]]
+        row_batch_ref = row.get("batch_ref") or ""
+        if row_batch_ref:
+            bank_txns = [t for t in bank_txns if t.get("batch_ref") == row_batch_ref]
         month_state = state["get_report_month_state"](conn, slug, year, month)
         assignment, moved_here = _resolve_assignment(
             state, conn, slug, code, year, month,
@@ -182,8 +183,9 @@ def register(app, state) -> None:
         lookup_code = row.get("aircover_parent_code") or code if row.get("is_aircover") else code
         bank_txns_map = state["_load_all_bank_transactions_for_codes"](conn, [lookup_code])
         bank_txns = bank_txns_map.get(lookup_code, [])
-        if row.get("is_aircover") and row.get("batch_ref"):
-            bank_txns = [t for t in bank_txns if t.get("batch_ref") == row["batch_ref"]]
+        row_batch_ref = row.get("batch_ref") or ""
+        if row_batch_ref:
+            bank_txns = [t for t in bank_txns if t.get("batch_ref") == row_batch_ref]
         month_state = state["get_report_month_state"](conn, slug, year, month)
         assignment, moved_here = _resolve_assignment(
             state, conn, slug, code, year, month,
