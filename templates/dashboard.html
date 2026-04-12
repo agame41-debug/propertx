@@ -35,8 +35,17 @@
     <div class="kpi-sub" id="kpi-payout-sub">platformy → rentero · {{ dashboard_summary.current_month_label }}</div>
   </div>
 
-  {# Total reservations with sparkline #}
+  {# Client payout #}
   <div class="kpi-card kpi-card-blue">
+    <div class="kpi-label">Výplata klientům</div>
+    <div class="kpi-value" style="color:var(--color-blue);font-size:24px;" id="kpi-client-payout">
+      {{ "{:,.0f}".format(dashboard_summary.total_client_payout_czk).replace(",", " ") }} Kč
+    </div>
+    <div class="kpi-sub">rentero → klienti · {{ dashboard_summary.current_month_label }}</div>
+  </div>
+
+  {# Total reservations with sparkline #}
+  <div class="kpi-card kpi-card-primary">
     <div class="kpi-label">Celkem rezervací</div>
     <div class="kpi-value" style="font-size:24px;" id="kpi-reservations">
       {{ dashboard_summary.total_reservations }}
@@ -57,16 +66,6 @@
       </svg>
       vs minulý měsíc
     </div>
-  </div>
-
-  {# Active objects #}
-  <div class="kpi-card kpi-card-primary">
-    <div class="kpi-label">Aktivní objekty</div>
-    <div class="kpi-value" style="font-size:24px;" id="kpi-active">
-      {{ dashboard_summary.total_with_data }}
-      <span style="font-size:var(--text-lg);font-weight:400;color:var(--text-300);" id="kpi-total">/ {{ dashboard_summary.property_count }}</span>
-    </div>
-    <div class="kpi-sub">s daty v aktuálním měsíci</div>
   </div>
 
   {# Portfolio health #}
@@ -153,6 +152,7 @@
   {% set payout = cur_cell.payout_sum_czk|default(0) if cur_cell else 0 %}
   {% set cena_ubyt = cur_cell.cena_ubytovani_sum_czk|default(0) if cur_cell else 0 %}
   {% set provize = cur_cell.provize_sum_czk|default(0) if cur_cell else 0 %}
+  {% set client_payout = cur_cell.client_payout_sum_czk|default(0) if cur_cell else 0 %}
   {% set has_data = 1 if (cur_cell and cur_cell.kind in ['report', 'generate', 'locked']) else 0 %}
   {% set rez_prev = prev_cell.rows_count|default(0) if prev_cell else 0 %}
 
@@ -166,6 +166,7 @@
      data-payout="{{ payout }}"
      data-cena-ubyt="{{ cena_ubyt }}"
      data-provize="{{ provize }}"
+     data-client-payout="{{ client_payout }}"
      data-rez="{{ rez_count }}"
      data-rez-prev="{{ rez_prev }}"
      data-has-data="{{ has_data }}"
@@ -269,7 +270,7 @@ function _formatNumber(n) {
 }
 
 function _applyFilters() {
-  var totalPayout = 0, totalCenaUbyt = 0, totalProvize = 0;
+  var totalPayout = 0, totalCenaUbyt = 0, totalProvize = 0, totalClientPayout = 0;
   var totalRez = 0, totalRezPrev = 0, withData = 0, propCount = 0, issues = 0;
   var hasRentero = false, hasClient = false;
 
@@ -289,6 +290,7 @@ function _applyFilters() {
       totalPayout += parseFloat(row.dataset.payout) || 0;
       totalCenaUbyt += parseFloat(row.dataset.cenaUbyt) || 0;
       totalProvize += parseFloat(row.dataset.provize) || 0;
+      totalClientPayout += parseFloat(row.dataset.clientPayout) || 0;
       totalRez += parseInt(row.dataset.rez) || 0;
       totalRezPrev += parseInt(row.dataset.rezPrev) || 0;
       if (parseInt(row.dataset.hasData)) withData++;
@@ -315,8 +317,8 @@ function _applyFilters() {
     kpiRez.innerHTML = totalRez + deltaHtml;
   }
 
-  var kpiActive = document.getElementById('kpi-active');
-  if (kpiActive) kpiActive.innerHTML = withData + ' <span style="font-size:var(--text-lg);font-weight:400;color:var(--text-300);" id="kpi-total">/ ' + propCount + '</span>';
+  var kpiClientPayout = document.getElementById('kpi-client-payout');
+  if (kpiClientPayout) kpiClientPayout.innerHTML = _formatNumber(totalClientPayout) + ' Kč';
 
   var kpiHealthCard = document.getElementById('kpi-health-card');
   var kpiHealthVal = document.getElementById('kpi-health-value');

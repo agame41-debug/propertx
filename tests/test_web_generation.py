@@ -278,7 +278,7 @@ def test_dashboard_uses_requested_month_from_query(monkeypatch):
         return {}, {}, {}, {}
 
     monkeypatch.setattr(web_module, "_build_dashboard_maps", fake_maps)
-    monkeypatch.setattr(web_module, "_build_dashboard_view_model", lambda *args, **kwargs: ({"current_month_label": "02/2025", "property_count": 1, "property_suffix": "", "total_payout_czk": 0, "total_reservations": 0, "reservations_delta": 0, "sparkline_points": [0, 0, 0, 0, 0, 0], "issues": 0, "new_data": 0, "locked": 0, "total_with_data": 0, "needs_report": 0}, [], []))
+    monkeypatch.setattr(web_module, "_build_dashboard_view_model", lambda *args, **kwargs: ({"current_month_label": "02/2025", "property_count": 1, "property_suffix": "", "total_payout_czk": 0, "total_client_payout_czk": 0, "total_reservations": 0, "reservations_delta": 0, "sparkline_points": [0, 0, 0, 0, 0, 0], "issues": 0, "new_data": 0, "locked": 0, "total_with_data": 0, "needs_report": 0}, [], []))
     monkeypatch.setattr(web_module.templates, "TemplateResponse", lambda request, template, context: captured.update({"template": template, "context": context}) or SimpleNamespace(status_code=200))
     monkeypatch.setattr(web_module, "_pop_flash", lambda request: None)
 

@@ -445,28 +445,34 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
         history_map[row["slug"]][(row["year"], row["month"])] = dict(row)
 
     # 2. Aggregates from report_rows via SQL json_extract — replaces N×M loop
+    #    JOIN report_objects to get per-property commission for client payout calc
     agg_rows = conn.execute(
-        f"""SELECT slug, year, month,
+        f"""SELECT r.slug, r.year, r.month,
                 COUNT(*) as rows_count,
-                ROUND(COALESCE(SUM(CAST(json_extract(data, '$.payout_czk') AS REAL)), 0), 0) as payout_sum_czk,
-                ROUND(COALESCE(SUM(CAST(json_extract(data, '$.cena_ubytovani_czk') AS REAL)), 0), 0) as cena_ubytovani_sum_czk,
-                ROUND(COALESCE(SUM(CAST(json_extract(data, '$.provize_czk') AS REAL)), 0), 0) as provize_sum_czk,
-                SUM(CASE WHEN json_extract(data, '$.verification_status') = 'MATCHED'
-                         AND (NOT json_extract(data, '$.tax_verification_required')
-                              OR (COALESCE(CAST(json_extract(data, '$.checkin_missing_age_guests') AS INTEGER), 0) = 0
-                                  AND json_extract(data, '$.checkin_verified')))
+                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.payout_czk') AS REAL)), 0), 0) as payout_sum_czk,
+                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)), 0), 0) as cena_ubytovani_sum_czk,
+                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.provize_czk') AS REAL)), 0), 0) as provize_sum_czk,
+                ROUND(COALESCE(SUM(
+                    CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)
+                    * (1.0 - COALESCE(o.rentero_commission, 0.15) * (1.0 + COALESCE(o.vat_rate, 0.21)))
+                ), 0), 0) as client_payout_sum_czk,
+                SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'MATCHED'
+                         AND (NOT json_extract(r.data, '$.tax_verification_required')
+                              OR (COALESCE(CAST(json_extract(r.data, '$.checkin_missing_age_guests') AS INTEGER), 0) = 0
+                                  AND json_extract(r.data, '$.checkin_verified')))
                     THEN 1 ELSE 0 END) as matched,
-                SUM(CASE WHEN json_extract(data, '$.verification_status') = 'ROZDÍL' THEN 1 ELSE 0 END) as rozdil,
-                SUM(CASE WHEN json_extract(data, '$.verification_status') = 'CHYBÍ_V_CSV' THEN 1 ELSE 0 END) as chybi_csv,
-                SUM(CASE WHEN json_extract(data, '$.verification_status') = 'CHYBÍ_V_HOSTIFY' THEN 1 ELSE 0 END) as chybi_hostify,
-                SUM(CASE WHEN json_extract(data, '$.verification_status') = 'MATCHED'
-                         AND json_extract(data, '$.tax_verification_required')
-                         AND (COALESCE(CAST(json_extract(data, '$.checkin_missing_age_guests') AS INTEGER), 0) > 0
-                              OR NOT json_extract(data, '$.checkin_verified'))
+                SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'ROZDÍL' THEN 1 ELSE 0 END) as rozdil,
+                SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'CHYBÍ_V_CSV' THEN 1 ELSE 0 END) as chybi_csv,
+                SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'CHYBÍ_V_HOSTIFY' THEN 1 ELSE 0 END) as chybi_hostify,
+                SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'MATCHED'
+                         AND json_extract(r.data, '$.tax_verification_required')
+                         AND (COALESCE(CAST(json_extract(r.data, '$.checkin_missing_age_guests') AS INTEGER), 0) > 0
+                              OR NOT json_extract(r.data, '$.checkin_verified'))
                     THEN 1 ELSE 0 END) as ke_kontrole
-            FROM report_rows
-            WHERE slug IN ({slug_ph}) AND ({month_cond})
-            GROUP BY slug, year, month""",
+            FROM report_rows r
+            LEFT JOIN report_objects o ON o.slug = r.slug
+            WHERE r.slug IN ({slug_ph}) AND ({month_cond})
+            GROUP BY r.slug, r.year, r.month""",
         slugs,
     ).fetchall()
     for row in agg_rows:
@@ -483,6 +489,7 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
                 "payout_sum_czk": row["payout_sum_czk"] or 0,
                 "cena_ubytovani_sum_czk": row["cena_ubytovani_sum_czk"] or 0,
                 "provize_sum_czk": row["provize_sum_czk"] or 0,
+                "client_payout_sum_czk": row["client_payout_sum_czk"] or 0,
             })
 
     month_state_map: dict[str, dict] = {p["slug"]: {} for p in properties}
@@ -547,6 +554,10 @@ def _build_dashboard_view_model(
         history_map.get(p["slug"], {}).get((cur_y, cur_m), {}).get("payout_sum_czk", 0) or 0
         for p in properties
     )
+    total_client_payout_czk = sum(
+        history_map.get(p["slug"], {}).get((cur_y, cur_m), {}).get("client_payout_sum_czk", 0) or 0
+        for p in properties
+    )
     total_res_cur = sum(
         (history_map.get(p["slug"], {}).get((cur_y, cur_m), {}).get("rows_count") or 0)
         for p in properties
@@ -574,6 +585,7 @@ def _build_dashboard_view_model(
         "property_suffix": _property_count_suffix(len(properties)),
         "current_month_label": f"{cur_m:02d}/{cur_y}",
         "total_payout_czk": total_payout_czk,
+        "total_client_payout_czk": total_client_payout_czk,
         "total_reservations": total_res_cur,
         "reservations_delta": res_delta,
         "sparkline_points": sparkline_points,
@@ -659,6 +671,7 @@ def _build_dashboard_view_model(
                     "payout_sum_czk": (h or {}).get("payout_sum_czk", 0) or 0,
                     "cena_ubytovani_sum_czk": (h or {}).get("cena_ubytovani_sum_czk", 0) or 0,
                     "provize_sum_czk": (h or {}).get("provize_sum_czk", 0) or 0,
+                    "client_payout_sum_czk": (h or {}).get("client_payout_sum_czk", 0) or 0,
                     "matched": (h or {}).get("matched", 0),
                     "rozdil": (h or {}).get("rozdil", 0),
                     "ke_kontrole": (h or {}).get("ke_kontrole", 0),
