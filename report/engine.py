@@ -563,15 +563,13 @@ def generate_report_in_process(
         reservations.append(_build_adjustment_reservation(past_row, batch_info, suffix=_next_adj_suffix(code)))
 
     # ── AirCover items (separate compensation rows) ──────────────────────────
-    # Attach AirCover when:
-    #   a) parent is in this month (payout window check still applies), OR
-    #   b) parent is in a past month AND payout date is in this month's window
-    # Never place AirCover before the parent's check-in month.
+    # AirCover follows the same payout-date window as adjustments: it lands
+    # in whichever month's window contains the batch payout_date.  This
+    # prevents duplication when parent is in month A but payout is in month B.
     aircover_map = airbnb_payout_data.get("aircover_map", {})
     for code, ac_items in aircover_map.items():
         parent_row = None
-        parent_in_current = code in current_codes
-        if parent_in_current:
+        if code in current_codes:
             parent_row = next((r for r in reservations if r.get("confirmation_code") == code and not r.get("is_aircover")), None)
         if parent_row is None:
             db_row = get_report_row_by_code(conn, code)
@@ -579,22 +577,9 @@ def generate_report_in_process(
                 parent_row = db_row
         if parent_row is None:
             continue
-        # Don't place AirCover before the parent's check-in month
-        parent_checkin = parent_row.get("check_in", "")
-        if parent_checkin:
-            try:
-                ci = datetime_cls.strptime(str(parent_checkin)[:10], "%Y-%m-%d").date()
-                if (year, month) < (ci.year, ci.month):
-                    continue
-            except (ValueError, TypeError):
-                pass
         ac_count = 0
         for ac_item in ac_items:
-            in_window = _payout_date_in_window(ac_item.get("payout_date", ""))
-            # If parent is in current month, attach even if payout date is
-            # outside the window (the payout arrived before this month's
-            # cutoff but the reservation itself belongs here).
-            if not in_window and not parent_in_current:
+            if not _payout_date_in_window(ac_item.get("payout_date", "")):
                 continue
             ac_count += 1
             suffix = "__AC" if ac_count == 1 else f"__AC{ac_count}"
