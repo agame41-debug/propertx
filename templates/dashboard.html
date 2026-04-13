@@ -72,13 +72,13 @@
   </div>
 
   {# Net profit #}
-  <div class="kpi-card kpi-card-green" id="kpi-profit-card">
-    <div class="kpi-label">Čistý zisk</div>
-    <div class="kpi-value" style="color:var(--color-green);font-size:24px;" id="kpi-profit"
+  <div class="kpi-card kpi-card-red" id="kpi-profit-card">
+    <div class="kpi-label">Zisk Rentero</div>
+    <div class="kpi-value" style="color:var(--color-red);font-size:24px;" id="kpi-profit"
          data-copy="{{ "%.2f"|format(dashboard_summary.total_net_profit_czk) }}">
       {{ "{:,.2f}".format(dashboard_summary.total_net_profit_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
     </div>
-    <div class="kpi-sub" id="kpi-profit-sub">ubytování + odměna · {{ dashboard_summary.current_month_label }}</div>
+    <div class="kpi-sub" id="kpi-profit-sub">vlastní objekty + odměna · {{ dashboard_summary.current_month_label }}</div>
   </div>
 
 </div>
