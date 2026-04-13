@@ -218,13 +218,27 @@ def reinstate_reservation(
     *,
     actor: str = "",
 ) -> None:
-    """Re-include a previously excluded reservation."""
-    conn.execute(
+    """Re-include a previously excluded reservation.
+
+    If no exclusion record exists (e.g. AirCover with hardcoded
+    is_excluded), create one already marked as reinstated so that
+    get_reinstated_codes() picks it up during generation.
+    """
+    now = _now()
+    updated = conn.execute(
         """UPDATE reservation_exclusions
               SET reinstated_at = ?, reinstated_by = ?
             WHERE slug = ? AND confirmation_code = ? AND reinstated_at IS NULL""",
-        (_now(), actor, slug, confirmation_code),
-    )
+        (now, actor, slug, confirmation_code),
+    ).rowcount
+    if updated == 0:
+        # No active exclusion record — create one pre-reinstated
+        conn.execute(
+            """INSERT OR IGNORE INTO reservation_exclusions
+                   (slug, confirmation_code, reason, actor, excluded_at, reinstated_at, reinstated_by)
+               VALUES (?, ?, 'auto-excluded', ?, ?, ?, ?)""",
+            (slug, confirmation_code, actor, now, now, actor),
+        )
     conn.commit()
 
 
