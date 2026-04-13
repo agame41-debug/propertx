@@ -64,6 +64,7 @@ from report.loader import (
 from report.verifier import (
     STATUS_CHYBI_HOSTIFY,
     STATUS_KE_KONTROLE,
+    STATUS_MATCHED,
     build_airbnb_payout_data,
     build_booking_payout_data,
     build_verification_index,
