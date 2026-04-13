@@ -267,9 +267,10 @@ def _effective_booking_city_tax_eur(
     Resolve the city-tax amount that should be removed from Booking Hostify payout
     before comparing against Booking CSV net payout.
 
-    Comparison should reflect the raw Hostify payout as imported, so we subtract
-    Hostify's own city_tax_eur here. We still calculate the inferred amount
-    separately for diagnostics/debugging only.
+    Hostify often reports city_tax_eur=0 for Booking but still includes the
+    city tax in payout_price_eur.  When Hostify's own value is zero, fall back
+    to the inferred amount (nights × guests × rate / booking_rate) so that
+    the verification comparison removes the tax and avoids a false ROZDÍL.
 
     Returns:
       (effective_city_tax_eur, inferred_city_tax_eur)
@@ -278,7 +279,8 @@ def _effective_booking_city_tax_eur(
     inferred_city_tax_eur = 0.0
     if csv_row and property_config:
         inferred_city_tax_eur = _infer_booking_city_tax_eur(reservation, csv_row, property_config)
-    return hostify_city_tax, inferred_city_tax_eur
+    effective = hostify_city_tax if hostify_city_tax > 0 else inferred_city_tax_eur
+    return effective, inferred_city_tax_eur
 
 
 def verify_reservation(
