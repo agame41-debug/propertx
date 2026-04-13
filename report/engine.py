@@ -409,15 +409,18 @@ def generate_report_in_process(
     # Pull in main reservations moved INTO this month
     moved_in = get_codes_assigned_to_month(conn, slug, year, month)
     current_codes = {r["confirmation_code"] for r in reservations}
-    # Codes for adjustments moved into this month (bypass date window later)
+    # Codes for synthetic rows moved into this month (bypass date window later)
     adj_codes_in: set[str] = set()
     adj_grefs_in: set[tuple[str, str]] = set()
+    ac_codes_in: set[str] = set()  # AirCover codes moved into this month
     for asgn in moved_in:
         raw_code = asgn["confirmation_code"]
         code = raw_code
-        if asgn.get("is_adjustment"):
-            # Strip __ADJ/__ADJ2 suffix to match original code in all_batches_map
-            base_code = re.sub(r"__(ADJ|SP)\d*$", "", raw_code)
+        if re.search(r"__AC\d*$", raw_code):
+            base_code = re.sub(r"__AC\d*$", "", raw_code)
+            ac_codes_in.add(base_code)
+        elif asgn.get("is_adjustment") or re.search(r"__(ADJ|SP)\d*$", raw_code):
+            base_code = re.sub(r"__(ADJ|SP|AC)\d*$", "", raw_code)
             adj_codes_in.add(base_code)
             adj_grefs_in.add((base_code, asgn.get("batch_ref", "")))
         elif code not in current_codes:
@@ -617,7 +620,7 @@ def generate_report_in_process(
             continue
         ac_count = 0
         for ac_item in ac_items:
-            if not _payout_date_in_window(ac_item.get("payout_date", "")):
+            if code not in ac_codes_in and not _payout_date_in_window(ac_item.get("payout_date", "")):
                 continue
             ac_count += 1
             suffix = "__AC" if ac_count == 1 else f"__AC{ac_count}"
