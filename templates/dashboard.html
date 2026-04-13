@@ -96,6 +96,7 @@
       <button type="button" class="filter-tab active" data-filter="all">Vše</button>
       <button type="button" class="filter-tab" data-filter="rentero">Rentero</button>
       <button type="button" class="filter-tab" data-filter="clients">Klienti</button>
+      <button type="button" class="filter-tab" data-filter="z_clients">Z Klienti</button>
     </div>
   </div>
 
@@ -261,7 +262,8 @@ function _applyFilters() {
     var ct = row.dataset.clientType || 'rentero';
     var isRent = ct === 'rentero';
     if (_activeTab === 'rentero') show = isRent;
-    else if (_activeTab === 'clients') show = !isRent;
+    else if (_activeTab === 'clients') show = ct === 'klient';
+    else if (_activeTab === 'z_clients') show = ct === 'z_klient';
     if (show && _searchQuery) show = row.textContent.toLowerCase().includes(_searchQuery);
     if (show) { row.removeAttribute('hidden'); row.style.cssText = row.style.cssText.replace(/display\s*:\s*none\s*!important;?/g, ''); }
     else { row.style.setProperty('display', 'none', 'important'); }
