@@ -229,13 +229,12 @@ def _infer_booking_city_tax_eur(reservation: dict, csv_row: dict | None, propert
     if nights <= 0:
         return 0.0
 
-    paying_guests = reservation.get("city_tax_paying_guests")
-    if paying_guests is None:
-        paying_guests = reservation.get("occupancy_adults")
-    if paying_guests is None:
-        paying_guests = reservation.get("adults") or 0
-    paying_guests = int(paying_guests or 0)
-    if paying_guests <= 0:
+    # Hostify includes city tax for ALL guests (adults + children) in Booking
+    # payout, so the inferred amount must match that total, not just adults.
+    adults = int(reservation.get("adults") or 0)
+    children = int(reservation.get("children") or 0)
+    total_guests = adults + children
+    if total_guests <= 0:
         return 0.0
 
     booking_rate = float(csv_row.get("booking_rate") or 0)
@@ -247,7 +246,7 @@ def _infer_booking_city_tax_eur(reservation: dict, csv_row: dict | None, propert
     if booking_rate <= 0:
         return 0.0
 
-    city_tax_czk = city_tax_rate_czk * nights * paying_guests
+    city_tax_czk = city_tax_rate_czk * nights * total_guests
     return round(city_tax_czk / booking_rate, 4)
 
 
