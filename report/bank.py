@@ -375,7 +375,7 @@ def enrich_rows_with_bank(
             if conn and slug:
                 from report.db import get_bank_match_owner
                 owner = get_bank_match_owner(conn, "airbnb", batch_key, bank_row.get("tx_key", ""))
-                if owner and (owner["slug"] != slug or owner["year"] != year or owner["month"] != month):
+                if owner and (owner["year"] != year or owner["month"] != month):
                     already_owned = True
             datum = bank_row.get("datum")
             if already_owned:
@@ -628,7 +628,7 @@ def enrich_booking_rows_with_bank(
             if conn and slug and year and month:
                 from report.db import get_bank_match_owner
                 owner = get_bank_match_owner(conn, "booking", batch_ref, matched_bank.get("tx_key", ""))
-                if owner and (owner["slug"] != slug or owner["year"] != year or owner["month"] != month):
+                if owner and (owner["year"] != year or owner["month"] != month):
                     already_owned = True
             datum = matched_bank.get("datum")
             if already_owned:

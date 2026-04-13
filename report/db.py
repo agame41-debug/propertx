@@ -2216,11 +2216,16 @@ def get_bank_match_owner(
     batch_ref: str,
     tx_key: str,
 ) -> dict | None:
-    """Return the (slug, year, month) that owns this bank match, or None."""
+    """Return the (year, month) that owns this bank match, or None.
+
+    Ownership is per-month, not per-slug — one Airbnb batch can contain
+    reservations from multiple properties, all in the same month.
+    """
     row = conn.execute(
-        """SELECT slug, year, month FROM payout_batch_bank_matches
+        """SELECT year, month FROM payout_batch_bank_matches
            WHERE channel = ? AND batch_ref = ? AND tx_key = ?
-           AND slug != '' AND year > 0 AND month > 0""",
+           AND year > 0 AND month > 0
+           LIMIT 1""",
         (channel, batch_ref, tx_key),
     ).fetchone()
     return dict(row) if row else None
