@@ -779,6 +779,8 @@ def build_payout_aggregate(conn, channel: str, year: int, month: int) -> dict:
     agg: dict[tuple[str, str], float] = {}
     for r in rows:
         d = _json.loads(r["data"])
+        if d.get("is_excluded"):
+            continue
         src = source_map.get((d.get("source") or "").lower(), "")
         if src != channel_lower:
             continue
