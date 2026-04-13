@@ -399,12 +399,30 @@ function sbToggleObj() {
     }
   });
   // Update active highlight + page title when navigating via HTMX
+  var _pageTitles = {
+    '/': 'Přehled — Rentero',
+    '/inventory': 'Inventory — Rentero',
+    '/bank': 'Banka — Rentero',
+    '/reconciliation': 'Srovnání — Rentero',
+    '/sources': 'Zdroje — Rentero',
+    '/expenses': 'Výdaje — Rentero',
+    '/clients': 'Klienti — Rentero',
+    '/audit': 'Změny — Rentero',
+    '/logs': 'Logy — Rentero',
+    '/admin/users': 'Uživatelé — Rentero',
+  };
+  function _updatePageTitle() {
+    var path = location.pathname;
+    if (_pageTitles[path]) { document.title = _pageTitles[path]; return; }
+    var pm = path.match(/^\/property\/([^/]+)\//);
+    if (pm) { document.title = decodeURIComponent(pm[1]).replace(/_/g, ' ') + ' — Rentero'; return; }
+    var cm = path.match(/^\/clients\/([^/]+)/);
+    if (cm) { document.title = 'Klient ' + decodeURIComponent(cm[1]).replace(/_/g, ' ') + ' — Rentero'; return; }
+  }
   document.addEventListener('htmx:afterSettle', function() {
     _sbUpdateActiveSlug();
     _sbUpdateActiveNav();
-    // Update browser tab title from data attribute on #page-body
-    var pb = document.getElementById('page-body');
-    if (pb && pb.dataset.pageTitle) document.title = pb.dataset.pageTitle;
+    _updatePageTitle();
   });
   // Save sidebar scroll before page unload so it survives full reloads
   window.addEventListener('beforeunload', _sbSaveScroll);
