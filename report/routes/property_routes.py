@@ -359,6 +359,58 @@ def register(app, state) -> None:
         )
         return RedirectResponse(f"/inventory?bulk_run_id={int(run['id'])}", status_code=303)
 
+    @app.post("/months/lock-all")
+    async def lock_all_for_month(
+        request: Request,
+        year: int = Form(...),
+        month: int = Form(...),
+        _csrf=Depends(require_csrf),
+        _=Depends(require_auth),
+        _w=Depends(require_write_access),
+        conn=Depends(get_db),
+        config=Depends(get_config),
+    ):
+        if not (1 <= int(month) <= 12):
+            state["_set_flash"](request, "error", f"Neplatný měsíc: {month}")
+            return RedirectResponse("/inventory", status_code=303)
+        actor = state["_get_actor_username"](request)
+        properties = state["_get_active_properties"](config)
+        locked = 0
+        for prop in properties:
+            slug = prop["slug"]
+            st = state["get_report_month_state"](conn, slug, year, month)
+            if not st or st.get("status") != "LOCKED":
+                state["set_report_month_locked"](conn, slug, year, month, locked=True, actor=actor)
+                locked += 1
+        state["_set_flash"](request, "success", f"Zamknuto {locked} objektů pro {int(month):02d}/{int(year)}.")
+        return RedirectResponse("/inventory", status_code=303)
+
+    @app.post("/months/unlock-all")
+    async def unlock_all_for_month(
+        request: Request,
+        year: int = Form(...),
+        month: int = Form(...),
+        _csrf=Depends(require_csrf),
+        _=Depends(require_auth),
+        _w=Depends(require_write_access),
+        conn=Depends(get_db),
+        config=Depends(get_config),
+    ):
+        if not (1 <= int(month) <= 12):
+            state["_set_flash"](request, "error", f"Neplatný měsíc: {month}")
+            return RedirectResponse("/inventory", status_code=303)
+        actor = state["_get_actor_username"](request)
+        properties = state["_get_active_properties"](config)
+        unlocked = 0
+        for prop in properties:
+            slug = prop["slug"]
+            st = state["get_report_month_state"](conn, slug, year, month)
+            if st and st.get("status") == "LOCKED":
+                state["set_report_month_locked"](conn, slug, year, month, locked=False, actor=actor)
+                unlocked += 1
+        state["_set_flash"](request, "success", f"Odemknuto {unlocked} objektů pro {int(month):02d}/{int(year)}.")
+        return RedirectResponse("/inventory", status_code=303)
+
     @app.get("/property/{slug}/{year}/{month}/preview", response_class=HTMLResponse)
     async def property_preview_month(
         request: Request,

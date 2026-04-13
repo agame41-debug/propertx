@@ -34,6 +34,29 @@
         {% if bulk_run and bulk_run.is_active %}Běží{% else %}Spustit{% endif %}
       </button>
     </form>
+    <div class="card" style="padding:10px 12px;display:flex;align-items:center;gap:10px;">
+      <div style="font-size:12px;color:var(--text-300);">
+        Měsíc <span style="color:var(--text-100);font-weight:700;" data-selected-global-month>--/----</span>
+      </div>
+      <form method="post" action="/months/lock-all" style="display:inline;">
+        {{ csrf_input(request) }}
+        <input type="hidden" name="year" value="">
+        <input type="hidden" name="month" value="">
+        <button type="submit" class="btn btn-secondary btn-sm" title="Uzamknout vše">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          Zamknout
+        </button>
+      </form>
+      <form method="post" action="/months/unlock-all" style="display:inline;">
+        {{ csrf_input(request) }}
+        <input type="hidden" name="year" value="">
+        <input type="hidden" name="month" value="">
+        <button type="submit" class="btn btn-secondary btn-sm" title="Odemknout vše">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 015-5 5 5 0 015 5"/></svg>
+          Odemknout
+        </button>
+      </form>
+    </div>
     <form method="post" action="/inventory/sync">
       {{ csrf_input(request) }}
       <button type="submit" class="btn btn-primary">Synchronizovat z Hostify</button>
@@ -200,14 +223,11 @@
 (function() {
   function applyMonthSelection(detail) {
     if (!detail) return;
-    var form = document.getElementById('inventory-generate-all-form');
-    if (!form) return;
-    var yearInput = form.querySelector('input[name="year"]');
-    var monthInput = form.querySelector('input[name="month"]');
-    var label = form.querySelector('[data-selected-global-month]');
-    if (yearInput) yearInput.value = detail.y;
-    if (monthInput) monthInput.value = detail.m;
-    if (label) label.textContent = ('0' + detail.m).slice(-2) + '/' + detail.y;
+    document.querySelectorAll('input[name="year"]').forEach(function(el) { el.value = detail.y; });
+    document.querySelectorAll('input[name="month"]').forEach(function(el) { el.value = detail.m; });
+    document.querySelectorAll('[data-selected-global-month]').forEach(function(el) {
+      el.textContent = ('0' + detail.m).slice(-2) + '/' + detail.y;
+    });
   }
 
   if (window.RenteroMonthNav && typeof window.RenteroMonthNav.getCurrent === 'function') {
