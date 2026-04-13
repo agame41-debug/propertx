@@ -529,22 +529,39 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
                 if code not in reservation_map or abs(eur_amount) > reservation_map[code].get("_res_eur", 0):
                     reservation_map[code] = new_entry
             elif typ != "Rezervace" and code and "řešení" in typ.lower():
-                aircover_map.setdefault(code, []).append({
-                    "batch_ref": cur_gref,
-                    "gref": cur_gref,
-                    "payout_date": batch["payout_date"],
-                    "airbnb_rate": batch["implied_rate"],
-                    "amount_eur": eur_amount,
-                    "amount_czk": round(eur_amount * batch["implied_rate"], 2) if batch["implied_rate"] else None,
-                    "batch_czk": batch["amount_czk"],
-                    "guest_name": (row.get("Host") or "").strip(),
-                    "listing_name": (row.get("Nabídka") or "").strip(),
-                    "check_in": _parse_date(row.get("Datum zahájení", "")).isoformat() if _parse_date(row.get("Datum zahájení", "")) else "",
-                    "check_out": _parse_date(row.get("Datum ukončení", "")).isoformat() if _parse_date(row.get("Datum ukončení", "")) else "",
-                    "nights": int(_safe_float(row.get("Počet nocí", 0))),
-                    "item_type": typ,
-                    "details": (row.get("Podrobnosti") or "").strip(),
-                })
+                if "výplata" in typ.lower():
+                    # "Výplata jako výsledek řešení" → AirCover (Airbnb
+                    # compensates host for damages).  Separate excluded row.
+                    aircover_map.setdefault(code, []).append({
+                        "batch_ref": cur_gref,
+                        "gref": cur_gref,
+                        "payout_date": batch["payout_date"],
+                        "airbnb_rate": batch["implied_rate"],
+                        "amount_eur": eur_amount,
+                        "amount_czk": round(eur_amount * batch["implied_rate"], 2) if batch["implied_rate"] else None,
+                        "batch_czk": batch["amount_czk"],
+                        "guest_name": (row.get("Host") or "").strip(),
+                        "listing_name": (row.get("Nabídka") or "").strip(),
+                        "check_in": _parse_date(row.get("Datum zahájení", "")).isoformat() if _parse_date(row.get("Datum zahájení", "")) else "",
+                        "check_out": _parse_date(row.get("Datum ukončení", "")).isoformat() if _parse_date(row.get("Datum ukončení", "")) else "",
+                        "nights": int(_safe_float(row.get("Počet nocí", 0))),
+                        "item_type": typ,
+                        "details": (row.get("Podrobnosti") or "").strip(),
+                    })
+                else:
+                    # "Vyrovnání z řešení" → payout adjustment (money
+                    # returned to guest).  Treated as __ADJ row.
+                    adj_entry = {
+                        "batch_ref": cur_gref,
+                        "gref": cur_gref,
+                        "payout_date": batch["payout_date"],
+                        "payout_czk": batch["amount_czk"],
+                        "airbnb_rate": batch["implied_rate"],
+                        "credited_date": batch["credited_date"],
+                        "payout_eur": eur_amount,
+                        "_res_eur": abs(eur_amount),
+                    }
+                    all_batches_map.setdefault(code, []).append(adj_entry)
 
     if aircover_map:
         logger.info("AirCover items: %d codes, %d items total",
