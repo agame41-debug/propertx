@@ -278,6 +278,10 @@ def generate_report_in_process(
         (slug, year, month),
     )
 
+    # ── Clear bank match ownership for this slug/month ─────────────────────
+    from report.db import clear_bank_matches_for_month
+    clear_bank_matches_for_month(conn, slug, year, month)
+
     # ── Cutoff date ─────────────────────────────────────────────────────────
     if month == 12:
         cutoff_year, cutoff_month_num = year + 1, 1
@@ -380,21 +384,20 @@ def generate_report_in_process(
     codes_main_out: set[str] = set()
     # (code, gref) pairs for adjustments moved OUT of this month
     adj_grefs_out: set[tuple[str, str]] = set()
-    # Codes for adjustments moved OUT (for hidden_confirmation_codes)
-    codes_adj_out: set[str] = set()
+    # Codes for synthetic rows moved OUT (for hidden_confirmation_codes)
+    codes_synthetic_out: set[str] = set()
 
     for asgn in all_assignments:
         if asgn["original_year"] == year and asgn["original_month"] == month:
             raw_code = asgn["confirmation_code"]
-            if asgn.get("is_adjustment"):
-                # Strip __ADJ/__ADJ2 suffix to match original code in all_batches_map
-                base_code = re.sub(r"__(ADJ|SP)\d*$", "", raw_code)
+            if asgn.get("is_adjustment") or re.search(r"__(ADJ|SP|AC)\d*$", raw_code):
+                base_code = re.sub(r"__(ADJ|SP|AC)\d*$", "", raw_code)
                 adj_grefs_out.add((base_code, asgn.get("batch_ref", "")))
-                codes_adj_out.add(raw_code)
+                codes_synthetic_out.add(raw_code)
             else:
                 codes_main_out.add(raw_code)
 
-    hidden_confirmation_codes = codes_main_out | codes_adj_out
+    hidden_confirmation_codes = codes_main_out | codes_synthetic_out
 
     # Filter main reservations moved out of this month
     if codes_main_out:
@@ -437,6 +440,17 @@ def generate_report_in_process(
     for r in reservations:
         if r["confirmation_code"] in excluded_codes:
             r["is_excluded"] = True
+
+    def _synthetic_already_exists(code: str) -> bool:
+        """Check if this synthetic code already exists in another month."""
+        existing = conn.execute(
+            "SELECT year, month FROM report_rows WHERE slug = ? AND confirmation_code = ? LIMIT 1",
+            (slug, code),
+        ).fetchone()
+        if existing and (existing["year"] != year or existing["month"] != month):
+            log.info("Skipping %s: already exists in %d/%d", code, existing["month"], existing["year"])
+            return True
+        return False
 
     # ── Payout adjustments (cross-month codes) ──────────────────────────────
     month_start = date_cls(year, month, 1)
@@ -497,7 +511,13 @@ def generate_report_in_process(
                 if (code, gref) not in adj_grefs_in:
                     continue
                 seen_adjustment_grefs.add(gref)
-                reservations.append(_build_adjustment_reservation(past_row, batch_info, suffix=_next_adj_suffix(code)))
+                adj_suffix = _next_adj_suffix(code)
+                adj_code = f"{code}{adj_suffix}"
+                if adj_code in hidden_confirmation_codes:
+                    continue
+                if _synthetic_already_exists(adj_code):
+                    continue
+                reservations.append(_build_adjustment_reservation(past_row, batch_info, suffix=adj_suffix))
             continue
         if past_row.get("year") == year and past_row.get("month") == month:
             continue
@@ -521,7 +541,13 @@ def generate_report_in_process(
             elif not _payout_date_in_window(batch_info.get("payout_date", "")):
                 continue
             seen_adjustment_grefs.add(gref)
-            reservations.append(_build_adjustment_reservation(past_row, batch_info, suffix=_next_adj_suffix(code)))
+            adj_suffix = _next_adj_suffix(code)
+            adj_code = f"{code}{adj_suffix}"
+            if adj_code in hidden_confirmation_codes:
+                continue
+            if _synthetic_already_exists(adj_code):
+                continue
+            reservations.append(_build_adjustment_reservation(past_row, batch_info, suffix=adj_suffix))
 
     # Booking adjustments (single batch per code)
     for code, pinfo in booking_batch_map.items():
@@ -541,7 +567,13 @@ def generate_report_in_process(
             continue
         if code not in adj_codes_in and not _payout_date_in_window(pinfo.get("payout_date", "")):
             continue
-        reservations.append(_build_adjustment_reservation(past_row, pinfo, suffix=_next_adj_suffix(code)))
+        adj_suffix = _next_adj_suffix(code)
+        adj_code = f"{code}{adj_suffix}"
+        if adj_code in hidden_confirmation_codes:
+            continue
+        if _synthetic_already_exists(adj_code):
+            continue
+        reservations.append(_build_adjustment_reservation(past_row, pinfo, suffix=adj_suffix))
 
     # Fallback: codes in gref_map but not in all_batches (shouldn't happen, but safe)
     for code in gref_map:
@@ -560,7 +592,13 @@ def generate_report_in_process(
             continue
         if code not in adj_codes_in and not _payout_date_in_window(batch_info.get("payout_date", "")):
             continue
-        reservations.append(_build_adjustment_reservation(past_row, batch_info, suffix=_next_adj_suffix(code)))
+        adj_suffix = _next_adj_suffix(code)
+        adj_code = f"{code}{adj_suffix}"
+        if adj_code in hidden_confirmation_codes:
+            continue
+        if _synthetic_already_exists(adj_code):
+            continue
+        reservations.append(_build_adjustment_reservation(past_row, batch_info, suffix=adj_suffix))
 
     # ── AirCover items (separate compensation rows) ──────────────────────────
     # AirCover follows the same payout-date window as adjustments: it lands
@@ -586,6 +624,8 @@ def generate_report_in_process(
             ac_code = f"{code}{suffix}"
             # Skip if this AirCover was moved out of this month
             if ac_code in hidden_confirmation_codes:
+                continue
+            if _synthetic_already_exists(ac_code):
                 continue
             reservations.append(_build_aircover_reservation(parent_row, ac_item, suffix=suffix))
             log.info("AirCover item for %s: %.2f EUR (%s)",
@@ -759,13 +799,15 @@ def generate_report_in_process(
         all_batches_map=airbnb_all_batches,
         bank_index_full=bank_index_full,
         bank_no_ref_full=bank_no_ref_full,
+        conn=conn, slug=slug, year=year, month=month,
     )
     calc_rows, booking_matches = enrich_booking_rows_with_bank(
         calc_rows, booking_bank_idx, prop, year=year, month=month,
         booking_bank_idx_all=booking_bank_idx_all,
+        conn=conn, slug=slug,
     )
-    save_payout_batch_bank_matches(conn, "airbnb", airbnb_matches)
-    save_payout_batch_bank_matches(conn, "booking", booking_matches)
+    save_payout_batch_bank_matches(conn, "airbnb", airbnb_matches, slug=slug, year=year, month=month)
+    save_payout_batch_bank_matches(conn, "booking", booking_matches, slug=slug, year=year, month=month)
 
     # ── Booking CHYBÍ_V_HOSTIFY → KE_KONTROLE ──────────────────────────────
     for row in calc_rows:
