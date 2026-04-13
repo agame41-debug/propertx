@@ -316,9 +316,9 @@ def expand_objekt_315(s, stredisko_map=None):
         return "Kroftova 8A"
     if re.match(r'^28\.?\s*pluku\s+28$', ns):
         return "28. Pluku 58"
-    if re.match(r'^lublan 13 leva$', ns):
+    if re.match(r'^lublan(?:ska)? 13[, ]*leva$', ns):
         return "Lublanska 13, leva"
-    if re.match(r'^lublan 13 prava$', ns):
+    if re.match(r'^lublan(?:ska)? 13[, ]*prava$', ns):
         return "Lublanska 13, prava"
     if re.match(r'^pstrosssova\b', ns):
         return "Pštrossova 35"
@@ -418,9 +418,13 @@ def parse_fkv_channel(popis):
 # Popis parsing
 # ---------------------------------------------------------------------------
 
+_PROPERTY_SUFFIXES = {"leva", "prava", "nova", "stara", "horni", "dolni"}
+
 def _looks_like_guest_token(token):
     token = str(token or "").strip(" -\u2013/.,")
     if len(token) < 3:
+        return False
+    if token.lower() in _PROPERTY_SUFFIXES:
         return False
     if any(ch.isdigit() for ch in token):
         return False
