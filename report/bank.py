@@ -295,9 +295,9 @@ def enrich_rows_with_bank(
             gref, payout_czk, payout_date_str, index_by_gref, no_ref_rows,
             used_tx_keys=used_tx_keys,
         )
-        # Fallback: adjustment/split rows may have bank txns beyond cutoff
+        # Fallback: adjustment/split/aircover rows may have bank txns beyond cutoff
         if bank_row is None and bank_index_full and gref and (
-            row.get("is_payout_adjustment") or row.get("is_split_transaction")
+            row.get("is_payout_adjustment") or row.get("is_split_transaction") or row.get("is_aircover")
         ):
             bank_row = match_bank_transaction(
                 gref, payout_czk, payout_date_str,
