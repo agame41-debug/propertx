@@ -32,6 +32,20 @@ _EXPECTED_HEADER = [
     "Guest Age",
 ]
 
+_EXPECTED_HEADER_V2 = [
+    "Property Name",
+    "Full Name",
+    "Check-Out Date",
+    "Reservation ID",
+    "Check-In Date",
+    "Name",
+    "Surname",
+    "Birth Date",
+    "Nights of Stay",
+    "Booking Reference",
+    "Reservation External ID",
+]
+
 
 def _normalize_text(value: str) -> str:
     text = str(value or "").strip()
@@ -75,6 +89,17 @@ def _parse_checkin_date(value: str) -> date | None:
     return None
 
 
+def _age_from_birth_date(birth_date_str: str, reference_date: date) -> int | None:
+    """Calculate age at reference_date from a birth date string (DD-MM-YYYY or YYYY-MM-DD)."""
+    bd = _parse_checkin_date(birth_date_str)
+    if bd is None:
+        return None
+    age = reference_date.year - bd.year
+    if (reference_date.month, reference_date.day) < (bd.month, bd.day):
+        age -= 1
+    return age
+
+
 def _iter_checkin_guest_rows(sources: list) -> list[dict]:
     rows: list[dict] = []
     for source in sources:
@@ -83,16 +108,23 @@ def _iter_checkin_guest_rows(sources: list) -> list[dict]:
         if not lines:
             continue
         header = [part.strip() for part in lines[0].split(";")]
-        if header[: len(_EXPECTED_HEADER)] != _EXPECTED_HEADER:
+        # Detect format version
+        if header[: len(_EXPECTED_HEADER_V2)] == _EXPECTED_HEADER_V2:
+            fmt = "v2"
+            expected = _EXPECTED_HEADER_V2
+        elif header[: len(_EXPECTED_HEADER)] == _EXPECTED_HEADER:
+            fmt = "v1"
+            expected = _EXPECTED_HEADER
+        else:
             logger.warning("Checkin file %s has unexpected header: %s", source_name, header)
             continue
         for lineno, raw_line in enumerate(lines[1:], start=2):
             parts = [part.strip() for part in raw_line.split(";")]
-            if len(parts) < len(_EXPECTED_HEADER):
-                parts.extend([""] * (len(_EXPECTED_HEADER) - len(parts)))
-            elif len(parts) > len(_EXPECTED_HEADER):
-                parts = parts[: len(_EXPECTED_HEADER)]
-            row = dict(zip(_EXPECTED_HEADER, parts))
+            if len(parts) < len(expected):
+                parts.extend([""] * (len(expected) - len(parts)))
+            elif len(parts) > len(expected):
+                parts = parts[: len(expected)]
+            row = dict(zip(expected, parts))
             check_in = _parse_checkin_date(row["Check-In Date"])
             check_out = _parse_checkin_date(row["Check-Out Date"])
             reservation_id = row["Reservation ID"].strip()
@@ -100,12 +132,16 @@ def _iter_checkin_guest_rows(sources: list) -> list[dict]:
             if not reservation_id or not property_name or not check_in or not check_out:
                 continue
             guest_age = None
-            age_text = row["Guest Age"].strip()
-            if age_text:
-                try:
-                    guest_age = int(float(age_text))
-                except ValueError:
-                    guest_age = None
+            if fmt == "v2":
+                # Calculate age from Birth Date at check-in
+                guest_age = _age_from_birth_date(row.get("Birth Date", ""), check_in)
+            else:
+                age_text = row.get("Guest Age", "").strip()
+                if age_text:
+                    try:
+                        guest_age = int(float(age_text))
+                    except ValueError:
+                        guest_age = None
             full_name = row["Full Name"].strip() or " ".join(
                 part for part in (row["Name"].strip(), row["Surname"].strip()) if part
             ).strip()
