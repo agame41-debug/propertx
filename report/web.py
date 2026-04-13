@@ -23,10 +23,16 @@ except ImportError:
 
 import asyncio
 import json
+import os as _os2
 import re
 import secrets
+import signal
 import subprocess
 import sys
+
+# Auto-reap zombie child processes (generation runners)
+if _os2.name != "nt":
+    signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 
