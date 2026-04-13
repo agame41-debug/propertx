@@ -94,27 +94,12 @@
   <div style="display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap;">
     <div class="filter-tabs" id="dashboard-filter-tabs">
       <button class="filter-tab active" data-filter="all" onclick="filterCards('all',this)">Vše</button>
-      {% if dashboard_summary.issues > 0 %}
-      <button class="filter-tab" data-filter="issues" onclick="filterCards('issues',this)">
-        S problémy
-        <span class="badge badge-red" style="font-size:10px;padding:1px 5px;margin-left:2px;">{{ dashboard_summary.issues }}</span>
-      </button>
-      {% endif %}
-      {% if dashboard_summary.new_data > 0 %}
-      <button class="filter-tab" data-filter="new" onclick="filterCards('new',this)">Nová data</button>
-      {% endif %}
-      <button class="filter-tab" data-filter="locked" onclick="filterCards('locked',this)">Uzavřeno</button>
+      <button class="filter-tab" data-filter="rentero" onclick="filterCards('rentero',this)">Rentero</button>
+      <button class="filter-tab" data-filter="clients" onclick="filterCards('clients',this)">Klienti</button>
     </div>
   </div>
 
   <div style="display:flex;align-items:center;gap:var(--space-sm);">
-    {# Owner type filter #}
-    <select id="owner-filter" onchange="filterByOwner(this.value)" class="form-input" style="width:auto;max-width:220px;cursor:pointer;">
-      <option value="">Vše</option>
-      <option value="rentero">Rentero</option>
-      <option value="clients">Klienti</option>
-    </select>
-
     <div style="position:relative;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-300)" stroke-width="2" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -256,7 +241,6 @@
 
 <script>
 var _activeTab = 'all';
-var _activeOwner = '';
 var _searchQuery = '';
 
 function _formatNumber(n) {
@@ -272,25 +256,19 @@ function _applyFilters() {
 
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
     var show = true;
-    if (_activeTab === 'issues') show = row.dataset.health === 'issues';
-    else if (_activeTab === 'new') show = row.dataset.hasNew === 'true';
-    else if (_activeTab === 'locked') show = row.dataset.locked === 'true';
-    if (show && _activeOwner) {
-      var isRent = row.dataset.isRentero === '1';
-      if (_activeOwner === 'rentero') show = isRent;
-      else if (_activeOwner === 'clients') show = !isRent;
-    }
+    var isRent = row.dataset.isRentero === '1';
+    if (_activeTab === 'rentero') show = isRent;
+    else if (_activeTab === 'clients') show = !isRent;
     if (show && _searchQuery) show = row.textContent.toLowerCase().includes(_searchQuery);
     row.style.display = show ? '' : 'none';
 
     if (show) {
       propCount++;
-      var isRentero = row.dataset.isRentero === '1';
-      if (isRentero) hasRentero = true; else hasClient = true;
+      if (isRent) hasRentero = true; else hasClient = true;
       totalPayout += parseFloat(row.dataset.payout) || 0;
       totalCenaUbyt += parseFloat(row.dataset.cenaUbyt) || 0;
       totalProvize += parseFloat(row.dataset.provize) || 0;
-      if (!isRentero) totalClientPayout += parseFloat(row.dataset.clientPayout) || 0;
+      if (!isRent) totalClientPayout += parseFloat(row.dataset.clientPayout) || 0;
       totalRez += parseInt(row.dataset.rez) || 0;
       totalRezPrev += parseInt(row.dataset.rezPrev) || 0;
       if (parseInt(row.dataset.hasData)) withData++;
@@ -322,8 +300,7 @@ function _applyFilters() {
     if (row.style.display === 'none') return;
     var cu = parseFloat(row.dataset.cenaUbyt) || 0;
     var cp = parseFloat(row.dataset.clientPayout) || 0;
-    var isR = row.dataset.isRentero === '1';
-    totalProfit += isR ? cu : (cu - cp);
+    totalProfit += (row.dataset.isRentero === '1') ? cu : (cu - cp);
   });
   var kpiProfit = document.getElementById('kpi-profit');
   if (kpiProfit) kpiProfit.innerHTML = _formatNumber(totalProfit) + ' Kč';
@@ -333,10 +310,6 @@ function filterCards(type, btn) {
   document.querySelectorAll('#dashboard-filter-tabs .filter-tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
   _activeTab = type;
-  _applyFilters();
-}
-function filterByOwner(owner) {
-  _activeOwner = owner;
   _applyFilters();
 }
 function searchCards(q) {

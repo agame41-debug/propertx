@@ -332,9 +332,6 @@ def register(app, state) -> None:
         dashboard_summary["total_client_payout_czk"] = client_payout_total
         dashboard_summary["total_net_profit_czk"] = round(net_profit, 2)
 
-        # Unique sorted owner names for the filter dropdown
-        owner_names = sorted({row["owner_name"] for row in dashboard_rows})
-
         return state["templates"].TemplateResponse(
             request,
             "dashboard.html",
@@ -342,7 +339,6 @@ def register(app, state) -> None:
                 "dashboard_summary": dashboard_summary,
                 "dashboard_months": dashboard_months,
                 "dashboard_rows": dashboard_rows,
-                "owner_names": owner_names,
                 "flash": state["_pop_flash"](request),
             },
         )
