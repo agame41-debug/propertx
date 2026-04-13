@@ -819,6 +819,11 @@ def generate_report_in_process(
     save_payout_batch_bank_matches(conn, "airbnb", airbnb_matches, slug=slug, year=year, month=month)
     save_payout_batch_bank_matches(conn, "booking", booking_matches, slug=slug, year=year, month=month)
 
+    # ── Downgrade MATCHED → KE KONTROLE when bank payment missing ──────────
+    for row in calc_rows:
+        if row.get("bank_status") == "CHYBÍ" and row.get("verification_status") == STATUS_MATCHED:
+            row["verification_status"] = STATUS_KE_KONTROLE
+
     # ── Booking CHYBÍ_V_HOSTIFY → KE_KONTROLE ──────────────────────────────
     for row in calc_rows:
         source = (row.get("source") or "").lower()
