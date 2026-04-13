@@ -398,10 +398,16 @@ function sbToggleObj() {
       _sbLoadObjects(true);
     }
   });
-  // Update active highlight when navigating via HTMX
-  document.addEventListener('htmx:afterSettle', function() {
+  // Update active highlight + page title when navigating via HTMX
+  document.addEventListener('htmx:afterSettle', function(evt) {
     _sbUpdateActiveSlug();
     _sbUpdateActiveNav();
+    // Update browser tab title from HTMX response
+    var xhr = evt.detail && evt.detail.xhr;
+    if (xhr && xhr.response) {
+      var m = xhr.response.match(/<title[^>]*>(.*?)<\/title>/i);
+      if (m && m[1]) document.title = m[1].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+    }
   });
   // Save sidebar scroll before page unload so it survives full reloads
   window.addEventListener('beforeunload', _sbSaveScroll);
