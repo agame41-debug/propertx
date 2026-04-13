@@ -13,8 +13,8 @@ Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
-# Memory guard — restart if the process exceeds 1.5 GB (prevents OOM)
-MemoryMax=1536M
+# Memory guard — restart if the process exceeds 3 GB (prevents OOM)
+MemoryMax=3G
 
 [Install]
 WantedBy=multi-user.target
