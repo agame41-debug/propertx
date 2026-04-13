@@ -130,17 +130,7 @@
     color: var(--accent-text);
     border-color: oklch(0.65 0.18 280 / 0.12);
   }
-  /* Active indicator — thin left bar */
-  .nav-item.active::before {
-    content: '';
-    position: absolute;
-    left: -1px;
-    top: 6px; bottom: 6px;
-    width: 2px;
-    background: var(--accent);
-    border-radius: 1px;
-    box-shadow: 0 0 8px var(--accent-glow);
-  }
+  /* Active indicator — left bar removed per design request */
 
   .nav-item svg {
     width: 16px; height: 16px;
