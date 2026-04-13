@@ -346,16 +346,6 @@ def enrich_rows_with_bank(
         code = row.get("confirmation_code", "")
         source = (row.get("source") or "").lower()
 
-        if row.get("is_excluded"):
-            enriched.append({
-                **row,
-                "payout_gref":     row.get("batch_ref", ""),
-                "bank_datum":      "",
-                "bank_amount_czk": None,
-                "bank_status":     "N/A",
-            })
-            continue
-
         if "airbnb" not in source:
             enriched.append({
                 **row,
@@ -599,16 +589,6 @@ def enrich_booking_rows_with_bank(
 
     enriched = []
     for row in calc_rows:
-        if row.get("is_excluded"):
-            enriched.append({
-                **row,
-                "payout_gref":     row.get("batch_ref", ""),
-                "bank_datum":      "",
-                "bank_amount_czk": None,
-                "bank_status":     "N/A",
-            })
-            continue
-
         source = (row.get("source") or "").lower()
         if "booking" not in source:
             enriched.append(row)
