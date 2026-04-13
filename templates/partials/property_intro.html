@@ -261,7 +261,11 @@
 
   <div class="kpi-card kpi-card-red">
     <div class="kpi-label">
+      {% if prop.client_type == 'z_klient' %}
+      Odměna Rentero (3% z výplaty)
+      {% else %}
       Rentero fee ({{ "%.0f"|format(summary.rentero_commission_rate * 100) }}%)
+      {% endif %}
     </div>
     <div class="kpi-value" style="font-size:21px;color:var(--color-red);"
          data-copy="{{ "%.2f"|format(summary.rentero_fee_czk + summary.vat_rentero_fee_czk) }}">

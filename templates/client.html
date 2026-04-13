@@ -100,6 +100,14 @@
           <input type="text" name="vat_rate" value="{{ prop.vat_rate or '' }}" class="form-input">
         </div>
         <div>
+          <label class="form-label">Typ objektu</label>
+          <select name="client_type" class="form-input">
+            <option value="rentero" {% if prop.client_type == 'rentero' %}selected{% endif %}>Rentero</option>
+            <option value="klient" {% if prop.client_type == 'klient' %}selected{% endif %}>Klient</option>
+            <option value="z_klient" {% if prop.client_type == 'z_klient' %}selected{% endif %}>Z Klient</option>
+          </select>
+        </div>
+        <div>
           <label class="form-label">Rentero commission (%)</label>
           <input type="text" name="rentero_commission" value="{{ "%.2f"|format((prop.rentero_commission or 0) * 100) }}" class="form-input">
         </div>

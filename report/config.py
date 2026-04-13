@@ -182,6 +182,7 @@ def _build_property_from_db(
             "city_tax_rate": db_object.get("city_tax_rate", prop.get("city_tax_rate", 0)),
             "vat_rate": db_object.get("vat_rate", prop.get("vat_rate", 0.21)),
             "rentero_commission": db_object.get("rentero_commission", prop.get("rentero_commission", 0.15)),
+            "client_type": db_object.get("client_type", prop.get("client_type", "rentero")),
             "active": bool(db_object.get("active", 1)),
             "slug": slug,
         }
@@ -288,6 +289,7 @@ def sync_property_to_db(
             "city_tax_rate": prop.get("city_tax_rate", 0),
             "vat_rate": prop.get("vat_rate", 0.21),
             "rentero_commission": prop.get("rentero_commission", 0.15),
+            "client_type": prop.get("client_type", "rentero"),
             "active": prop.get("active", True),
         },
     )

@@ -180,6 +180,7 @@ def register(app, state) -> None:
         active: str = Form(""),
         config_effective_from: str = Form(""),
         rentero_commission: str = Form(""),
+        client_type: str = Form(""),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
         _w=Depends(require_write_access),
@@ -253,6 +254,9 @@ def register(app, state) -> None:
                 rate = None
             if rate is not None and 0 <= rate <= 1:
                 updated_prop["rentero_commission"] = rate
+
+        if client_type in ("rentero", "klient", "z_klient"):
+            updated_prop["client_type"] = client_type
 
         effective_from = config_effective_from.strip() or None
         state["sync_property_to_db"](

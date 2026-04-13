@@ -25,6 +25,7 @@ def build_report_summary(
     transferred_rows = transferred_rows or []
     rows = [r for r in rows if not r.get("is_excluded")]
 
+    client_type = property_config.get("client_type", "rentero")
     rentero_commission_rate = float(property_config.get("rentero_commission", 0.15))
     vat_rate = float(property_config.get("vat_rate", 0.21))
 
@@ -32,15 +33,24 @@ def build_report_summary(
     accommodation_income_czk = _r(
         sum(float(r.get("cena_ubytovani_czk") or 0) for r in rows)
     )
+    city_tax_czk = _r(sum(float(r.get("city_tax_czk") or 0) for r in rows))
     room_prep_czk = _r(sum(float(r.get("priprava_pokoje_czk") or 0) for r in rows))
     vat_room_prep_czk = _r(
         sum(float(r.get("dph_uklid_balicky_czk") or 0) for r in rows)
     )
 
-    rentero_fee_czk = _r(accommodation_income_czk * rentero_commission_rate)
-    vat_rentero_fee_czk = _r(rentero_fee_czk * vat_rate)
+    if client_type == "z_klient":
+        # Z Klient: odmena = 3% of gross payout, client gets cena_ubyt + city_tax
+        rentero_commission_rate = 0.03
+        rentero_fee_czk = _r(gross_payout_czk * rentero_commission_rate)
+        vat_rentero_fee_czk = 0.0
+        client_gross_income_czk = _r(accommodation_income_czk + city_tax_czk)
+    else:
+        rentero_fee_czk = _r(accommodation_income_czk * rentero_commission_rate)
+        vat_rentero_fee_czk = _r(rentero_fee_czk * vat_rate)
+        client_gross_income_czk = accommodation_income_czk
+
     rentero_room_prep_with_vat_czk = _r(room_prep_czk + vat_room_prep_czk)
-    client_gross_income_czk = accommodation_income_czk
     client_payout_before_expenses_czk = _r(
         client_gross_income_czk - rentero_fee_czk - vat_rentero_fee_czk
     )

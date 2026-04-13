@@ -55,10 +55,10 @@ def upsert_report_object(conn: sqlite3.Connection, data: dict) -> None:
         """INSERT INTO report_objects
            (slug, display_name, hostify_listing_id, listing_nickname,
             balicky_per_person, city_tax_rate, vat_rate, rentero_commission,
-            active, created_at, updated_at)
+            client_type, active, created_at, updated_at)
            VALUES (:slug, :display_name, :hostify_listing_id, :listing_nickname,
                    :balicky_per_person, :city_tax_rate, :vat_rate, :rentero_commission,
-                   :active, :created_at, :updated_at)
+                   :client_type, :active, :created_at, :updated_at)
            ON CONFLICT(slug) DO UPDATE SET
              display_name=excluded.display_name,
              hostify_listing_id=excluded.hostify_listing_id,
@@ -67,6 +67,7 @@ def upsert_report_object(conn: sqlite3.Connection, data: dict) -> None:
              city_tax_rate=excluded.city_tax_rate,
              vat_rate=excluded.vat_rate,
              rentero_commission=excluded.rentero_commission,
+             client_type=excluded.client_type,
              active=excluded.active,
              updated_at=excluded.updated_at""",
         {
@@ -78,6 +79,7 @@ def upsert_report_object(conn: sqlite3.Connection, data: dict) -> None:
             "city_tax_rate": data.get("city_tax_rate", 0),
             "vat_rate": data.get("vat_rate", 0.21),
             "rentero_commission": data.get("rentero_commission", 0.15),
+            "client_type": data.get("client_type", "rentero"),
             "active": 1 if data.get("active", True) else 0,
             "created_at": created_at,
             "updated_at": now,
