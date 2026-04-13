@@ -581,30 +581,31 @@ def _apply_import_impacts(
             continue
 
         mark_report_month_stale(conn, slug, year, month)
-        enqueue_status, _job = _enqueue_report_generation(
-            conn,
-            slug=slug,
-            year=year,
-            month=month,
-            requested_by=requested_by,
-        )
-        if enqueue_status == "already_running":
-            result["already_running"].append((slug, year, month))
-            continue
-        _create_import_impact_notification(
-            conn,
-            slug=slug,
-            year=year,
-            month=month,
-            event_type="IMPORT_IMPACT_AUTO_REGENERATE_STARTED",
-            source_type=source_type,
-            message=(
-                f"Nová importovaná data ({source_type}) změnila měsíc {month:02d}/{year}. "
-                f"Automatická regenerace byla spuštěna."
-            ),
-            summary=summary,
-        )
         result["auto_started"].append((slug, year, month))
+
+    # Run all regenerations sequentially in a single background thread
+    # instead of spawning N subprocesses (which caused OOM).
+    if result["auto_started"]:
+        import threading
+        jobs = list(result["auto_started"])
+        db_path = _db_path_for_connection(conn)
+
+        def _run_sequential():
+            import sqlite3 as _sqlite3
+            from report.engine import generate_report_in_process
+            from report.config import load_runtime_config
+            _conn = _sqlite3.connect(db_path, timeout=30)
+            _conn.row_factory = _sqlite3.Row
+            _cfg = load_runtime_config(_CONFIG_PATH, db_conn=_conn)
+            for _slug, _year, _month in jobs:
+                try:
+                    generate_report_in_process(_conn, _slug, _year, _month, _cfg)
+                except Exception as exc:
+                    _logger.warning("Import-triggered regen failed for %s %d/%d: %s", _slug, _month, _year, exc)
+            _conn.close()
+
+        t = threading.Thread(target=_run_sequential, daemon=True)
+        t.start()
 
     return result
 
