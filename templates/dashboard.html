@@ -93,9 +93,9 @@
 <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-md);margin-bottom:var(--space-lg);flex-wrap:wrap;">
   <div style="display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap;">
     <div class="filter-tabs" id="dashboard-filter-tabs">
-      <button class="filter-tab active" data-filter="all" onclick="filterCards('all',this)">Vše</button>
-      <button class="filter-tab" data-filter="rentero" onclick="filterCards('rentero',this)">Rentero</button>
-      <button class="filter-tab" data-filter="clients" onclick="filterCards('clients',this)">Klienti</button>
+      <button type="button" class="filter-tab active" data-filter="all">Vše</button>
+      <button type="button" class="filter-tab" data-filter="rentero">Rentero</button>
+      <button type="button" class="filter-tab" data-filter="clients">Klienti</button>
     </div>
   </div>
 
@@ -260,7 +260,8 @@ function _applyFilters() {
     if (_activeTab === 'rentero') show = isRent;
     else if (_activeTab === 'clients') show = !isRent;
     if (show && _searchQuery) show = row.textContent.toLowerCase().includes(_searchQuery);
-    row.style.display = show ? '' : 'none';
+    if (show) { row.removeAttribute('hidden'); row.style.cssText = row.style.cssText.replace(/display\s*:\s*none\s*!important;?/g, ''); }
+    else { row.style.setProperty('display', 'none', 'important'); }
 
     if (show) {
       propCount++;
@@ -297,7 +298,7 @@ function _applyFilters() {
   // Net profit = Rentero cena_ubyt + Client odmena (cena_ubyt - client_payout)
   var totalProfit = 0;
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
-    if (row.style.display === 'none') return;
+    if (row.style.getPropertyValue('display') === 'none') return;
     var cu = parseFloat(row.dataset.cenaUbyt) || 0;
     var cp = parseFloat(row.dataset.clientPayout) || 0;
     totalProfit += (row.dataset.isRentero === '1') ? cu : (cu - cp);
@@ -306,12 +307,15 @@ function _applyFilters() {
   if (kpiProfit) kpiProfit.innerHTML = _formatNumber(totalProfit) + ' Kč';
 }
 
-function filterCards(type, btn) {
-  document.querySelectorAll('#dashboard-filter-tabs .filter-tab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
-  _activeTab = type;
-  _applyFilters();
-}
+document.querySelectorAll('#dashboard-filter-tabs .filter-tab').forEach(function(btn) {
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    document.querySelectorAll('#dashboard-filter-tabs .filter-tab').forEach(function(t) { t.classList.remove('active'); });
+    btn.classList.add('active');
+    _activeTab = btn.dataset.filter;
+    _applyFilters();
+  });
+});
 function searchCards(q) {
   _searchQuery = q.toLowerCase();
   _applyFilters();
