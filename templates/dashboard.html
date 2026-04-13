@@ -112,12 +112,11 @@
   </div>
 
   <div style="display:flex;align-items:center;gap:var(--space-sm);">
-    {# Owner filter dropdown #}
+    {# Owner type filter #}
     <select id="owner-filter" onchange="filterByOwner(this.value)" class="form-input" style="width:auto;max-width:220px;cursor:pointer;">
-      <option value="">Všichni vlastníci</option>
-      {% for name in owner_names %}
-      <option value="{{ name }}">{{ name }}</option>
-      {% endfor %}
+      <option value="">Vše</option>
+      <option value="rentero">Rentero</option>
+      <option value="clients">Klienti</option>
     </select>
 
     <div style="position:relative;">
@@ -280,7 +279,11 @@ function _applyFilters() {
     if (_activeTab === 'issues') show = row.dataset.health === 'issues';
     else if (_activeTab === 'new') show = row.dataset.hasNew === 'true';
     else if (_activeTab === 'locked') show = row.dataset.locked === 'true';
-    if (show && _activeOwner) show = row.dataset.owner === _activeOwner;
+    if (show && _activeOwner) {
+      var isRent = row.dataset.isRentero === '1';
+      if (_activeOwner === 'rentero') show = isRent;
+      else if (_activeOwner === 'clients') show = !isRent;
+    }
     if (show && _searchQuery) show = row.textContent.toLowerCase().includes(_searchQuery);
     row.style.display = show ? '' : 'none';
 
@@ -291,7 +294,7 @@ function _applyFilters() {
       totalPayout += parseFloat(row.dataset.payout) || 0;
       totalCenaUbyt += parseFloat(row.dataset.cenaUbyt) || 0;
       totalProvize += parseFloat(row.dataset.provize) || 0;
-      totalClientPayout += parseFloat(row.dataset.clientPayout) || 0;
+      if (!isRentero) totalClientPayout += parseFloat(row.dataset.clientPayout) || 0;
       totalRez += parseInt(row.dataset.rez) || 0;
       totalRezPrev += parseInt(row.dataset.rezPrev) || 0;
       if (parseInt(row.dataset.hasData)) withData++;

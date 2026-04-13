@@ -312,6 +312,18 @@ def register(app, state) -> None:
             row["owner_name"] = client_map.get(row["slug"], RENTERO_LABEL)
             row["is_rentero"] = row["owner_name"] == RENTERO_LABEL
 
+        # Recalculate client payout excluding Rentero properties
+        cur_y, cur_m = months[-1]
+        client_payout_total = 0.0
+        for row in dashboard_rows:
+            if row.get("is_rentero"):
+                continue
+            for cell in row.get("cells", []):
+                if cell.get("year") == cur_y and cell.get("month") == cur_m:
+                    client_payout_total += cell.get("client_payout_sum_czk", 0) or 0
+                    break
+        dashboard_summary["total_client_payout_czk"] = client_payout_total
+
         # Unique sorted owner names for the filter dropdown
         owner_names = sorted({row["owner_name"] for row in dashboard_rows})
 
