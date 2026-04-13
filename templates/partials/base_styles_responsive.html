@@ -186,42 +186,8 @@
     .filter-tab { padding: 6px 14px !important; font-size: 12px !important; }
   }
 
-  /* ── Tablet (640px – 1024px) ────────────────────────────────────────── */
-  @media (min-width: 640px) and (max-width: 1024px) {
-    .sidebar { width: 60px; overflow: hidden; }
-    .sidebar::before { display: none; }
-    .sidebar .sidebar-logo div:last-child { display: none; }
-    .sidebar .sidebar-section-label { display: none; }
-    .sidebar .nav-item span { display: none; }
-    .sidebar .nav-item { justify-content: center; padding: 10px; margin: 2px 4px; }
-    .sidebar .sb-month-block { display: none; }
-    .sidebar #sb-obj-panel { display: none !important; }
-    .sidebar #sb-acc-btn span { display: none; }
-    .sidebar #sb-acc-btn .caret-icon { display: none; }
-
-    .main-content {
-      margin-left: 60px;
-      padding: var(--space-xl);
-    }
-
-    /* Dashboard rows — tighten on tablet */
-    .prop-row { grid-template-columns: 2fr 140px 120px 80px 20px; }
-
-    .kpi-grid { gap: var(--space-sm); }
-
-    /* Two-column page layouts — reduce right column */
-    div[style*="grid-template-columns:1fr 320px"] {
-      grid-template-columns: 1fr 260px !important;
-    }
-
-    /* Form inputs — prevent iOS zoom on tablets too */
-    .form-input, select.form-input, input.form-input {
-      font-size: 16px !important;
-    }
-  }
-
-  /* ── Desktop (> 1024px) ─────────────────────────────────────────────── */
-  @media (min-width: 1025px) {
+  /* ── Desktop (>= 640px) — full desktop UI, no tablet intermediate ── */
+  @media (min-width: 640px) {
     .mobile-only { display: none !important; }
   }
 
