@@ -598,6 +598,10 @@ def generate_report_in_process(
                 continue
             ac_count += 1
             suffix = "__AC" if ac_count == 1 else f"__AC{ac_count}"
+            ac_code = f"{code}{suffix}"
+            # Skip if this AirCover was moved out of this month
+            if ac_code in hidden_confirmation_codes:
+                continue
             reservations.append(_build_aircover_reservation(parent_row, ac_item, suffix=suffix))
             log.info("AirCover item for %s: %.2f EUR (%s)",
                      code, ac_item.get("amount_eur", 0), ac_item.get("details", ""))
