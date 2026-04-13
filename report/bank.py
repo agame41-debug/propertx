@@ -260,6 +260,11 @@ def enrich_rows_with_bank(
     all_batches_map: dict[str, list[dict]] | None = None,
     bank_index_full: dict | None = None,
     bank_no_ref_full: list | None = None,
+    *,
+    conn=None,
+    slug: str = "",
+    year: int = 0,
+    month: int = 0,
 ) -> tuple[list[dict], list[dict]]:
     """
     Add bank arrival info to each calculated row.
@@ -366,18 +371,37 @@ def enrich_rows_with_bank(
         bank_row = batch_matches.get(batch_key)
 
         if bank_row:
+            already_owned = False
+            if conn and slug:
+                from report.db import get_bank_match_owner
+                owner = get_bank_match_owner(conn, "airbnb", batch_key, bank_row.get("tx_key", ""))
+                if owner and (owner["slug"] != slug or owner["year"] != year or owner["month"] != month):
+                    already_owned = True
             datum = bank_row.get("datum")
-            enriched.append({
-                **row,
-                "batch_ref": gref,
-                "batch_payout_date": payout_date_str,
-                "batch_amount_czk_expected": payout_czk,
-                "payout_gref":     gref,
-                "bank_tx_key":     bank_row.get("tx_key", ""),
-                "bank_datum":      datum.strftime("%d.%m.%Y") if datum else "",
-                "bank_amount_czk": bank_row["amount_czk"],
-                "bank_status":     "DORAZILO",
-            })
+            if already_owned:
+                enriched.append({
+                    **row,
+                    "batch_ref": gref,
+                    "batch_payout_date": payout_date_str,
+                    "batch_amount_czk_expected": payout_czk,
+                    "payout_gref":     gref,
+                    "bank_tx_key":     "",
+                    "bank_datum":      "",
+                    "bank_amount_czk": None,
+                    "bank_status":     "CHYBÍ",
+                })
+            else:
+                enriched.append({
+                    **row,
+                    "batch_ref": gref,
+                    "batch_payout_date": payout_date_str,
+                    "batch_amount_czk_expected": payout_czk,
+                    "payout_gref":     gref,
+                    "bank_tx_key":     bank_row.get("tx_key", ""),
+                    "bank_datum":      datum.strftime("%d.%m.%Y") if datum else "",
+                    "bank_amount_czk": bank_row["amount_czk"],
+                    "bank_status":     "DORAZILO",
+                })
         else:
             enriched.append({
                 **row,
@@ -520,6 +544,8 @@ def enrich_booking_rows_with_bank(
     year: int | None = None,
     month: int | None = None,
     booking_bank_idx_all: dict[str, list[dict]] | None = None,
+    conn=None,
+    slug: str = "",
 ) -> tuple[list[dict], list[dict]]:
     """
     Add bank arrival info to Booking.com rows.
@@ -598,15 +624,31 @@ def enrich_booking_rows_with_bank(
         matched_bank, _ = batch_matches.get(batch_ref, (None, ""))
 
         if matched_bank:
+            already_owned = False
+            if conn and slug and year and month:
+                from report.db import get_bank_match_owner
+                owner = get_bank_match_owner(conn, "booking", batch_ref, matched_bank.get("tx_key", ""))
+                if owner and (owner["slug"] != slug or owner["year"] != year or owner["month"] != month):
+                    already_owned = True
             datum = matched_bank.get("datum")
-            enriched.append({
-                **row,
-                "payout_gref": batch_ref,
-                "bank_tx_key": matched_bank.get("tx_key", ""),
-                "bank_datum":  datum.strftime("%d.%m.%Y") if datum else "",
-                "bank_amount_czk": matched_bank["amount_czk"],
-                "bank_status": "DORAZILO",
-            })
+            if already_owned:
+                enriched.append({
+                    **row,
+                    "payout_gref": batch_ref,
+                    "bank_tx_key": "",
+                    "bank_datum": "",
+                    "bank_amount_czk": None,
+                    "bank_status": "CHYBÍ",
+                })
+            else:
+                enriched.append({
+                    **row,
+                    "payout_gref": batch_ref,
+                    "bank_tx_key": matched_bank.get("tx_key", ""),
+                    "bank_datum":  datum.strftime("%d.%m.%Y") if datum else "",
+                    "bank_amount_czk": matched_bank["amount_czk"],
+                    "bank_status": "DORAZILO",
+                })
         else:
             enriched.append({
                 **row,
