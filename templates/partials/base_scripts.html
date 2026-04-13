@@ -399,15 +399,12 @@ function sbToggleObj() {
     }
   });
   // Update active highlight + page title when navigating via HTMX
-  document.addEventListener('htmx:afterSettle', function(evt) {
+  document.addEventListener('htmx:afterSettle', function() {
     _sbUpdateActiveSlug();
     _sbUpdateActiveNav();
-    // Update browser tab title from HTMX response
-    var xhr = evt.detail && evt.detail.xhr;
-    if (xhr && xhr.response) {
-      var m = xhr.response.match(/<title[^>]*>(.*?)<\/title>/i);
-      if (m && m[1]) document.title = m[1].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
-    }
+    // Update browser tab title from data attribute on #page-body
+    var pb = document.getElementById('page-body');
+    if (pb && pb.dataset.pageTitle) document.title = pb.dataset.pageTitle;
   });
   // Save sidebar scroll before page unload so it survives full reloads
   window.addEventListener('beforeunload', _sbSaveScroll);

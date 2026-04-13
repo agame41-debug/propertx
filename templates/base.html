@@ -42,7 +42,7 @@
       <button class="sb-month-btn" id="mobile-month-next">&#8250;</button>
     </div>
 {% endif %}
-    <div id="page-body">
+    <div id="page-body" data-page-title="{{ self.title() }}">
       {% block content %}{% endblock %}
     </div>
 {% if not is_htmx %}
