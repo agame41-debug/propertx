@@ -2233,18 +2233,20 @@ def get_accounting_entries(
     year: int | None = None,
     month: int | None = None,
 ) -> list[dict]:
-    clauses = []
-    params = []
+    clauses = [
+        "ae.source_file_id IN (SELECT id FROM source_files WHERE is_active = 1)"
+    ]
+    params: list = []
     if channel:
-        clauses.append("channel = ?")
+        clauses.append("ae.channel = ?")
         params.append(channel)
     if year is not None and month is not None:
         mesic = f"{year:04d}-{month:02d}"
-        clauses.append("mesic = ?")
+        clauses.append("ae.mesic = ?")
         params.append(mesic)
-    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+    where = " WHERE " + " AND ".join(clauses)
     rows = conn.execute(
-        f"SELECT * FROM accounting_entries{where} ORDER BY mesic, objekt, datum",
+        f"SELECT ae.* FROM accounting_entries ae{where} ORDER BY ae.mesic, ae.objekt, ae.datum",
         params,
     ).fetchall()
     return [dict(r) for r in rows]
