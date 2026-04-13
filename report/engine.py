@@ -563,6 +563,8 @@ def generate_report_in_process(
         reservations.append(_build_adjustment_reservation(past_row, batch_info, suffix=_next_adj_suffix(code)))
 
     # ── AirCover items (separate compensation rows) ──────────────────────────
+    # AirCover items use the payout-date window but must not appear in a month
+    # earlier than the parent reservation's check-in month.
     aircover_map = airbnb_payout_data.get("aircover_map", {})
     for code, ac_items in aircover_map.items():
         # Find parent reservation — either in this month or a past month
@@ -575,6 +577,15 @@ def generate_report_in_process(
                 parent_row = db_row
         if parent_row is None:
             continue
+        # Don't place AirCover before the parent's check-in month
+        parent_checkin = parent_row.get("check_in", "")
+        if parent_checkin:
+            try:
+                ci = datetime_cls.strptime(str(parent_checkin)[:10], "%Y-%m-%d").date()
+                if (year, month) < (ci.year, ci.month):
+                    continue
+            except (ValueError, TypeError):
+                pass
         ac_count = 0
         for ac_item in ac_items:
             if not _payout_date_in_window(ac_item.get("payout_date", "")):
