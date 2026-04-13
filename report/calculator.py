@@ -128,7 +128,8 @@ def calculate_row(
     is_split_transaction = bool(reservation.get("is_split_transaction"))
 
     # Core calculations — carry full float precision, round at assignment
-    _no_fees = is_cancelled or is_payout_adjustment or is_split_transaction
+    is_aircover = bool(reservation.get("is_aircover"))
+    _no_fees = is_cancelled or is_payout_adjustment or is_split_transaction or is_aircover
     city_tax = 0.0 if _no_fees else (city_tax_rate * nights * city_tax_paying_guests)
     provize_czk = commission_eur * provize_kurz
     dph_provize = provize_czk * vat_rate

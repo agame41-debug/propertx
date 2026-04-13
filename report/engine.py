@@ -132,7 +132,7 @@ def _build_aircover_reservation(parent_row: dict, ac_item: dict, suffix: str = "
     batch_ref is cleared so bank enrichment doesn't steal the main row's match.
     """
     parent_code = parent_row.get("confirmation_code", "")
-    amount_eur = abs(float(ac_item.get("amount_eur", 0)))
+    amount_eur = float(ac_item.get("amount_eur", 0))
     return {
         "confirmation_code": f"{parent_code}{suffix}",
         "aircover_parent_code": parent_code,
