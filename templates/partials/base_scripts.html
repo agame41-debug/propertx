@@ -316,9 +316,10 @@ function _sbUpdateActiveSlug() {
 function _sbUpdateActiveNav() {
   var path = location.pathname;
   document.querySelectorAll('.sidebar .nav-item[href]').forEach(function(a) {
-    var href = a.getAttribute('href');
-    if (!href) return;
-    var isActive = href === '/' ? path === '/' : path.indexOf(href) === 0;
+    var href = a.dataset.baseHref || a.getAttribute('href') || '';
+    var hrefPath = href.split('?')[0];
+    if (!hrefPath) return;
+    var isActive = hrefPath === '/' ? path === '/' : path.indexOf(hrefPath) === 0;
     if (isActive) { a.classList.add('active'); } else { a.classList.remove('active'); }
   });
 }
