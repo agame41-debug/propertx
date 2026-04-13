@@ -747,6 +747,9 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         )
     """)
     _ensure_column(conn, "report_objects", "client_type", "client_type TEXT NOT NULL DEFAULT 'rentero'")
+    _ensure_column(conn, "payout_batch_bank_matches", "slug", "slug TEXT DEFAULT ''")
+    _ensure_column(conn, "payout_batch_bank_matches", "year", "year INTEGER DEFAULT 0")
+    _ensure_column(conn, "payout_batch_bank_matches", "month", "month INTEGER DEFAULT 0")
     _seed_admin_user(conn)
 
 
@@ -2154,6 +2157,10 @@ def save_payout_batch_bank_matches(
     conn: sqlite3.Connection,
     channel: str,
     matches: list[dict],
+    *,
+    slug: str = "",
+    year: int = 0,
+    month: int = 0,
 ) -> None:
     """Persist batch ↔ bank transaction links for future drill-down screens."""
     if not matches:
@@ -2161,12 +2168,16 @@ def save_payout_batch_bank_matches(
     now = _now()
     conn.executemany(
         """INSERT INTO payout_batch_bank_matches
-           (channel, batch_ref, tx_key, match_method, matched_amount_czk, matched_at)
-           VALUES (?, ?, ?, ?, ?, ?)
+           (channel, batch_ref, tx_key, match_method, matched_amount_czk, matched_at,
+            slug, year, month)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(channel, batch_ref, tx_key) DO UPDATE SET
              match_method=excluded.match_method,
              matched_amount_czk=excluded.matched_amount_czk,
-             matched_at=excluded.matched_at""",
+             matched_at=excluded.matched_at,
+             slug=excluded.slug,
+             year=excluded.year,
+             month=excluded.month""",
         [
             (
                 channel,
@@ -2175,12 +2186,44 @@ def save_payout_batch_bank_matches(
                 m.get("match_method", ""),
                 m.get("matched_amount_czk"),
                 now,
+                slug,
+                year,
+                month,
             )
             for m in matches
             if m.get("batch_ref") and m.get("tx_key")
         ],
     )
     conn.commit()
+
+
+def clear_bank_matches_for_month(
+    conn: sqlite3.Connection,
+    slug: str,
+    year: int,
+    month: int,
+) -> None:
+    """Remove bank match records for a specific slug/month before regeneration."""
+    conn.execute(
+        "DELETE FROM payout_batch_bank_matches WHERE slug = ? AND year = ? AND month = ?",
+        (slug, year, month),
+    )
+
+
+def get_bank_match_owner(
+    conn: sqlite3.Connection,
+    channel: str,
+    batch_ref: str,
+    tx_key: str,
+) -> dict | None:
+    """Return the (slug, year, month) that owns this bank match, or None."""
+    row = conn.execute(
+        """SELECT slug, year, month FROM payout_batch_bank_matches
+           WHERE channel = ? AND batch_ref = ? AND tx_key = ?
+           AND slug != '' AND year > 0 AND month > 0""",
+        (channel, batch_ref, tx_key),
+    ).fetchone()
+    return dict(row) if row else None
 
 
 # --------------------------------------------------------------------------- #
