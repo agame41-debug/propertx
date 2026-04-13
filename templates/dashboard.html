@@ -71,18 +71,14 @@
     </div>
   </div>
 
-  {# Portfolio health #}
-  <div class="kpi-card{% if dashboard_summary.issues > 0 %} kpi-card-amber{% endif %}" id="kpi-health-card">
-    <div class="kpi-label">Stav portfolia</div>
-    <div id="kpi-health-value">
-    {% if dashboard_summary.issues > 0 %}
-    <div class="kpi-value" style="font-size:24px;color:var(--color-amber);">{{ dashboard_summary.issues }}</div>
-    <div class="kpi-sub">objekt{{ 'y' if dashboard_summary.issues > 1 else '' }} s problémy</div>
-    {% else %}
-    <div class="kpi-value" style="font-size:var(--text-xl);color:var(--color-green);">Vše OK</div>
-    <div class="kpi-sub">žádné nesrovnalosti</div>
-    {% endif %}
+  {# Net profit #}
+  <div class="kpi-card kpi-card-green" id="kpi-profit-card">
+    <div class="kpi-label">Čistý zisk</div>
+    <div class="kpi-value" style="color:var(--color-green);font-size:24px;" id="kpi-profit"
+         data-copy="{{ "%.2f"|format(dashboard_summary.total_net_profit_czk) }}">
+      {{ "{:,.2f}".format(dashboard_summary.total_net_profit_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
     </div>
+    <div class="kpi-sub" id="kpi-profit-sub">ubytování + odměna · {{ dashboard_summary.current_month_label }}</div>
   </div>
 
 </div>
@@ -320,18 +316,17 @@ function _applyFilters() {
   var kpiClientPayout = document.getElementById('kpi-client-payout');
   if (kpiClientPayout) kpiClientPayout.innerHTML = _formatNumber(totalClientPayout) + ' Kč';
 
-  var kpiHealthCard = document.getElementById('kpi-health-card');
-  var kpiHealthVal = document.getElementById('kpi-health-value');
-  if (kpiHealthVal) {
-    if (issues > 0) {
-      kpiHealthCard.className = 'kpi-card kpi-card-amber';
-      var suffix = issues > 1 ? 'y' : '';
-      kpiHealthVal.innerHTML = '<div class="kpi-value" style="font-size:24px;color:var(--color-amber);">' + issues + '</div><div class="kpi-sub">objekt' + suffix + ' s problémy</div>';
-    } else {
-      kpiHealthCard.className = 'kpi-card kpi-card-green';
-      kpiHealthVal.innerHTML = '<div class="kpi-value" style="font-size:var(--text-xl);color:var(--color-green);">Vše OK</div><div class="kpi-sub">žádné nesrovnalosti</div>';
-    }
-  }
+  // Net profit = Rentero cena_ubyt + Client odmena (cena_ubyt - client_payout)
+  var totalProfit = 0;
+  document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
+    if (row.style.display === 'none') return;
+    var cu = parseFloat(row.dataset.cenaUbyt) || 0;
+    var cp = parseFloat(row.dataset.clientPayout) || 0;
+    var isR = row.dataset.isRentero === '1';
+    totalProfit += isR ? cu : (cu - cp);
+  });
+  var kpiProfit = document.getElementById('kpi-profit');
+  if (kpiProfit) kpiProfit.innerHTML = _formatNumber(totalProfit) + ' Kč';
 }
 
 function filterCards(type, btn) {
