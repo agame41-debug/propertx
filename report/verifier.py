@@ -215,39 +215,29 @@ def load_airbnb_csv(csv_paths: list) -> dict[str, dict]:
     return index
 
 
-def _infer_booking_city_tax_eur(reservation: dict, csv_row: dict | None, property_config: dict | None) -> float:
-    if not csv_row or not property_config:
-        return 0.0
-    if "booking" not in str(reservation.get("source") or "").lower():
-        return 0.0
+_HOSTIFY_BOOKING_CITY_TAX_EUR_PER_PERSON_NIGHT = 2.0
 
-    city_tax_rate_czk = float(property_config.get("city_tax_rate") or 0)
-    if city_tax_rate_czk <= 0:
+def _infer_booking_city_tax_eur(reservation: dict, csv_row: dict | None, property_config: dict | None) -> float:
+    """Infer the city-tax amount that Hostify adds to Booking payout_price_eur.
+
+    Hostify uses a flat 2 EUR per person per night for ALL guests
+    (adults + children + infants) regardless of the property's CZK rate.
+    """
+    if "booking" not in str(reservation.get("source") or "").lower():
         return 0.0
 
     nights = int(reservation.get("nights") or 0)
     if nights <= 0:
         return 0.0
 
-    # Hostify includes city tax for ALL guests (adults + children) in Booking
-    # payout, so the inferred amount must match that total, not just adults.
     adults = int(reservation.get("adults") or 0)
     children = int(reservation.get("children") or 0)
-    total_guests = adults + children
+    infants = int(reservation.get("infants") or 0)
+    total_guests = adults + children + infants
     if total_guests <= 0:
         return 0.0
 
-    booking_rate = float(csv_row.get("booking_rate") or 0)
-    if booking_rate <= 0:
-        booked_czk = float(csv_row.get("czk_booked") or 0)
-        booked_eur = float(csv_row.get("net_eur") or 0)
-        if booked_czk > 0 and booked_eur > 0:
-            booking_rate = booked_czk / booked_eur
-    if booking_rate <= 0:
-        return 0.0
-
-    city_tax_czk = city_tax_rate_czk * nights * total_guests
-    return round(city_tax_czk / booking_rate, 4)
+    return round(_HOSTIFY_BOOKING_CITY_TAX_EUR_PER_PERSON_NIGHT * total_guests * nights, 2)
 
 
 def _booking_city_tax_matches_diff(diff: float, inferred_city_tax_eur: float, tolerance_eur: float) -> bool:
