@@ -452,10 +452,21 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
                 ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.payout_czk') AS REAL)), 0), 2) as payout_sum_czk,
                 ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)), 0), 2) as cena_ubytovani_sum_czk,
                 ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.provize_czk') AS REAL)), 0), 2) as provize_sum_czk,
-                ROUND(COALESCE(SUM(
-                    CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)
-                    * (1.0 - COALESCE(o.rentero_commission, 0.15) * (1.0 + COALESCE(o.vat_rate, 0.21)))
-                ), 0), 2) as client_payout_sum_czk,
+                ROUND(COALESCE(SUM(CASE
+                    WHEN COALESCE(o.client_type, 'rentero') = 'z_klient' THEN
+                        CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)
+                        + COALESCE(CAST(json_extract(r.data, '$.city_tax_czk') AS REAL), 0)
+                    ELSE
+                        CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)
+                        * (1.0 - COALESCE(o.rentero_commission, 0.15) * (1.0 + COALESCE(o.vat_rate, 0.21)))
+                END), 0), 2) as client_payout_sum_czk,
+                ROUND(COALESCE(SUM(CASE
+                    WHEN COALESCE(o.client_type, 'rentero') = 'z_klient' THEN
+                        CAST(json_extract(r.data, '$.payout_czk') AS REAL) * 0.03
+                    ELSE
+                        CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)
+                        * COALESCE(o.rentero_commission, 0.15) * (1.0 + COALESCE(o.vat_rate, 0.21))
+                END), 0), 2) as rentero_fee_sum_czk,
                 SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'MATCHED'
                          AND (NOT json_extract(r.data, '$.tax_verification_required')
                               OR (COALESCE(CAST(json_extract(r.data, '$.checkin_missing_age_guests') AS INTEGER), 0) = 0
@@ -490,6 +501,7 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
                 "cena_ubytovani_sum_czk": row["cena_ubytovani_sum_czk"] or 0,
                 "provize_sum_czk": row["provize_sum_czk"] or 0,
                 "client_payout_sum_czk": row["client_payout_sum_czk"] or 0,
+                "rentero_fee_sum_czk": row["rentero_fee_sum_czk"] or 0,
             })
 
     month_state_map: dict[str, dict] = {p["slug"]: {} for p in properties}
@@ -672,6 +684,7 @@ def _build_dashboard_view_model(
                     "cena_ubytovani_sum_czk": (h or {}).get("cena_ubytovani_sum_czk", 0) or 0,
                     "provize_sum_czk": (h or {}).get("provize_sum_czk", 0) or 0,
                     "client_payout_sum_czk": (h or {}).get("client_payout_sum_czk", 0) or 0,
+                    "rentero_fee_sum_czk": (h or {}).get("rentero_fee_sum_czk", 0) or 0,
                     "matched": (h or {}).get("matched", 0),
                     "rozdil": (h or {}).get("rozdil", 0),
                     "ke_kontrole": (h or {}).get("ke_kontrole", 0),

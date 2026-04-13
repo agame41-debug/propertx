@@ -146,10 +146,12 @@
      data-locked="{{ 'true' if is_locked else 'false' }}"
      data-owner="{{ row.owner_name }}"
      data-is-rentero="{{ '1' if row.is_rentero else '0' }}"
+     data-client-type="{{ row.client_type }}"
      data-payout="{{ payout }}"
      data-cena-ubyt="{{ cena_ubyt }}"
      data-provize="{{ provize }}"
      data-client-payout="{{ client_payout }}"
+     data-rentero-fee="{{ cur_cell.rentero_fee_sum_czk|default(0) if cur_cell else 0 }}"
      data-rez="{{ rez_count }}"
      data-rez-prev="{{ rez_prev }}"
      data-has-data="{{ has_data }}"
@@ -256,7 +258,8 @@ function _applyFilters() {
 
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
     var show = true;
-    var isRent = row.dataset.isRentero === '1';
+    var ct = row.dataset.clientType || 'rentero';
+    var isRent = ct === 'rentero';
     if (_activeTab === 'rentero') show = isRent;
     else if (_activeTab === 'clients') show = !isRent;
     if (show && _searchQuery) show = row.textContent.toLowerCase().includes(_searchQuery);
@@ -295,13 +298,16 @@ function _applyFilters() {
   var kpiClientPayout = document.getElementById('kpi-client-payout');
   if (kpiClientPayout) kpiClientPayout.innerHTML = _formatNumber(totalClientPayout) + ' Kč';
 
-  // Net profit = Rentero cena_ubyt + Client odmena (cena_ubyt - client_payout)
+  // Net profit: rentero=cena_ubyt, klient/z_klient=rentero_fee
   var totalProfit = 0;
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
     if (row.style.getPropertyValue('display') === 'none') return;
-    var cu = parseFloat(row.dataset.cenaUbyt) || 0;
-    var cp = parseFloat(row.dataset.clientPayout) || 0;
-    totalProfit += (row.dataset.isRentero === '1') ? cu : (cu - cp);
+    var ct = row.dataset.clientType || 'rentero';
+    if (ct === 'rentero') {
+      totalProfit += parseFloat(row.dataset.cenaUbyt) || 0;
+    } else {
+      totalProfit += parseFloat(row.dataset.renteroFee) || 0;
+    }
   });
   var kpiProfit = document.getElementById('kpi-profit');
   if (kpiProfit) kpiProfit.innerHTML = _formatNumber(totalProfit) + ' Kč';

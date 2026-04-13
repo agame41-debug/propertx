@@ -746,6 +746,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
             UNIQUE(slug, confirmation_code, batch_ref)
         )
     """)
+    _ensure_column(conn, "report_objects", "client_type", "client_type TEXT NOT NULL DEFAULT 'rentero'")
     _seed_admin_user(conn)
 
 

@@ -307,12 +307,18 @@ def register(app, state) -> None:
             notification_map,
         )
 
-        # Attach owner_name and is_rentero flag to each dashboard row
+        # Build slug → client_type map
+        client_type_map = {}
+        for obj in conn.execute("SELECT slug, client_type FROM report_objects").fetchall():
+            client_type_map[obj["slug"]] = obj["client_type"] or "rentero"
+
+        # Attach owner_name, client_type and is_rentero flag to each dashboard row
         for row in dashboard_rows:
             row["owner_name"] = client_map.get(row["slug"], RENTERO_LABEL)
-            row["is_rentero"] = row["owner_name"] == RENTERO_LABEL
+            row["client_type"] = client_type_map.get(row["slug"], "rentero")
+            row["is_rentero"] = row["client_type"] == "rentero"
 
-        # Recalculate client payout and net profit excluding/including Rentero
+        # Recalculate client payout and net profit
         cur_y, cur_m = months[-1]
         client_payout_total = 0.0
         net_profit = 0.0
@@ -321,13 +327,16 @@ def register(app, state) -> None:
                 if cell.get("year") == cur_y and cell.get("month") == cur_m:
                     cena_ubyt = cell.get("cena_ubytovani_sum_czk", 0) or 0
                     client_payout = cell.get("client_payout_sum_czk", 0) or 0
-                    if row.get("is_rentero"):
-                        # Rentero objects: full cena_ubytovani is profit
+                    rentero_fee = cell.get("rentero_fee_sum_czk", 0) or 0
+                    ct = row["client_type"]
+                    if ct == "rentero":
                         net_profit += cena_ubyt
-                    else:
-                        # Client objects: odmena = cena_ubyt - client_payout
+                    elif ct == "z_klient":
                         client_payout_total += client_payout
-                        net_profit += cena_ubyt - client_payout
+                        net_profit += rentero_fee
+                    else:
+                        client_payout_total += client_payout
+                        net_profit += rentero_fee
                     break
         dashboard_summary["total_client_payout_czk"] = client_payout_total
         dashboard_summary["total_net_profit_czk"] = round(net_profit, 2)
