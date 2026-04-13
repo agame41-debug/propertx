@@ -313,6 +313,15 @@ function _sbUpdateActiveSlug() {
     }
   });
 }
+function _sbUpdateActiveNav() {
+  var path = location.pathname;
+  document.querySelectorAll('.sidebar .nav-item[href]').forEach(function(a) {
+    var href = a.getAttribute('href');
+    if (!href) return;
+    var isActive = href === '/' ? path === '/' : path.indexOf(href) === 0;
+    if (isActive) { a.classList.add('active'); } else { a.classList.remove('active'); }
+  });
+}
 function _sbUpdateMonthLinks(y, m) {
   var panel = document.getElementById('sb-obj-panel');
   if (!panel) return;
@@ -388,9 +397,10 @@ function sbToggleObj() {
       _sbLoadObjects(true);
     }
   });
-  // Update active highlight when navigating between properties via HTMX
+  // Update active highlight when navigating via HTMX
   document.addEventListener('htmx:afterSettle', function() {
     _sbUpdateActiveSlug();
+    _sbUpdateActiveNav();
   });
   // Save sidebar scroll before page unload so it survives full reloads
   window.addEventListener('beforeunload', _sbSaveScroll);
