@@ -6,6 +6,65 @@ It is not a plan.
 
 It describes the delivered architecture after the completed work in Phase 1, Phase 2, Phase 3, and the hardening pass completed today.
 
+## 2026-04-13
+
+### Z Klient property type
+
+New `client_type` column on `report_objects` with three values: `rentero`, `klient`, `z_klient`. Z Klient calculation uses a distinct formula: odměna Rentero = 3% of gross payout, výplata klientovi = cena_ubytování + city_tax. Config UI on the client page exposes a "Typ objektu" dropdown. Property page KPI label adapts to show "Odměna Rentero (3% z výplaty)" for Z Klient properties. Initial Z Klient properties: Kremencova 2, Moskevska 58, Opletalova 10, Ostrovni 4, Reznicka 21, Soho Tusarova 406.
+
+### Dashboard filter tabs and KPI rework
+
+Dashboard filter tabs replaced the old status filters and owner dropdown with Vše / Rentero / Klienti / Z Klienti. All KPIs recalculate client-side when switching tabs. "Výplata klientům" KPI now excludes Rentero properties. "Zisk Rentero" KPI replaces the former "Stav portfolia": for rentero properties it uses cena_ubytování, for klient/z_klient it uses the rentero_fee.
+
+### Reconciliation (srovnání) fixes
+
+`get_accounting_entries()` now filters by active source files only, preventing deactivated source data from appearing in reconciliation views. `build_payout_aggregate()` excludes `is_excluded` rows from sums. Booking city tax inference changed: Hostify reports `city_tax_eur=0` for Booking but includes city tax in the payout amount. The system now uses a flat 2 EUR per person per night (adults + children + infants) to subtract before comparison. "Vyrovnání z řešení" reclassified from AirCover to adjustment (`__ADJ`); "Výplata jako výsledek řešení" remains AirCover (`__AC`).
+
+### AirCover / synthetic row control
+
+AirCover amounts now preserve original sign (removed `abs()`) so negative adjustments stay negative. AirCover rows receive `_no_fees` treatment (no city_tax, cleaning, balíčky). Strict payout-date window placement enforced for all synthetic types (no `parent_in_current` bypass). `hidden_confirmation_codes` extended to cover `__AC` suffix alongside `__ADJ`/`__SP`. Deduplication safety via `_synthetic_already_exists()` prevents the same code from appearing in two months. Move assignments work for AirCover: moved-in `__AC` bypasses the window check via `ac_codes_in`. Reinstate button works for AirCover: `reinstate_reservation()` creates a pre-reinstated record for hardcoded-excluded rows.
+
+### Bank match integrity
+
+`payout_batch_bank_matches` extended with `slug`, `year`, `month` columns for per-month scoping. Bank matches are now cleared per slug/month before regeneration instead of globally. Ownership check prevents the same bank transaction from being matched in two different months (DORAZILO only if not owned elsewhere). Bank fallback (`bank_index_full`) now applies to AirCover rows alongside adjustments/splits. MATCHED status is downgraded to KE KONTROLE when `bank_status=CHYBÍ`.
+
+### UI fixes
+
+Sidebar active state uses `startswith()` instead of `in` for path matching, with JS update on HTMX navigation. Removed left border bar on active nav items. Tablet breakpoint removed — desktop layout now starts from 640 px. Flash banners auto-dismiss after 8 seconds with a close button. Lock/Unlock all properties for a month from the Inventory page. Mobile filter fix: switched from `onclick` to `addEventListener`.
+
+### Split transaction feature
+
+Reservations with multiple Airbnb payout batches (different `batch_ref`/`gref`) can now be manually split into separate rows for month-to-month management.
+
+- New `split_transactions` table in SQLite schema (`report/db.py`) with `UNIQUE(slug, confirmation_code, batch_ref)`.
+- CRUD functions: `get_split_transactions()`, `get_split_transactions_for_code()`, `create_split_transaction()`, `delete_split_transaction()`.
+- `report/engine.py` — `_build_split_reservation()` creates `__SP`/`__SP2` suffix rows (like `__ADJ` for adjustments). Parent's `effective_payout_eur` reduced by split amounts. Split rows skipped in "Attach batch rate" section. Suffix stripping regex updated from `__ADJ\d*` to `__(ADJ|SP)\d*`.
+- `report/calculator.py` — new fields `is_split_transaction`, `split_parent_code` in `calculate_row` and `_null_row`. Split rows treated as no-fee rows (no cleaning, city tax, balíčky).
+- `report/bank.py` — `enrich_rows_with_bank` accepts `bank_index_full`/`bank_no_ref_full` params for fallback matching of adjustment/split rows whose bank transactions fall after month cutoff.
+- `report/routes/dashboard.py` — `_bank_lookup_code` resolves `split_parent_code`; `_filter_bank_txns_for_row` treats split rows as secondary (filter by own `batch_ref`).
+- `report/routes/property_routes.py` — two new POST endpoints: `split-transaction` (creates split record + regenerates) and `merge-transaction` (deletes split record + regenerates).
+- `report/checkin.py` — split rows skipped in checkin verification.
+- Templates: "Oddělit" button on bank transaction cards in `reservation_detail.html`; "Oddělená platba" badge and "Vrátit do hlavní rezervace" merge button; sublabel in `property_reservations.html`.
+
+### Adjustment engine fix (HM8Z34Q9HF)
+
+- Engine previously skipped all adjustment batches for codes already in `current_codes`. Fixed to check `adj_codes_in` — if a code has moved-in adjustments, only those specific grefs are processed.
+- Added in-memory fallback when `past_row` not found in DB (rows are cleared during generation).
+
+### Adjustment bank matching fix (cutoff bypass)
+
+- Bank transactions after month cutoff date were excluded from `bank_index`, causing adjustment/split rows to show "CHYBÍ" despite a match existing.
+- Built `bank_index_full` from unfiltered `bank_rows_all` and used as fallback for adjustment/split rows in `enrich_rows_with_bank`.
+
+### Flash banner clipping fix
+
+- Flash/generation/notification banners were rendered before `.prop-page-header` (sticky, `z-index: 20`, negative top margin), causing the header to physically overlap and hide them.
+- Moved all banners to after the header in DOM order in `property_intro.html`.
+
+### Mobile number wrapping fix
+
+- Added `white-space: nowrap` to `.num` class in `base_styles_components.html` so formatted amounts (e.g. "6 143,25 Kč") don't break mid-number on narrow screens.
+
 ## 2026-04-11
 
 ### RBAC — Multi-user access control

@@ -243,7 +243,7 @@ tests/                   pytest suite
 - Airbnb provize používá CNB kurz ke dni rezervace, ne Airbnb batch rate.
 - Booking kurz se bere jako `Splatná částka v CZK / Hodnota transakce` z Booking payout CSV.
 - Booking provize se počítá jako `(Provize + Poplatek za platební služby) * booking kurz`.
-- Booking porovnání s CSV odečítá z Hostify payoutu raw `Hostify city_tax_eur`, aby srovnání odpovídalo reálné Hostify hodnotě.
+- Booking porovnání s CSV: Hostify hlásí `city_tax_eur=0` pro Booking, ale city tax je zahrnut v payoutu. Systém odečítá paušálně **2 EUR za osobu za noc** (dospělí + děti + kojenci) před porovnáním.
 - `Balíčky` se počítají podle guest countu z city-tax / Checkin vrstvy, ne podle syrové occupancy.
 - `Cena ubytování` nikdy nesmí spadnout pod `0 Kč`.
 - Manual override `payout_czk` okamžitě přepočítává i `cena_ubytovani_czk`.
@@ -254,6 +254,11 @@ tests/                   pytest suite
 - Closed month (`LOCKED`) je read-only, dokud není explicitně unlocknut.
 - Marriott rezervace dnes přicházejí z Hostify jako source `HVMB`, v UI se ale zobrazují jako `Marriott`.
 - Marriott / jiné non-Airbnb non-Booking Hostify rezervace se zahrnou do reportu přes Hostify aliases a zatím standardně končí jako `CHYBÍ_V_CSV`, dokud pro ně neexistuje dedikovaný CSV import.
+- `report_objects.client_type` rozlišuje tři typy: `rentero` (vlastní objekty), `klient` (standardní klient), `z_klient` (3% odměna z payoutu, výplata = cena_ubytování + city_tax).
+- AirCover (`__AC`) řádky: zachovávají původní znaménko, dostávají `_no_fees` režim (bez city_tax, úklid, balíčky), podléhají striktnímu payout-date window placement.
+- "Vyrovnání z řešení" = adjustment (`__ADJ`), "Výplata jako výsledek řešení" = AirCover (`__AC`).
+- Bank match ownership: stejná bankovní transakce nemůže být DORAZILO ve dvou různých měsících. `payout_batch_bank_matches` obsahuje `slug`, `year`, `month` pro per-month scoping.
+- Reconciliation (`get_accounting_entries`) filtruje pouze aktivní source soubory.
 
 ## Operační poznámky
 
@@ -265,6 +270,10 @@ tests/                   pytest suite
 - Floating reservation panel lookup používá přímý indexed lookup přes
   `report_rows.confirmation_code`, ne `json_extract(...)` nad JSON blobem.
   To výrazně snižuje CPU load web procesu při práci s panelem.
+- Bank matches se mažou per slug/month před regenerací, ne globálně.
+  MATCHED status se degraduje na KE KONTROLE, pokud `bank_status=CHYBÍ`.
+- Dashboard filtrování: Vše / Rentero / Klienti / Z Klienti — KPI se přepočítávají client-side.
+- Flash bannery se automaticky zavírají po 8 sekundách.
 
 ## SQLite
 

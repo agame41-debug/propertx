@@ -86,6 +86,13 @@ Airbnb → CITIBANK EUROPE PLC, incoming only.
 1. `Zpráva pro příjemce` contains `G-XXXXXXX` → direct index lookup
 2. No automatic amount/date fallback → unresolved rows remain `CHYBÍ` until a reference-backed match exists
 
+Bank match ownership:
+- `payout_batch_bank_matches` includes `slug`, `year`, `month` columns for per-month scoping.
+- Matches are cleared per slug/month before regeneration (not globally).
+- Ownership check: a bank transaction is DORAZILO only if not already matched in another month.
+- MATCHED payout status downgrades to KE KONTROLE when `bank_status=CHYBÍ`.
+- `bank_index_full` fallback applies to AirCover (`__AC`) rows alongside adjustments (`__ADJ`) and splits (`__SP`).
+
 ## Hostify quirks
 - `listing_id` filter param broken → fetch all by date range, filter locally by `listing_nickname`
 - One property can resolve to multiple Hostify child listing nicknames; this is how Marriott / `HVMB` reservations are attached to the same report object.
@@ -100,7 +107,7 @@ Airbnb → CITIBANK EUROPE PLC, incoming only.
 
 Verification rule:
 - Booking CSV `net_eur` is the payout truth used for calculations when a row is matched.
-- Comparable Hostify payout is normalized by removing raw Hostify `city_tax_eur`.
+- Hostify reports `city_tax_eur=0` for Booking, but city tax is included in the payout amount. The system infers city tax as a flat **2 EUR per person per night** (adults + children + infants) and subtracts it from the Hostify payout before comparison.
 - If the remaining diff is within `±1.00 EUR`, the row is `MATCHED`, not `ROZDÍL`.
 
 Полная провизия = базовая комиссия (15%) + payment service fee (1.5%):
@@ -114,6 +121,34 @@ Verification rule:
 - Background generation jobs are tracked in SQLite and stale `PENDING` or `RUNNING` jobs are auto-expired
 - Web generation is DB-first and passes `--legacy-autodiscover` to stay aligned with CLI fallback behavior
 - Windows launcher defaults to detached background mode; `RENTERO_SHOW_LOGS=1` switches back to attached console logs for debugging
+
+## Client types (report_objects.client_type)
+
+Three property ownership/billing types:
+
+| Type | Odměna Rentero | Výplata klientovi |
+|---|---|---|
+| `rentero` | N/A (own property) | N/A |
+| `klient` | standard fee calculation | standard payout |
+| `z_klient` | 3% of gross payout | cena_ubytování + city_tax |
+
+The type is stored on `report_objects.client_type` and editable via the "Typ objektu" dropdown on the client config page. Dashboard KPIs adapt: "Výplata klientům" excludes Rentero properties; "Zisk Rentero" uses cena_ubytování for rentero, rentero_fee for klient/z_klient.
+
+## AirCover and synthetic rows
+
+Synthetic row types (`__ADJ`, `__SP`, `__AC`) share common pipeline behavior:
+- All use strict payout-date window placement (no `parent_in_current` bypass).
+- All are hidden from parent month via `hidden_confirmation_codes`.
+- `_synthetic_already_exists()` deduplication prevents the same code in two months.
+- Bank matching uses `bank_index_full` fallback for all synthetic types.
+
+AirCover-specific (`__AC`):
+- Preserves original sign (no `abs()`).
+- Gets `_no_fees` treatment: no city_tax, cleaning, balíčky.
+- Move-in via `ac_codes_in` bypasses window check.
+- Reinstate creates a pre-reinstated record for hardcoded-excluded rows.
+
+Classification: "Vyrovnání z řešení" → `__ADJ` (adjustment), "Výplata jako výsledek řešení" → `__AC` (AirCover).
 
 ## FastAPI migration path
 `calculator.py` — pure functions, JSON-serializable I/O, zero I/O → drop-in for API endpoint.
