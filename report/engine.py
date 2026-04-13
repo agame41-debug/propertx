@@ -669,6 +669,13 @@ def generate_report_in_process(
                 code, batch_ref, batch_info.get("payout_eur", 0),
             )
 
+    # ── Reinstatement: override hardcoded is_excluded for reinstated synthetics
+    from report.db_controls import get_reinstated_codes
+    reinstated_codes = get_reinstated_codes(conn, slug)
+    for r in reservations:
+        if r.get("is_excluded") and r["confirmation_code"] in reinstated_codes:
+            r["is_excluded"] = False
+
     # ── Verify against CSV ──────────────────────────────────────────────────
     booking_codes = [
         code for code, row in booking_index.items()

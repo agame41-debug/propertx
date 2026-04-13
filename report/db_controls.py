@@ -241,6 +241,19 @@ def get_active_exclusions(
     return {row["confirmation_code"] for row in rows}
 
 
+def get_reinstated_codes(
+    conn: sqlite3.Connection,
+    slug: str,
+) -> set[str]:
+    """Return confirmation_codes that were explicitly reinstated by user."""
+    rows = conn.execute(
+        """SELECT confirmation_code FROM reservation_exclusions
+            WHERE slug = ? AND reinstated_at IS NOT NULL""",
+        (slug,),
+    ).fetchall()
+    return {row["confirmation_code"] for row in rows}
+
+
 def get_exclusion_for_code(
     conn: sqlite3.Connection,
     slug: str,
