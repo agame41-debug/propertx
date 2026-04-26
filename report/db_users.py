@@ -5,31 +5,55 @@ import secrets
 import sqlite3
 from datetime import datetime, timezone
 
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
+
 ROLE_ADMIN = "admin"
 ROLE_MANAGER = "manager"
 ROLE_CLIENT = "client"
 VALID_ROLES = {ROLE_ADMIN, ROLE_MANAGER, ROLE_CLIENT}
+
+# OWASP-recommended Argon2id defaults from argon2-cffi.
+_HASHER = PasswordHasher()
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _is_argon2(password_hash: str) -> bool:
+    return password_hash.startswith("$argon2")
+
+
 def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
-    """Return (hash_hex, salt_hex). Generates new salt if None."""
-    if salt is None:
-        salt = secrets.token_hex(16)
-    h = hashlib.sha256((salt + password).encode()).hexdigest()
-    return h, salt
+    """Return (encoded_argon2_string, "").
+
+    Argon2's encoded form self-contains its salt and parameters, so the
+    legacy `password_salt` column is unused for new hashes. The `salt`
+    parameter is kept only for signature compatibility with old callers.
+    """
+    del salt
+    return _HASHER.hash(password), ""
 
 
 def verify_password(password: str, password_hash: str, password_salt: str) -> bool:
+    """Verify a password against either an Argon2 or legacy SHA-256 hash."""
+    if _is_argon2(password_hash):
+        try:
+            _HASHER.verify(password_hash, password)
+            return True
+        except (VerifyMismatchError, InvalidHashError):
+            return False
     h = hashlib.sha256((password_salt + password).encode()).hexdigest()
     return secrets.compare_digest(h, password_hash)
 
 
 def authenticate_user(conn: sqlite3.Connection, username: str, password: str) -> dict | None:
-    """Return user dict if credentials valid and user active, else None."""
+    """Return user dict if credentials valid and user active, else None.
+
+    Successful login of a legacy SHA-256 user transparently rehashes the
+    password with Argon2 in place.
+    """
     row = conn.execute(
         "SELECT * FROM users WHERE username = ? AND is_active = 1",
         (username,),
@@ -39,6 +63,15 @@ def authenticate_user(conn: sqlite3.Connection, username: str, password: str) ->
     user = dict(row)
     if not verify_password(password, user["password_hash"], user["password_salt"]):
         return None
+    if not _is_argon2(user["password_hash"]):
+        new_hash, new_salt = hash_password(password)
+        conn.execute(
+            "UPDATE users SET password_hash = ?, password_salt = ?, updated_at = ? WHERE id = ?",
+            (new_hash, new_salt, _now(), user["id"]),
+        )
+        conn.commit()
+        user["password_hash"] = new_hash
+        user["password_salt"] = new_salt
     return user
 
 
