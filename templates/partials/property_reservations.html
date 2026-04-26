@@ -1,304 +1,168 @@
-<div class="card" style="margin-bottom:16px;">
-  <div class="card-header" style="cursor:pointer;user-select:none;" onclick="toggleSection('reservations-body', 'caret-res')">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <svg id="caret-res" class="caret-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+{# Reservations card: header (title + counts + filter-pills) + 7-col table.
+   Each row has a hidden detail-row (.rs-ex) underneath, included from
+   property_reservation_detail.html, toggled by JS click-to-expand. #}
+
+<div class="card">
+  <div class="card-h">
+    <div class="card-h-left">
       <span class="card-title">Rezervace</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px;" onclick="event.stopPropagation()">
-      {%- set active_count = rows | rejectattr('is_excluded') | list | length -%}
-      <span style="font-size:12px;color:var(--text-muted);">{{ active_count }} záznamů</span>
-      {% if rows %}
-      <button id="res-expand-all-btn" onclick="toggleAllResExpand()"
-              style="font-size:11px;color:var(--text-300);background:none;border:1px solid rgba(255,255,255,0.08);
-                     border-radius:5px;padding:3px 9px;cursor:pointer;transition:all 0.13s;white-space:nowrap;"
-              onmouseover="this.style.color='var(--text-100)';this.style.borderColor='rgba(255,255,255,0.18)'"
-              onmouseout="this.style.color='var(--text-300)';this.style.borderColor='rgba(255,255,255,0.08)'">
-        Rozbalit vše
-      </button>
-      {% endif %}
-    </div>
-  </div>
-
-  <div id="reservations-body">
-  {% if rows %}
-  <div style="overflow-x:auto;">
-    <table class="data-table" data-enhanced="true" data-table-id="reservations">
-      <thead>
-        <tr>
-          <th data-col="nr" data-sortable="false" style="width:32px;">#</th>
-          <th data-col="kanal" style="width:90px;">Kanál</th>
-          <th data-col="host">Host</th>
-          <th data-col="pobyt" style="width:130px;">Pobyt</th>
-          <th data-col="noci" class="text-center" style="width:46px;">Noci</th>
-          <th data-col="stav" style="width:130px;">Stav</th>
-          <th data-col="banka" style="width:130px;">Banka</th>
-          <th data-col="ubytovani" class="text-right" style="width:120px;">Ubytování</th>
-          <th data-col="vyplata" class="text-right" style="width:120px;">Výplata</th>
-          <th data-col="akce" data-sortable="false" style="width:80px;"></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rows %}
-        {% set idx = loop.index %}
-        {% set overridden = r.get('_overridden') or {} %}
-        {% set has_override = overridden|length > 0 %}
-        {% set src = source_family(r.source) %}
-        {% set channel_label = source_label(r.source) %}
-
-        <tr id="res-row-{{ idx }}"
-            class="{% if r.is_excluded %}row-excluded{% endif %}"
-            data-row-id="{{ r.confirmation_code }}"
-            data-idx="{{ idx }}"
-            data-code="{{ r.confirmation_code|e }}"
-            data-slug="{{ slug }}"
-            data-year="{{ year }}"
-            data-month="{{ month }}"
-            data-guest="{{ r.guest_name|e }}"
-            data-channel="{{ channel_label }}"
-            data-stay="{{ r.stay_label|e }}"
-            data-nights="{{ r.nights or 0 }}"
-            onclick="toggleResExpand(this, {{ idx }})"
-            style="cursor:pointer;{% if has_override %}background:rgba(245,161,74,0.04);{% endif %}">
-
-          <td data-col="nr" data-val="{{ r.order or idx }}" style="color:var(--text-muted);font-size:12px;" class="num">{{ r.order or idx }}</td>
-
-          <td data-col="kanal" data-val="{{ channel_label }}">
-            {% if src == "airbnb" %}
-            <span class="badge channel-airbnb" style="font-size:10.5px;">Airbnb</span>
-            {% elif src == "booking" %}
-            <span class="badge channel-booking" style="font-size:10.5px;">Booking</span>
-            {% elif src == "marriott" %}
-            <span class="badge badge-neutral" style="font-size:10.5px;">Marriott</span>
-            {% else %}
-            <span style="font-size:12px;color:var(--text-muted);">{{ channel_label }}</span>
-            {% endif %}
-            {% if r.is_payout_adjustment and r.adjustment_original_month %}
-            <span class="adjustment-sublabel">Doplatek ↗ {{ "%02d/%d"|format(r.adjustment_original_month, r.adjustment_original_year) }}</span>
-            {% elif r.is_aircover %}
-            <span class="adjustment-sublabel" style="color:var(--amber);">AirCover</span>
-            {% elif r.is_split_transaction %}
-            <span class="adjustment-sublabel" style="color:var(--accent);">Oddělená platba</span>
-            {% endif %}
-          </td>
-
-          <td data-col="host" data-val="{{ r.guest_name or '' }}">
-            <div style="font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">
-              {{ r.guest_name or "—" }}
-              {% if has_override %}<span class="override-badge">upraveno</span>{% endif %}
-              {% if r.is_aircover %}<span class="override-badge" style="background:rgba(245,161,74,0.12);color:var(--amber);border-color:rgba(245,161,74,0.2);">AirCover</span>
-              {% elif r.is_excluded %}<span class="override-badge" style="background:rgba(239,68,68,0.12);color:var(--red);border-color:rgba(239,68,68,0.2);">Vyřazeno</span>{% endif %}
-            </div>
-            {% if r.comment %}
-            <div style="font-size:11px;color:var(--amber);margin-top:2px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ r.comment }}">
-              ⚠ {{ r.comment }}
-            </div>
-            {% endif %}
-          </td>
-
-          <td data-col="pobyt" data-val="{{ r.stay_label or '' }}" style="font-size:12px;white-space:nowrap;" class="num">{{ r.stay_label or "—" }}</td>
-          <td data-col="noci" data-val="{{ r.nights or 0 }}" style="text-align:center;" class="num">{{ r.nights or "—" }}</td>
-
-          <td data-col="stav">
-            {% set vs = r.display_verification_status or r.verification_status or "" %}
-            <span class="badge
-              {% if vs == 'MATCHED' %}badge-green
-              {% elif vs == 'ROZDÍL' %}badge-orange
-              {% elif vs == 'KE KONTROLE' %}badge-amber
-              {% elif 'CHYBÍ' in vs %}badge-red
-              {% else %}badge-neutral{% endif %}"
-              style="font-size:10px;">
-              {{ vs or "—" }}
-            </span>
-            {% if r.display_verification_note %}
-            <div style="font-size:10px;color:var(--amber);margin-top:3px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ r.display_verification_note }}">{{ r.display_verification_note }}</div>
-            {% endif %}
-            {% if 'verification_status' in overridden %}
-            <div style="font-size:10px;color:var(--text-muted);text-decoration:line-through;margin-top:2px;">{{ overridden.verification_status or "—" }}</div>
-            {% endif %}
-          </td>
-
-          <td data-col="banka" data-val="{{ r.bank_status or '' }}">
-            {% set bs = r.bank_status or "" %}
-            {% if bs == 'DORAZILO' %}
-            <div style="display:flex;align-items:center;gap:4px;color:var(--green);font-size:12px;font-weight:500;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              Dorazilo
-            </div>
-            {% if r.bank_datum %}
-            <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px;" class="num">{{ r.bank_datum }}</div>
-            {% endif %}
-            {% elif bs == 'CHYBÍ' %}
-            <span style="font-size:12px;color:var(--red);font-weight:500;">Chybí</span>
-            {% elif bs == 'N/A' %}
-            <span style="font-size:12px;color:var(--text-muted);">N/A</span>
-            {% else %}
-            <span style="font-size:12px;color:var(--text-muted);">{{ bs or "—" }}</span>
-            {% endif %}
-          </td>
-
-          <td data-col="ubytovani" data-val="{{ r.cena_ubytovani_czk or 0 }}" style="text-align:right;" class="num copyable"
-              {% if r.cena_ubytovani_czk is not none %}data-copy="{{ "%.2f"|format(r.cena_ubytovani_czk) }}"{% endif %}>
-            {% if r.cena_ubytovani_czk is not none %}{{ money(r.cena_ubytovani_czk) }}{% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
-          </td>
-
-          <td data-col="vyplata" data-val="{{ r.payout_czk or 0 }}" style="text-align:right;" class="num num-strong copyable"
-              {% if r.payout_czk is not none %}data-copy="{{ "%.2f"|format(r.payout_czk) }}"{% endif %}>
-            {% if r.payout_czk is not none %}{{ money(r.payout_czk) }}{% else %}—{% endif %}
-            {% if 'payout_czk' in overridden %}
-            <div style="font-size:10px;color:var(--amber);text-decoration:line-through;font-weight:400;">
-              {% if overridden.payout_czk is not none %}{{ money(overridden.payout_czk) }}{% else %}—{% endif %}
-            </div>
-            {% endif %}
-          </td>
-
-          <td data-col="akce" style="text-align:right;" onclick="event.stopPropagation()">
-            <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;">
-              <button onclick="openDrawerFromRow(document.getElementById('res-row-{{ idx }}'))"
-                      style="font-size:12px;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:5px;transition:all 0.13s;"
-                      onmouseover="this.style.background='rgba(255,255,255,0.06)';this.style.color='var(--text-primary)'"
-                      onmouseout="this.style.background='';this.style.color='var(--text-muted)'"
-                      title="Otevřít v panelu">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              </button>
-              {% if month_state.status != 'LOCKED' %}
-              <button onclick="event.stopPropagation(); toggleOverrideForm({{ idx }})"
-                      style="font-size:12px;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:5px;transition:all 0.13s;"
-                      onmouseover="this.style.background='rgba(255,255,255,0.06)';this.style.color='var(--accent)'"
-                      onmouseout="this.style.background='';this.style.color='var(--text-muted)'"
-                      title="Upravit">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
-              {% endif %}
-            </div>
-          </td>
-        </tr>
-
-        <tr id="res-expand-{{ idx }}" class="res-expand-row drilldown-row" style="display:none;">
-          <td colspan="10" style="padding:0;border-top:none;">
-            {# channel accent colour #}
-            {% set src_exp = source_family(r.source) %}
-            {% if src_exp == "airbnb" %}{% set _accent = "#ff5a5f" %}
-            {% elif src_exp == "booking" %}{% set _accent = "#4f8ef7" %}
-            {% elif src_exp == "marriott" %}{% set _accent = "#8b5cf6" %}
-            {% else %}{% set _accent = "var(--color-primary)" %}{% endif %}
-            <div class="res-compact-strip">
-
-              {# ── spacer pushes everything right ── #}
-              <div style="flex:1;"></div>
-
-              {# ── srážky ── #}
-              {% if r.provize_czk or r.city_tax_czk or r.uklid_czk or r.balicky_czk %}
-              <div class="rcs-group">
-                {% if r.provize_czk %}<div class="rcs-item">
-                  <span class="rcs-label">Provize</span>
-                  <span class="rcs-val rcs-val-sub" data-copy="{{ r.provize_czk|round(2) }}" title="Kopírovat">−{{ money(r.provize_czk) }}</span>
-                </div>{% endif %}
-                {% if r.city_tax_czk %}<div class="rcs-item">
-                  <span class="rcs-label">City tax</span>
-                  <span class="rcs-val rcs-val-sub" data-copy="{{ r.city_tax_czk|round(2) }}" title="Kopírovat">−{{ money(r.city_tax_czk) }}</span>
-                </div>{% endif %}
-                {% if r.uklid_czk %}<div class="rcs-item">
-                  <span class="rcs-label">Úklid</span>
-                  <span class="rcs-val rcs-val-sub" data-copy="{{ r.uklid_czk|round(2) }}" title="Kopírovat">−{{ money(r.uklid_czk) }}</span>
-                </div>{% endif %}
-                {% if r.balicky_czk %}<div class="rcs-item">
-                  <span class="rcs-label">Balíčky</span>
-                  <span class="rcs-val rcs-val-sub" data-copy="{{ r.balicky_czk|round(2) }}" title="Kopírovat">−{{ money(r.balicky_czk) }}</span>
-                </div>{% endif %}
-              </div>
-              {% endif %}
-
-              {# ── kurz ── #}
-              {% if r.kurz %}
-              <div class="rcs-sep"></div>
-              <div class="rcs-group" style="flex:0;">
-                <div class="rcs-item">
-                  <span class="rcs-label">Kurz EUR/CZK</span>
-                  <span class="rcs-val rcs-val-muted" data-copy="{{ "%.4f"|format(r.kurz) }}" title="Kopírovat">{{ "%.4f"|format(r.kurz) }}</span>
-                </div>
-              </div>
-              {% endif %}
-
-              {# ── kód ── #}
-              {% if r.confirmation_code %}
-              <div class="rcs-sep"></div>
-              <div class="rcs-group" style="flex:0;">
-                <div class="rcs-item">
-                  <span class="rcs-label">Kód rezervace</span>
-                  {% set display_code = r.aircover_parent_code if r.is_aircover and r.aircover_parent_code else r.adjustment_parent_code if r.is_payout_adjustment and r.adjustment_parent_code else r.split_parent_code if r.is_split_transaction and r.split_parent_code else r.confirmation_code %}
-                  <span class="rcs-val rcs-val-muted" data-copy="{{ display_code }}" title="Kopírovat" style="font-family:monospace;font-size:10.5px;letter-spacing:0.02em;">{{ display_code }}</span>
-                </div>
-              </div>
-              {% endif %}
-
-            </div>
-          </td>
-        </tr>
-
-        {% set _user = get_current_user(request) %}
-        {% if month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
-        <tr id="override-form-{{ idx }}" style="display:none;">
-          <td colspan="10" style="padding:14px 16px;background:rgba(245,161,74,0.05);border-top:1px solid rgba(245,161,74,0.15);border-bottom:1px solid rgba(245,161,74,0.15);">
-            <form method="post"
-                  action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/override"
-                  style="display:grid;grid-template-columns:1.5fr 1fr 1.5fr 1.5fr auto;gap:10px;align-items:end;">
-              {{ csrf_input(request) }}
-              <div>
-                <label class="form-label">Pole</label>
-                <select name="field" id="override-field-{{ idx }}"
-                        onchange="updateOverrideCurrentVal({{ idx }}, this)"
-                        class="form-input">
-                  {% for fkey, flabel in override_field_labels.items() %}
-                  <option value="{{ fkey }}"
-                          data-current="{{ r.get(fkey) or '' }}"
-                          data-is-status="{% if fkey == 'verification_status' %}1{% else %}0{% endif %}">
-                    {{ flabel }}
-                  </option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div>
-                <label class="form-label">Původní hodnota</label>
-                <div id="override-orig-{{ idx }}"
-                     style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text-muted);background:rgba(255,255,255,0.02);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                  {{ r.payout_czk or "—" }}
-                </div>
-              </div>
-              <div>
-                <label class="form-label">Nová hodnota</label>
-                <input type="text" name="new_value" id="override-newval-{{ idx }}"
-                       value="{{ r.payout_czk or '' }}"
-                       list="vs-options-{{ idx }}"
-                       required
-                       class="form-input">
-                <datalist id="vs-options-{{ idx }}">
-                  {% for opt in verification_status_options %}<option value="{{ opt }}">{% endfor %}
-                </datalist>
-              </div>
-              <div>
-                <label class="form-label">Důvod *</label>
-                <input type="text" name="reason" required placeholder="Proč měníš tuto hodnotu?"
-                       class="form-input">
-              </div>
-              <div style="display:flex;gap:6px;">
-                <button type="submit" class="btn btn-sm" style="background:var(--amber-dim);color:var(--amber);border-color:rgba(245,161,74,0.25);">Uložit</button>
-                <button type="button" onclick="toggleOverrideForm({{ idx }})" class="btn btn-ghost btn-sm">Zrušit</button>
-              </div>
-            </form>
-          </td>
-        </tr>
+      <span class="card-meta">
+        <span class="v">{{ counts.active }}</span> aktivních
+        <span style="opacity:.3;margin:0 5px">·</span>
+        <span class="v">{{ counts.nights }}</span> nocí
+        {% if counts.adjustments > 0 %}
+          <span style="opacity:.3;margin:0 5px">·</span>
+          <span class="v">{{ counts.adjustments }}</span> úprav
         {% endif %}
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <div style="padding:48px 20px;text-align:center;">
-    <div style="color:var(--text-muted);font-size:13px;">Žádné rezervace pro tento měsíc.</div>
-    <div style="color:var(--text-muted);font-size:12px;margin-top:8px;">
-      Spusťte <code style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:11px;">bin/regen.py {{ slug }} {{ year }} {{ month }}</code>
+      </span>
+    </div>
+    <div class="rs-filters" data-filter-group="rs">
+      <button class="rs-filter active" type="button" data-filter="all">VŠE<span class="n">{{ counts.all_rows }}</span></button>
+      <button class="rs-filter" type="button" data-filter="problems" {% if counts.problems == 0 %}disabled{% endif %}>
+        PROBLÉMY{% if counts.problems > 0 %}<span class="n err">{{ counts.problems }}</span>{% endif %}
+      </button>
+      <button class="rs-filter" type="button" data-filter="moved" {% if counts.moved == 0 %}disabled{% endif %}>
+        PŘESUNY{% if counts.moved > 0 %}<span class="n">{{ counts.moved }}</span>{% endif %}
+      </button>
+      <button class="rs-filter" type="button" data-filter="excluded" {% if counts.excluded == 0 %}disabled{% endif %}>
+        VYLOUČENÉ{% if counts.excluded > 0 %}<span class="n">{{ counts.excluded }}</span>{% endif %}
+      </button>
     </div>
   </div>
-  {% endif %}
-  </div>
+
+  <table class="t rs-table">
+    <thead>
+      <tr>
+        <th style="width:40px"></th>
+        <th class="c" style="width:48px">Kanál</th>
+        <th>Host</th>
+        <th class="r" style="width:148px">Datum</th>
+        <th class="r" style="width:130px">Výplata</th>
+        <th class="c" style="width:150px">Stav</th>
+        <th style="width:24px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+        <tr class="rs-row{% if r.is_excluded %} rs-row-muted{% endif %}{% if r.is_payout_adjustment %} rs-row-child{% endif %}"
+            data-code="{{ r.confirmation_code }}"
+            data-status="{{ r._mock_status }}"
+            data-channel="{{ r.source|default('') }}"
+            data-payout="{{ r.payout_czk or 0 }}"
+            data-ubyt="{{ r.cena_ubytovani_czk or 0 }}"
+            data-nights="{{ r.nights or 0 }}">
+
+          <td class="rs-idx">{{ '%02d'|format(loop.index) }}</td>
+
+          <td class="c">
+            {% if r.source == 'airbnb' %}
+              <span class="ch-logo ch-logo-airbnb" title="Airbnb">
+                <svg width="16" height="16" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M16 5.2c-1.4 0-2.6.85-3.35 2.4L4.95 22.5c-.55 1.1-.85 2.05-.85 2.95 0 2.4 1.85 4.15 4.3 4.15 1.4 0 2.7-.6 4.05-1.85L16 25l3.55 2.75c1.35 1.25 2.65 1.85 4.05 1.85 2.45 0 4.3-1.75 4.3-4.15 0-.9-.3-1.85-.85-2.95L19.35 7.6c-.75-1.55-1.95-2.4-3.35-2.4z"/>
+                  <path d="M11.5 19.4c0-1.05.85-1.9 1.9-1.9h5.2c1.05 0 1.9.85 1.9 1.9 0 .65-.35 1.2-.75 1.7L16 26l-3.75-4.9c-.4-.5-.75-1.05-.75-1.7z"/>
+                </svg>
+              </span>
+            {% elif r.source == 'booking' %}
+              <span class="ch-logo ch-logo-booking" title="Booking.com">
+                <svg width="16" height="16" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 6.5v17"/><path d="M9 6.5h6.2c2.7 0 4.4 1.5 4.4 3.7 0 2.2-1.7 3.7-4.4 3.7H9"/>
+                  <path d="M9 13.9h7c2.8 0 4.7 1.6 4.7 4.05 0 2.45-1.9 4.05-4.7 4.05H9"/>
+                  <circle cx="24" cy="22" r="1.7" fill="currentColor" stroke="none"/>
+                </svg>
+              </span>
+            {% else %}
+              <span class="ch-logo" title="{{ r.source|default('Jiné') }}" style="color:var(--text-400);font-size:11px;font-family:var(--font-mono);text-transform:uppercase">{{ (r.source or 'jin')[:3] }}</span>
+            {% endif %}
+          </td>
+
+          <td>
+            <span class="rs-guest">{{ r.guest_name or '—' }}</span>
+            {% if r.guests and r.guests > 0 %}
+              <span class="hint">·&nbsp;{{ r.guests }}&nbsp;{% if r.guests == 1 %}host{% else %}hosté{% endif %}</span>
+            {% endif %}
+          </td>
+
+          <td class="r rs-date" data-mobile-label="Pobyt">
+            {% if r.is_payout_adjustment %}
+              <div class="rs-date-child">
+                <span class="rs-date-arrow">↳</span>
+                <span class="rs-date-num">{{ r.adjustment_anchor_date or r.checkin_date or '—' }}</span>
+              </div>
+            {% else %}
+              <div class="rs-date-stack">
+                <span class="rs-date-num">{{ r.stay_label or '—' }}</span>
+                {% if r.nights and r.nights > 0 %}
+                  <span class="rs-date-sub">{{ r.nights }}&nbsp;{% if r.nights == 1 %}noc{% elif r.nights < 5 %}noci{% else %}nocí{% endif %}</span>
+                {% endif %}
+              </div>
+            {% endif %}
+          </td>
+
+          <td class="r rs-payout" data-mobile-label="Výplata">
+            <div class="rs-payout-stack">
+              <span class="rs-payout-num{% if (r.payout_czk or 0) < 0 %} warn{% endif %}">
+                {% if r.payout_czk %}{{ fmt_czk(r.payout_czk) }}{% else %}—{% endif %}
+              </span>
+              {% if r.cena_ubytovani_czk and not r.is_payout_adjustment %}
+                <span class="rs-payout-sub">ubyt.&nbsp;{{ fmt_czk(r.cena_ubytovani_czk) }}</span>
+              {% endif %}
+            </div>
+          </td>
+
+          <td class="c rs-stav" data-mobile-label="Stav">
+            <div class="rs-stav-stack">
+              <span class="badge {{ r._mock_status_class }}">{{ r._mock_status_label }}</span>
+              {% if not r.is_payout_adjustment %}
+                {% if r.bank_status == 'DORAZILO' %}
+                  <span class="rs-stav-bank ok">
+                    <span class="rs-stav-bank-k">Banka</span>
+                    <span class="rs-stav-bank-mk">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  </span>
+                {% elif r.bank_status == 'N/A' or r.is_excluded or r._mock_status == 'MOVED_OUT' %}
+                  <span class="rs-stav-bank na"><span class="rs-stav-bank-k">Banka</span><span class="rs-stav-bank-mk">—</span></span>
+                {% else %}
+                  <span class="rs-stav-bank err">
+                    <span class="rs-stav-bank-k">Banka</span>
+                    <span class="rs-stav-bank-mk">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </span>
+                  </span>
+                {% endif %}
+              {% endif %}
+            </div>
+          </td>
+
+          <td class="rs-caret">
+            {% if not r.is_payout_adjustment %}
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            {% endif %}
+          </td>
+        </tr>
+
+        {# Hidden detail row, toggled by JS click-to-expand #}
+        <tr class="rs-ex" data-for="{{ r.confirmation_code }}" hidden>
+          <td colspan="7">
+            {% include "partials/property_reservation_detail.html" %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" class="mono" style="color:var(--text-400);font-size:11px;letter-spacing:.1em;text-transform:uppercase">
+          Celkem · <span data-totals="active">{{ counts.active }}</span> aktivních ·
+          <span data-totals="nights">{{ counts.nights }}</span> nocí
+        </td>
+        <td class="r rs-payout">
+          <div class="rs-payout-stack">
+            <span class="rs-payout-num strong" data-totals="payout">{{ fmt_czk(totals.payout) }}</span>
+            <span class="rs-payout-sub">ubyt.&nbsp;<span data-totals="ubyt">{{ fmt_czk(totals.ubyt) }}</span></span>
+          </div>
+        </td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+  </table>
 </div>
