@@ -316,7 +316,8 @@ def get_expenses(
 def get_expense(conn: sqlite3.Connection, expense_id: int) -> dict | None:
     row = conn.execute(
         """SELECT e.id, e.property_slug, e.year, e.month, e.date,
-                  e.description, e.amount_czk, e.created_at,
+                  e.description, e.amount_czk, e.amount_net_czk, e.amount_dph_czk,
+                  e.vat_rate, e.created_at,
                   c.name AS category_name, e.category_id
            FROM expenses e
            LEFT JOIN expense_categories c ON c.id = e.category_id
@@ -333,11 +334,26 @@ def add_expense(conn: sqlite3.Connection, data: dict) -> int:
         int(data["year"]),
         int(data["month"]),
     )
+    payload = {
+        "property_slug": data["property_slug"],
+        "year": data["year"],
+        "month": data["month"],
+        "date": data.get("date"),
+        "category_id": data.get("category_id"),
+        "description": data["description"],
+        "amount_czk": data["amount_czk"],
+        "amount_net_czk": data.get("amount_net_czk"),
+        "amount_dph_czk": data.get("amount_dph_czk"),
+        "vat_rate": data.get("vat_rate"),
+        "created_at": _now(),
+    }
     cur = conn.execute(
         """INSERT INTO expenses
-           (property_slug, year, month, date, category_id, description, amount_czk, created_at)
-           VALUES (:property_slug, :year, :month, :date, :category_id, :description, :amount_czk, :created_at)""",
-        {**data, "created_at": _now()},
+           (property_slug, year, month, date, category_id, description,
+            amount_czk, amount_net_czk, amount_dph_czk, vat_rate, created_at)
+           VALUES (:property_slug, :year, :month, :date, :category_id, :description,
+                   :amount_czk, :amount_net_czk, :amount_dph_czk, :vat_rate, :created_at)""",
+        payload,
     )
     conn.commit()
     return int(cur.lastrowid)
@@ -350,13 +366,27 @@ def update_expense(conn: sqlite3.Connection, expense_id: int, data: dict) -> Non
         int(data["year"]),
         int(data["month"]),
     )
+    payload = {
+        "id": expense_id,
+        "property_slug": data["property_slug"],
+        "year": data["year"],
+        "month": data["month"],
+        "date": data.get("date"),
+        "category_id": data.get("category_id"),
+        "description": data["description"],
+        "amount_czk": data["amount_czk"],
+        "amount_net_czk": data.get("amount_net_czk"),
+        "amount_dph_czk": data.get("amount_dph_czk"),
+        "vat_rate": data.get("vat_rate"),
+    }
     conn.execute(
         """UPDATE expenses SET
              property_slug=:property_slug, year=:year, month=:month,
-             date=:date, category_id=:category_id,
-             description=:description, amount_czk=:amount_czk
+             date=:date, category_id=:category_id, description=:description,
+             amount_czk=:amount_czk, amount_net_czk=:amount_net_czk,
+             amount_dph_czk=:amount_dph_czk, vat_rate=:vat_rate
            WHERE id=:id""",
-        {**data, "id": expense_id},
+        payload,
     )
     conn.commit()
 
