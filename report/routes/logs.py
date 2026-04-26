@@ -16,6 +16,7 @@ def register(app, state) -> None:
     """Register logging routes."""
     require_auth = state["require_auth"]
     require_admin_or_manager = state["require_admin_or_manager"]
+    require_csrf = state["require_csrf"]
     templates = state["templates"]
     
     @app.get("/logs", response_class=HTMLResponse)
@@ -65,6 +66,7 @@ def register(app, state) -> None:
     @app.post("/api/logs/clear")
     async def api_clear_logs(
         _=Depends(require_admin_or_manager),
+        __=Depends(require_csrf),
     ):
         """Clear log buffer."""
         from report.logging_service import clear_logs

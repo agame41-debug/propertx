@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 def register(app, state) -> None:
     require_auth = state["require_auth"]
     require_admin_or_manager = state["require_admin_or_manager"]
+    require_csrf = state["require_csrf"]
     get_db = state["get_db"]
 
     @app.get("/reconciliation", response_class=HTMLResponse)
@@ -79,6 +80,7 @@ def register(app, state) -> None:
     async def api_stredisko_upsert(
         request: Request,
         _=Depends(require_admin_or_manager),
+        __=Depends(require_csrf),
         conn=Depends(get_db),
     ):
         from report.db import upsert_stredisko_entry
@@ -94,6 +96,7 @@ def register(app, state) -> None:
     async def api_stredisko_delete(
         zkratka: str,
         _=Depends(require_admin_or_manager),
+        __=Depends(require_csrf),
         conn=Depends(get_db),
     ):
         from report.db import delete_stredisko_entry
