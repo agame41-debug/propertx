@@ -2,7 +2,7 @@ import os
 import re as _re
 
 from fastapi import Depends, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from report.engine import generate_report_in_process
 
@@ -411,58 +411,6 @@ def register(app, state) -> None:
         state["_set_flash"](request, "success", f"Odemknuto {unlocked} objektů pro {int(month):02d}/{int(year)}.")
         return RedirectResponse("/inventory", status_code=303)
 
-    @app.get("/property/{slug}/{year}/{month}/preview", response_class=HTMLResponse)
-    async def property_preview_month(
-        request: Request,
-        slug: str,
-        year: int,
-        month: int,
-        _=Depends(require_auth),
-        conn=Depends(get_db),
-        config=Depends(get_config),
-    ):
-        state["_set_flash"](
-            request,
-            "info",
-            "Náhled je vypnutý. Použijte Generovat a potom pracujte s uloženým reportem.",
-        )
-        return RedirectResponse(f"/property/{slug}/{year}/{month}", status_code=303)
-
-    @app.get("/property/{slug}/{year}/{month}/download")
-    async def property_download_month(
-        request: Request,
-        slug: str,
-        year: int,
-        month: int,
-        _=Depends(require_auth),
-        conn=Depends(get_db),
-    ):
-        state["check_property_access"](request, slug, conn)
-        latest_report = state["_latest_report_for_month"](conn, slug, year, month)
-        if not latest_report:
-            state["_set_flash"](
-                request,
-                "error",
-                f"Pro {month:02d}/{year} zatím neexistuje vygenerovaný Excel.",
-            )
-            return RedirectResponse(f"/property/{slug}/{year}/{month}", status_code=303)
-
-        file_path = latest_report.get("file_path") or ""
-        if not file_path or not os.path.exists(file_path):
-            state["_set_flash"](
-                request,
-                "error",
-                "V DB je záznam o reportu, ale Excel soubor už na disku neexistuje.",
-                file_path,
-            )
-            return RedirectResponse(f"/property/{slug}/{year}/{month}", status_code=303)
-
-        return FileResponse(
-            file_path,
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            filename=os.path.basename(file_path),
-        )
-
     @app.post("/property/{slug}/{year}/{month}/lock")
     async def property_lock_month(
         request: Request,
@@ -815,8 +763,6 @@ def register(app, state) -> None:
             "expense_edit": expense_edit,
             "expense_delete": expense_delete,
             "generate_all_for_month": generate_all_for_month,
-            "property_preview_month": property_preview_month,
-            "property_download_month": property_download_month,
             "property_lock_month": property_lock_month,
             "property_unlock_month": property_unlock_month,
             "reservation_override": reservation_override,
