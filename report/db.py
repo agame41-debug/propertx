@@ -201,6 +201,9 @@ CREATE TABLE IF NOT EXISTS expenses (
     category_id     INTEGER REFERENCES expense_categories(id) ON DELETE SET NULL,
     description     TEXT NOT NULL,
     amount_czk      REAL NOT NULL,
+    amount_net_czk  REAL,
+    amount_dph_czk  REAL,
+    vat_rate        REAL,
     created_at      TEXT NOT NULL
 );
 
