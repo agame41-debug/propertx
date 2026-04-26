@@ -45,6 +45,25 @@ def register(app, state) -> None:
     get_db = state["get_db"]
     get_config = state["get_config"]
 
+    import math
+
+    def _parse_decimal(raw: str | None) -> float | None:
+        """Parse a Czech-locale decimal string. Returns None on empty/invalid input.
+
+        Rejects NaN/Inf — these can come from edge inputs like '"NaN"' or '"inf"' and
+        would silently bypass downstream validation. Returns None for those.
+        """
+        s = (raw or "").strip().replace(" ", "").replace(" ", "").replace(",", ".")
+        if not s:
+            return None
+        try:
+            n = float(s)
+        except ValueError:
+            return None
+        if not math.isfinite(n):
+            return None
+        return n
+
     @app.get("/property/{slug}/{year}/{month}", response_class=HTMLResponse)
     async def property_detail(
         request: Request,
@@ -190,6 +209,7 @@ def register(app, state) -> None:
         description: str = Form(...),
         amount_czk: str = Form(""),
         amount_net_czk: str = Form(""),
+        amount_dph_czk: str = Form(""),
         vat_rate: str = Form(""),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
@@ -197,11 +217,20 @@ def register(app, state) -> None:
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
-        amount_value = _resolve_expense_amount_czk(
-            amount_czk_raw=amount_czk,
-            amount_net_czk_raw=amount_net_czk,
-            vat_rate_raw=vat_rate,
-        )
+        from report.expenses_validation import validate_and_canonicalize, ExpenseValidationError
+        raw_rate = _parse_decimal(vat_rate)
+        try:
+            gross, net, dph, rate = validate_and_canonicalize(
+                gross=_parse_decimal(amount_czk),
+                net=_parse_decimal(amount_net_czk),
+                dph=_parse_decimal(amount_dph_czk),
+                vat_rate=round(raw_rate / 100.0, 4) if raw_rate is not None else None,
+            )
+        except ExpenseValidationError as e:
+            state["_set_flash"](request, "error", str(e))
+            referer = request.headers.get("referer", "/expenses")
+            return RedirectResponse(referer, status_code=303)
+
         state["_ensure_month_open"](conn, property_slug, year, month)
         state["add_expense"](
             conn,
@@ -212,7 +241,10 @@ def register(app, state) -> None:
                 "date": date_str or None,
                 "category_id": int(category_id) if category_id else None,
                 "description": description,
-                "amount_czk": amount_value,
+                "amount_czk": gross,
+                "amount_net_czk": net,
+                "amount_dph_czk": dph,
+                "vat_rate": rate,
             },
         )
         try:
@@ -234,6 +266,7 @@ def register(app, state) -> None:
         description: str = Form(...),
         amount_czk: str = Form(""),
         amount_net_czk: str = Form(""),
+        amount_dph_czk: str = Form(""),
         vat_rate: str = Form(""),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
@@ -241,11 +274,20 @@ def register(app, state) -> None:
         conn=Depends(get_db),
         config=Depends(get_config),
     ):
-        amount_value = _resolve_expense_amount_czk(
-            amount_czk_raw=amount_czk,
-            amount_net_czk_raw=amount_net_czk,
-            vat_rate_raw=vat_rate,
-        )
+        from report.expenses_validation import validate_and_canonicalize, ExpenseValidationError
+        raw_rate = _parse_decimal(vat_rate)
+        try:
+            gross, net, dph, rate = validate_and_canonicalize(
+                gross=_parse_decimal(amount_czk),
+                net=_parse_decimal(amount_net_czk),
+                dph=_parse_decimal(amount_dph_czk),
+                vat_rate=round(raw_rate / 100.0, 4) if raw_rate is not None else None,
+            )
+        except ExpenseValidationError as e:
+            state["_set_flash"](request, "error", str(e))
+            referer = request.headers.get("referer", "/expenses")
+            return RedirectResponse(referer, status_code=303)
+
         state["_ensure_month_open"](conn, property_slug, year, month)
         state["update_expense"](
             conn,
@@ -257,7 +299,10 @@ def register(app, state) -> None:
                 "date": date_str or None,
                 "category_id": int(category_id) if category_id else None,
                 "description": description,
-                "amount_czk": amount_value,
+                "amount_czk": gross,
+                "amount_net_czk": net,
+                "amount_dph_czk": dph,
+                "vat_rate": rate,
             },
         )
         try:
