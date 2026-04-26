@@ -466,6 +466,13 @@ CREATE TABLE IF NOT EXISTS report_month_notifications (
 CREATE INDEX IF NOT EXISTS idx_report_month_notifications_lookup
     ON report_month_notifications(slug, year, month, created_at DESC, id DESC);
 
+CREATE TABLE IF NOT EXISTS integrity_audit (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    confirmation_code TEXT NOT NULL,
+    occurrences       TEXT NOT NULL,
+    detected_at       TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS payout_batches (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     channel         TEXT NOT NULL,
@@ -783,6 +790,10 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     conn.execute(
         """CREATE INDEX IF NOT EXISTS idx_report_month_notifications_slug_month
            ON report_month_notifications(slug, year, month, created_at DESC)"""
+    )
+    conn.execute(
+        """CREATE INDEX IF NOT EXISTS idx_integrity_audit_detected_at
+           ON integrity_audit(detected_at DESC)"""
     )
     _backfill_checkin_source_snapshots(conn)
     _backfill_booking_payout_item_guest_names(conn)

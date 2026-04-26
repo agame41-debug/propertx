@@ -327,3 +327,16 @@ def test_l2_annotates_cross_report_duplicate_in_booking_enrichment():
         assert "apt/2026-3" in comment or "apt/2026-03" in comment
     finally:
         conn.close()
+
+
+def test_integrity_audit_table_exists_after_ensure_schema():
+    conn = get_connection(":memory:")
+    try:
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(integrity_audit)")}
+        assert {"id", "confirmation_code", "occurrences", "detected_at"}.issubset(cols)
+        idx = {r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index'"
+        )}
+        assert "idx_integrity_audit_detected_at" in idx
+    finally:
+        conn.close()
