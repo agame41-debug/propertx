@@ -1,0 +1,49 @@
+{# DPH summary card — only included by property.html when client.platce_dph == 1.
+   Three-column box: vat_output | − | vat_input | = | vat_balance.
+   Saldo color and label flip based on sign (refund vs owed). #}
+
+{% set vat_balance = summary.vat_balance_czk or 0 %}
+{% set is_refund = vat_balance < 0 %}
+
+<div class="card">
+  <div class="card-h">
+    <div class="card-h-left">
+      <span class="card-title">Vyúčtování DPH</span>
+      <span class="badge {% if is_refund %}badge-ok{% else %}badge-dph{% endif %}">
+        {% if is_refund %}Nadměrný odpočet{% else %}K odvedení{% endif %}
+        &nbsp;·&nbsp;{{ fmt_czk(vat_balance|abs) }}
+      </span>
+    </div>
+  </div>
+
+  <div class="dph-box">
+    <div class="dph-col">
+      <div class="dph-k">DPH na výstupu</div>
+      <div class="dph-v teal">+&nbsp;{{ fmt_czk(summary.vat_output_czk or 0) }}</div>
+      <div class="dph-hint">
+        Rentero fee&nbsp;&nbsp;<span class="dim">·</span>&nbsp;&nbsp;{{ fmt_czk(summary.vat_rentero_fee_czk or 0) }}<br>
+        Příprava pokoje&nbsp;&nbsp;<span class="dim">·</span>&nbsp;&nbsp;{{ fmt_czk(summary.vat_room_prep_czk or 0) }}
+      </div>
+    </div>
+
+    <div class="dph-op">−</div>
+
+    <div class="dph-col">
+      <div class="dph-k">DPH na vstupu (odpočet)</div>
+      <div class="dph-v teal">−&nbsp;{{ fmt_czk(summary.vat_input_czk or 0) }}</div>
+      <div class="dph-hint">
+        Z výdajů (sub-nájem, energie, služby…)<br>
+        {{ summary.vat_input_count or 0 }} {% if (summary.vat_input_count or 0) == 1 %}položka{% elif (summary.vat_input_count or 0) < 5 %}položky{% else %}položek{% endif %} s&nbsp;DPH
+      </div>
+    </div>
+
+    <div class="dph-op">=</div>
+
+    <div class="dph-col dph-col-result">
+      <div class="dph-k">{% if is_refund %}Nadměrný odpočet{% else %}K odvedení státu{% endif %}</div>
+      <div class="dph-v {% if is_refund %}ok{% else %}neg{% endif %}">
+        {% if is_refund %}+{% else %}−{% endif %}&nbsp;{{ fmt_czk(vat_balance|abs) }}
+      </div>
+    </div>
+  </div>
+</div>
