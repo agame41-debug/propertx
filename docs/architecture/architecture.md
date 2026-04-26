@@ -28,14 +28,12 @@ Hostify API  →  loader.py  →  normalized Hostify snapshots in SQLite
 
 Jediný generační entrypoint je `engine.generate_report_in_process`. Excel výstup byl odstraněn; web UI pracuje výhradně s persistovanými daty v SQLite.
 
-## Modules
-
 ## Kódové vrstvy
 
 | Modul | Role |
 |---|---|
 | `bin/regen.py` | Tenký administrátorský CLI: `bin/regen.py SLUG YEAR MONTH` nebo `--all YEAR MONTH`. Volá `engine.generate_report_in_process` přímo, bez Excelu, bez subprocess zprostředkování. |
-| `report/engine.py` | Jediný in-process generační engine — sdílený webem (synchronní mutace), bulk_generation_runnerem (separátní subprocess pro paměťovou izolaci) a `bin/regen.py`. Plní `report_rows`, `payout_batches`, `payout_batch_items`, `bank_transactions`. Excel se nepíše. |
+| `report/engine.py` | Jediný in-process generační engine — volaný přímo webem (synchronní mutace), `bin/regen.py` a uvnitř `bulk_generation_runner` subprocessu (separátní proces pro paměťovou izolaci). Plní `report_rows`, `payout_batches`, `payout_batch_items`, `bank_transactions`. Excel se nepíše. |
 | `report/source_registry.py` | Importní pipeline. Při importu airbnb/booking/bank CSV materializuje payout_batches / payout_batch_items / bank_transactions okamžitě, takže webové view-modely (bank drilldown, reservation panel) jsou aktuální bez čekání na příští regeneraci. |
 | `loader.py` | Fetch Hostify by date range, filter by Hostify listing nicknames / aliases, assign report month. SQLite cache 2h TTL. Also normalizes and persists Hostify reservation snapshots for later reconciliation, including non-Airbnb / non-Booking sources such as `HVMB` (Marriott). |
 | `verifier.py` | Load Airbnb/Booking CSVs with encoding and delimiter autodetection, then enforce strict required-column checks. Cross-check payout. Build `payout_ref_map`: code → `{gref, airbnb_rate}`. For Booking, compare CSV `net_eur` against Hostify payout after subtracting raw `Hostify city_tax_eur`, then apply tolerance rules. Small drifts within `±1.00 EUR` remain `MATCHED`. Can re-link Booking CSV-only rows to stored Hostify reservations by exact booking id when Hostify lags behind. |

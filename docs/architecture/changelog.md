@@ -26,6 +26,9 @@ It describes the delivered architecture after the completed work in Phase 1, Pha
   + `/preview` routes removed.
 * Dashboard's broken "Generovat" form (POSTed to a non-existent route)
   removed.
+* Empty-month hint in `templates/partials/property_reservations.html`
+  updated to `bin/regen.py` (was `python -m report.main`, which no
+  longer exists).
 * `signal.SIGCHLD = SIG_IGN` bandage removed; default SIGCHLD restored.
 
 ## 2026-04-13
