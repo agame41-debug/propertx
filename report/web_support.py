@@ -960,6 +960,23 @@ def _render_property_template(
     codes = [str(row.get("confirmation_code") or "") for row in rows if row.get("confirmation_code")]
     bank_txns_by_code = _load_all_bank_transactions_for_codes(conn, codes)
 
+    attach_mock_status(rows)
+    counts = compute_status_counts(rows)
+    expenses_by_cat = group_expenses_by_category(expenses)
+    prev_year, prev_month = get_adjacent_month(year, month, "prev")
+    next_year, next_month = get_adjacent_month(year, month, "next")
+    totals = {
+        "payout": sum(float(r.get("payout_czk") or 0) for r in rows if not r.get("is_excluded")),
+        "ubyt": sum(float(r.get("cena_ubytovani_czk") or 0) for r in rows if not r.get("is_excluded")),
+    }
+    cat_dot_class = {
+        "Sub-nájem": "exp-dot-rent",
+        "Energie": "exp-dot-energy",
+        "Služby": "exp-dot-svc",
+        "Opravy": "exp-dot-fix",
+        "Pojištění": "exp-dot-ins",
+    }
+
     return templates.TemplateResponse(
         request,
         "property.html",
@@ -992,6 +1009,14 @@ def _render_property_template(
             "next_y": next_y,
             "next_m": next_m,
             "bank_txns_by_code": bank_txns_by_code,
+            "counts": counts,
+            "expenses_by_cat": expenses_by_cat,
+            "prev_year": prev_year,
+            "prev_month": prev_month,
+            "next_year": next_year,
+            "next_month": next_month,
+            "totals": totals,
+            "cat_dot_class": cat_dot_class,
         },
     )
 
