@@ -1,4 +1,3 @@
-import os
 import re as _re
 
 from fastapi import Depends, Form, HTTPException, Request
