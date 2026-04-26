@@ -1,9 +1,10 @@
 """User management database functions for RBAC."""
 
 import hashlib
+import logging
 import secrets
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
@@ -16,9 +17,22 @@ VALID_ROLES = {ROLE_ADMIN, ROLE_MANAGER, ROLE_CLIENT}
 # OWASP-recommended Argon2id defaults from argon2-cffi.
 _HASHER = PasswordHasher()
 
+# Login throttle parameters (OWASP defaults).
+_THROTTLE_WINDOW_MINUTES = 15
+_MAX_USERNAME_FAILURES = 5
+_MAX_IP_FAILURES = 20
+
+log = logging.getLogger(__name__)
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _throttle_cutoff() -> str:
+    return (
+        datetime.now(timezone.utc) - timedelta(minutes=_THROTTLE_WINDOW_MINUTES)
+    ).isoformat()
 
 
 def _is_argon2(password_hash: str) -> bool:
@@ -48,20 +62,81 @@ def verify_password(password: str, password_hash: str, password_salt: str) -> bo
     return secrets.compare_digest(h, password_hash)
 
 
-def authenticate_user(conn: sqlite3.Connection, username: str, password: str) -> dict | None:
+def is_login_locked(
+    conn: sqlite3.Connection, username: str, ip: str = ""
+) -> bool:
+    """Return True if username or IP has too many recent failed attempts."""
+    cutoff = _throttle_cutoff()
+    if username:
+        username_fails = conn.execute(
+            "SELECT COUNT(*) FROM login_attempts "
+            "WHERE username = ? AND success = 0 AND attempted_at > ?",
+            (username, cutoff),
+        ).fetchone()[0]
+        if username_fails >= _MAX_USERNAME_FAILURES:
+            return True
+    if ip:
+        ip_fails = conn.execute(
+            "SELECT COUNT(*) FROM login_attempts "
+            "WHERE ip = ? AND success = 0 AND attempted_at > ?",
+            (ip, cutoff),
+        ).fetchone()[0]
+        if ip_fails >= _MAX_IP_FAILURES:
+            return True
+    return False
+
+
+def _record_login_attempt(
+    conn: sqlite3.Connection, username: str, ip: str, success: bool
+) -> None:
+    conn.execute(
+        "INSERT INTO login_attempts (username, ip, attempted_at, success) "
+        "VALUES (?, ?, ?, ?)",
+        (username, ip, _now(), 1 if success else 0),
+    )
+    if success and username:
+        conn.execute(
+            "DELETE FROM login_attempts WHERE username = ? AND success = 0",
+            (username,),
+        )
+    conn.commit()
+
+
+def authenticate_user(
+    conn: sqlite3.Connection,
+    username: str,
+    password: str,
+    *,
+    ip: str = "",
+) -> dict | None:
     """Return user dict if credentials valid and user active, else None.
 
-    Successful login of a legacy SHA-256 user transparently rehashes the
-    password with Argon2 in place.
+    Throttled: returns None silently when the username has 5+ failed attempts
+    or the IP has 20+ failed attempts within the last 15 minutes — even if
+    the password is correct. The throttle resets for a username on its next
+    successful login. Successful login of a legacy SHA-256 user also
+    transparently rehashes the password with Argon2.
     """
+    if is_login_locked(conn, username, ip):
+        log.warning(
+            "login throttled: username=%r ip=%r exceeded recent-failure threshold",
+            username, ip,
+        )
+        return None
+
     row = conn.execute(
         "SELECT * FROM users WHERE username = ? AND is_active = 1",
         (username,),
     ).fetchone()
-    if not row:
-        return None
-    user = dict(row)
-    if not verify_password(password, user["password_hash"], user["password_salt"]):
+    user = dict(row) if row else None
+    success = bool(
+        user
+        and verify_password(password, user["password_hash"], user["password_salt"])
+    )
+
+    _record_login_attempt(conn, username, ip, success)
+
+    if not success:
         return None
     if not _is_argon2(user["password_hash"]):
         new_hash, new_salt = hash_password(password)

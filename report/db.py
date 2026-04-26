@@ -103,6 +103,7 @@ from report.db_users import (
     authenticate_user,
     get_user_by_id,
     get_user_by_username,
+    is_login_locked,
     list_users,
     create_user,
     update_user as update_user_record,
@@ -645,6 +646,19 @@ CREATE TABLE IF NOT EXISTS user_properties (
     created_at      TEXT NOT NULL,
     PRIMARY KEY (user_id, property_slug)
 );
+
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    username        TEXT NOT NULL DEFAULT '',
+    ip              TEXT NOT NULL DEFAULT '',
+    attempted_at    TEXT NOT NULL,
+    success         INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_attempts_username_time
+    ON login_attempts(username, attempted_at);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_time
+    ON login_attempts(ip, attempted_at);
 """
 
 

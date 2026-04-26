@@ -2,6 +2,18 @@ from fastapi import Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 
+def _client_ip(request: Request) -> str:
+    """Return the original client IP, honoring nginx's X-Real-IP / X-Forwarded-For."""
+    real_ip = (request.headers.get("x-real-ip") or "").strip()
+    if real_ip:
+        return real_ip
+    forwarded = (request.headers.get("x-forwarded-for") or "").strip()
+    if forwarded:
+        # X-Forwarded-For can be a comma-separated list — take the first hop
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
 def register(app, state) -> None:
     require_csrf = state["require_csrf"]
 
@@ -19,7 +31,7 @@ def register(app, state) -> None:
         _csrf=Depends(require_csrf),
         conn=Depends(state["get_db"]),
     ):
-        user = state["authenticate_user"](conn, username, password)
+        user = state["authenticate_user"](conn, username, password, ip=_client_ip(request))
         if user:
             request.session["authenticated"] = True
             request.session["username"] = user["username"]

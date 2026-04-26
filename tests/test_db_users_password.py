@@ -39,6 +39,13 @@ def conn() -> sqlite3.Connection:
             property_slug TEXT NOT NULL,
             created_at TEXT NOT NULL
         );
+        CREATE TABLE login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL DEFAULT '',
+            ip TEXT NOT NULL DEFAULT '',
+            attempted_at TEXT NOT NULL,
+            success INTEGER NOT NULL DEFAULT 0
+        );
         """
     )
     return c
