@@ -219,12 +219,19 @@ def register(app, state) -> None:
     ):
         from report.expenses_validation import validate_and_canonicalize, ExpenseValidationError
         raw_rate = _parse_decimal(vat_rate)
+        # Empty vat_rate field defaults to 0% (legacy compat — non-VAT-payer flow).
+        if raw_rate is None:
+            raw_rate = 0.0
         try:
             gross, net, dph, rate = validate_and_canonicalize(
                 gross=_parse_decimal(amount_czk),
                 net=_parse_decimal(amount_net_czk),
                 dph=_parse_decimal(amount_dph_czk),
-                vat_rate=round(raw_rate / 100.0, 4) if raw_rate is not None else None,
+                # vat_rate from current form is a percent integer ("21"); validator expects
+                # decimal fraction (0.21). The /100 conversion is permanent — Task 18's new
+                # form continues to send percentage integers (the segment-control labels
+                # "0% / 12% / 21%" map naturally to data-rate="21" etc).
+                vat_rate=round(raw_rate / 100.0, 4),
             )
         except ExpenseValidationError as e:
             state["_set_flash"](request, "error", str(e))
@@ -276,12 +283,19 @@ def register(app, state) -> None:
     ):
         from report.expenses_validation import validate_and_canonicalize, ExpenseValidationError
         raw_rate = _parse_decimal(vat_rate)
+        # Empty vat_rate field defaults to 0% (legacy compat — non-VAT-payer flow).
+        if raw_rate is None:
+            raw_rate = 0.0
         try:
             gross, net, dph, rate = validate_and_canonicalize(
                 gross=_parse_decimal(amount_czk),
                 net=_parse_decimal(amount_net_czk),
                 dph=_parse_decimal(amount_dph_czk),
-                vat_rate=round(raw_rate / 100.0, 4) if raw_rate is not None else None,
+                # vat_rate from current form is a percent integer ("21"); validator expects
+                # decimal fraction (0.21). The /100 conversion is permanent — Task 18's new
+                # form continues to send percentage integers (the segment-control labels
+                # "0% / 12% / 21%" map naturally to data-rate="21" etc).
+                vat_rate=round(raw_rate / 100.0, 4),
             )
         except ExpenseValidationError as e:
             state["_set_flash"](request, "error", str(e))
