@@ -228,3 +228,58 @@ def test_find_code_in_other_snapshots_ignores_empty_code():
         assert result == []
     finally:
         conn.close()
+
+
+def test_l2_annotates_cross_report_duplicate_in_airbnb_enrichment():
+    """When the same confirmation_code already lives in another snapshot
+    and we run enrich_rows_with_bank, the new row gets an INTEGRITY: note."""
+    from datetime import date
+    from report.bank import enrich_rows_with_bank, build_bank_index
+    from report.db import save_report_rows, save_bank_transactions
+
+    conn = get_connection(":memory:")
+    try:
+        save_report_rows(conn, "apt", 2026, 3, [
+            {"confirmation_code": "DUPE-CODE"},
+        ])
+        save_bank_transactions(conn, "airbnb", [{
+            "tx_key": "2026-04-05|5000.00|G-DUPE|",
+            "tx_id": "TX-DUPE",
+            "datum": date(2026, 4, 5),
+            "amount_czk": 5000.0,
+            "gref": "G-DUPE",
+            "zprava": "G-DUPE payout",
+            "source_name": "bank.csv",
+        }])
+        bank_rows = [{
+            "datum": date(2026, 4, 5),
+            "amount_czk": 5000.0,
+            "gref": "G-DUPE",
+            "booking_ref": "",
+            "tx_id": "TX-DUPE",
+            "tx_key": "2026-04-05|5000.00|G-DUPE|",
+            "zprava": "G-DUPE payout",
+            "source_name": "bank.csv",
+        }]
+        index_by_gref, no_ref_rows = build_bank_index(bank_rows)
+        gref_map = {"DUPE-CODE": {"gref": "G-DUPE", "payout_date": "2026-04-05",
+                                  "payout_czk": 5000.0}}
+        all_batches_map = {"DUPE-CODE": [{"gref": "G-DUPE",
+                                          "payout_date": "2026-04-05",
+                                          "payout_czk": 5000.0}]}
+        rows = [{"confirmation_code": "DUPE-CODE", "source": "Airbnb",
+                 "batch_ref": "G-DUPE", "batch_payout_date": "2026-04-05",
+                 "batch_amount_czk_expected": 5000.0}]
+        enriched, _ = enrich_rows_with_bank(
+            rows, gref_map, index_by_gref, no_ref_rows,
+            all_batches_map=all_batches_map,
+            conn=conn, slug="apt", year=2026, month=4,
+        )
+        # The matched row must reference the other snapshot.
+        comment = enriched[0].get("verification_comment") or ""
+        assert "INTEGRITY:" in comment
+        assert "apt/2026-3" in comment or "apt/2026-03" in comment
+        # And bank_status must still be DORAZILO (not silently flipped).
+        assert enriched[0]["bank_status"] == "DORAZILO"
+    finally:
+        conn.close()

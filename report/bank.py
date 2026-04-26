@@ -397,6 +397,16 @@ def enrich_rows_with_bank(
 
         if bank_row:
             datum = bank_row.get("datum")
+            verification_comment = row.get("verification_comment") or ""
+            if conn is not None and slug:
+                others = _find_code_in_other_snapshots(
+                    conn, row.get("confirmation_code", ""), slug, year, month
+                )
+                if others:
+                    where = ", ".join(f"{s}/{y}-{m}" for s, y, m in others)
+                    verification_comment = (
+                        f"INTEGRITY: also in {where}. {verification_comment}".strip()
+                    )
             enriched.append({
                 **row,
                 "batch_ref": gref,
@@ -407,6 +417,7 @@ def enrich_rows_with_bank(
                 "bank_datum":      datum.strftime("%d.%m.%Y") if datum else "",
                 "bank_amount_czk": bank_row["amount_czk"],
                 "bank_status":     "DORAZILO",
+                "verification_comment": verification_comment,
             })
         else:
             enriched.append({
