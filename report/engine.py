@@ -82,6 +82,35 @@ _ADJ_FALLBACK_CZK_PER_EUR = 25.0  # used only when both payout_eur and airbnb_ra
 _PAYOUT_DATE_FORMATS = ("%m/%d/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d.%m.%Y")
 
 
+def _flag_duplicate_codes_within_snapshot(rows: list[dict]) -> int:
+    """Annotate rows whose confirmation_code repeats inside this snapshot.
+
+    Empty codes are ignored — legacy synthetic rows can share an empty
+    string by design. Suffixed codes (__ADJ, __AC, __SP[N]) are stored as
+    distinct strings so they don't collide with parents.
+
+    Returns count of annotated rows.
+    """
+    seen: dict[str, int] = {}
+    for r in rows:
+        code = r.get("confirmation_code") or ""
+        if not code:
+            continue
+        seen[code] = seen.get(code, 0) + 1
+    dupes = {c for c, n in seen.items() if n > 1}
+    if not dupes:
+        return 0
+    annotated = 0
+    for r in rows:
+        if (r.get("confirmation_code") or "") in dupes:
+            existing = r.get("verification_comment") or ""
+            r["verification_comment"] = (
+                f"INTEGRITY: duplicate confirmation_code in snapshot. {existing}".strip()
+            )
+            annotated += 1
+    return annotated
+
+
 def _payout_date_in_window(
     payout_date_str: str,
     *,

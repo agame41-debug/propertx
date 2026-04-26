@@ -248,3 +248,57 @@ def test_generate_report_in_process_does_not_readd_moved_out_reservation_as_csv_
         assert rows == []
     finally:
         conn.close()
+
+
+def test_flag_duplicate_codes_within_snapshot_annotates_violators():
+    from report.engine import _flag_duplicate_codes_within_snapshot
+
+    rows = [
+        {"confirmation_code": "AAA", "verification_comment": ""},
+        {"confirmation_code": "BBB", "verification_comment": "preexisting"},
+        {"confirmation_code": "AAA", "verification_comment": ""},
+    ]
+    count = _flag_duplicate_codes_within_snapshot(rows)
+    assert count == 2
+    assert rows[0]["verification_comment"].startswith("INTEGRITY:")
+    assert rows[2]["verification_comment"].startswith("INTEGRITY:")
+    assert rows[1]["verification_comment"] == "preexisting"  # untouched
+
+
+def test_flag_duplicate_codes_ignores_empty_codes():
+    from report.engine import _flag_duplicate_codes_within_snapshot
+
+    rows = [
+        {"confirmation_code": "", "verification_comment": ""},
+        {"confirmation_code": "", "verification_comment": ""},
+        {"confirmation_code": "AAA", "verification_comment": ""},
+    ]
+    count = _flag_duplicate_codes_within_snapshot(rows)
+    assert count == 0  # empty codes do not trigger
+    assert all("INTEGRITY:" not in r["verification_comment"] for r in rows)
+
+
+def test_flag_duplicate_codes_ignores_suffixed_synthetic_codes():
+    """__ADJ, __AC, __SP[N] suffixes are part of the stored code, so they
+    are distinct from their parents and don't trigger as duplicates."""
+    from report.engine import _flag_duplicate_codes_within_snapshot
+
+    rows = [
+        {"confirmation_code": "HMRA54", "verification_comment": ""},
+        {"confirmation_code": "HMRA54__ADJ", "verification_comment": ""},
+        {"confirmation_code": "HMRA54__SP1", "verification_comment": ""},
+    ]
+    count = _flag_duplicate_codes_within_snapshot(rows)
+    assert count == 0
+
+
+def test_flag_duplicate_codes_preserves_existing_comment():
+    from report.engine import _flag_duplicate_codes_within_snapshot
+
+    rows = [
+        {"confirmation_code": "AAA", "verification_comment": "RECOVERED: prior"},
+        {"confirmation_code": "AAA", "verification_comment": ""},
+    ]
+    _flag_duplicate_codes_within_snapshot(rows)
+    assert "RECOVERED: prior" in rows[0]["verification_comment"]
+    assert rows[0]["verification_comment"].startswith("INTEGRITY:")
