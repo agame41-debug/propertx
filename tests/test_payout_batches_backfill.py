@@ -95,3 +95,25 @@ def test_backfill_no_op_when_no_active_sources(conn):
     _backfill_payout_batches_from_active_sources(conn)
     n = conn.execute("SELECT COUNT(*) FROM payout_batches").fetchone()[0]
     assert n == 0
+
+
+def test_backfill_swallows_exception_does_not_brick_boot(conn, monkeypatch):
+    """If a source CSV is corrupt, the backfill must log and return,
+    not raise — otherwise every subsequent get_connection() fails."""
+    import report.db as db_mod
+    from report.verifier import build_airbnb_payout_data  # noqa: F401
+
+    _insert_source(
+        conn, source_type="airbnb", name="ab.csv",
+        body=_AIRBNB_PAYOUT_CSV.encode("utf-8"),
+    )
+
+    def _explode(*_args, **_kwargs):
+        raise RuntimeError("simulated corrupt CSV")
+
+    monkeypatch.setattr(
+        "report.verifier.build_airbnb_payout_data", _explode
+    )
+
+    # Must NOT raise:
+    db_mod._backfill_payout_batches_from_active_sources(conn)

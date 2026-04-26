@@ -813,12 +813,17 @@ def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> No
     payout_batches / payout_batch_items / bank_transactions snapshot.
 
     Needed because the engine path historically did not write these tables;
-    only the (now removed) report.main wrote them. Without this backfill,
+    only the legacy report.main CLI path wrote them. Without this backfill,
     a prod DB whose CSVs were imported before the engine took over would
     show empty bank-drilldown data until the next CSV upload.
 
     Idempotent: every save_* underneath is UPSERT, so running on every
     boot is safe and effectively a no-op once tables are aligned.
+
+    Bank transactions are intentionally excluded — they are populated by
+    `source_registry.import_uploaded_source` on bank-CSV upload. If prod's
+    `bank_transactions` is ever out of sync, re-uploading the bank CSV is
+    the documented remediation.
     """
     from report.engine import _persist_csv_payout_artifacts
     from report.verifier import (
@@ -835,42 +840,50 @@ def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> No
     if not rows:
         return
 
-    airbnb_sources, booking_sources = [], []
-    for row in rows:
-        content = row["content"]
-        if isinstance(content, memoryview):
-            content = content.tobytes()
-        source = {
-            "id": row["id"],
-            "original_name": row["original_name"],
-            "content": bytes(content),
-        }
-        if row["source_type"] == "airbnb":
-            airbnb_sources.append(source)
-        else:
-            booking_sources.append(source)
+    try:
+        airbnb_sources, booking_sources = [], []
+        for row in rows:
+            content = row["content"]
+            if isinstance(content, memoryview):
+                content = content.tobytes()
+            source = {
+                "id": row["id"],
+                "original_name": row["original_name"],
+                "content": bytes(content),
+            }
+            if row["source_type"] == "airbnb":
+                airbnb_sources.append(source)
+            else:
+                booking_sources.append(source)
 
-    airbnb_payout = (
-        build_airbnb_payout_data(airbnb_sources)
-        if airbnb_sources
-        else {"reservation_map": {}, "all_batches_map": {}, "batches": [], "items": []}
-    )
-    booking_payout = (
-        build_booking_payout_data(booking_sources)
-        if booking_sources
-        else {"reservation_map": {}, "batches": [], "items": []}
-    )
-    booking_index = load_booking_csv(booking_sources) if booking_sources else {}
+        airbnb_payout = (
+            build_airbnb_payout_data(airbnb_sources)
+            if airbnb_sources
+            else {"reservation_map": {}, "all_batches_map": {}, "batches": [], "items": []}
+        )
+        booking_payout = (
+            build_booking_payout_data(booking_sources)
+            if booking_sources
+            else {"reservation_map": {}, "batches": [], "items": []}
+        )
+        booking_index = load_booking_csv(booking_sources) if booking_sources else {}
 
-    _persist_csv_payout_artifacts(
-        conn,
-        airbnb_payout_data=airbnb_payout,
-        booking_payout_data=booking_payout,
-        booking_index=booking_index,
-        bank_rows_all=[],
-        booking_bank_idx_all={},
-    )
-    conn.commit()
+        _persist_csv_payout_artifacts(
+            conn,
+            airbnb_payout_data=airbnb_payout,
+            booking_payout_data=booking_payout,
+            booking_index=booking_index,
+            bank_rows_all=[],
+            booking_bank_idx_all={},
+        )
+        conn.commit()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            "payout_batches backfill failed; bank UI may be stale until next regen",
+            exc_info=True,
+        )
+        conn.rollback()
 
 
 def _seed_admin_user(conn: sqlite3.Connection) -> None:
