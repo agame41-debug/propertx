@@ -278,7 +278,7 @@ def test_l2_annotates_cross_report_duplicate_in_airbnb_enrichment():
         # The matched row must reference the other snapshot.
         comment = enriched[0].get("verification_comment") or ""
         assert "INTEGRITY:" in comment
-        assert "apt/2026-3" in comment or "apt/2026-03" in comment
+        assert "apt/2026-03" in comment
         # And bank_status must still be DORAZILO (not silently flipped).
         assert enriched[0]["bank_status"] == "DORAZILO"
     finally:
@@ -324,7 +324,25 @@ def test_l2_annotates_cross_report_duplicate_in_booking_enrichment():
         # this assumption, the test fails loudly and prompts a revisit.
         assert enriched[0]["bank_status"] == "DORAZILO"
         assert "INTEGRITY:" in comment
-        assert "apt/2026-3" in comment or "apt/2026-03" in comment
+        assert "apt/2026-03" in comment
+    finally:
+        conn.close()
+
+
+def test_find_code_in_other_snapshots_returns_empty_when_context_incomplete():
+    """Defensive: caller passing None/0 for slug/year/month gets [] not garbage."""
+    from report.bank import _find_code_in_other_snapshots
+
+    conn = get_connection(":memory:")
+    try:
+        # Even with a real code in DB, missing context returns []
+        from report.db import save_report_rows
+        save_report_rows(conn, "apt", 2026, 3, [{"confirmation_code": "X"}])
+        assert _find_code_in_other_snapshots(conn, "X", "", 2026, 3) == []
+        assert _find_code_in_other_snapshots(conn, "X", "apt", None, 3) == []
+        assert _find_code_in_other_snapshots(conn, "X", "apt", 2026, None) == []
+        assert _find_code_in_other_snapshots(conn, "X", "apt", 0, 3) == []
+        assert _find_code_in_other_snapshots(conn, "X", "apt", 2026, 0) == []
     finally:
         conn.close()
 

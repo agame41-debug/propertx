@@ -47,6 +47,9 @@ def _find_code_in_other_snapshots(
     Uses idx_report_rows_code_lookup for the lookup."""
     if not code:
         return []
+    if not slug or not year or not month:
+        # Caller didn't provide a valid snapshot context — can't compute "other"
+        return []
     rows = conn.execute(
         """SELECT slug, year, month FROM report_rows
            WHERE confirmation_code = ?
@@ -403,7 +406,7 @@ def enrich_rows_with_bank(
                     conn, row.get("confirmation_code", ""), slug, year, month
                 )
                 if others:
-                    where = ", ".join(f"{s}/{y}-{m}" for s, y, m in others)
+                    where = ", ".join(f"{s}/{y}-{m:02d}" for s, y, m in others)
                     verification_comment = (
                         f"INTEGRITY: also in {where}. {verification_comment}".strip()
                     )
@@ -648,7 +651,7 @@ def enrich_booking_rows_with_bank(
                     conn, row.get("confirmation_code", ""), slug, year, month
                 )
                 if others:
-                    where = ", ".join(f"{s}/{y}-{m}" for s, y, m in others)
+                    where = ", ".join(f"{s}/{y}-{m:02d}" for s, y, m in others)
                     verification_comment = (
                         f"INTEGRITY: also in {where}. {verification_comment}".strip()
                     )
