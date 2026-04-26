@@ -23,11 +23,14 @@ except ImportError:
 
 import asyncio
 import json
+import logging
 import os as _os2
 import re
 import secrets
 import subprocess
 import sys
+
+_logger = logging.getLogger(__name__)
 
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
@@ -205,6 +208,31 @@ def _enforce_single_worker() -> None:
 async def _app_lifespan(_app: FastAPI):
     _validate_web_runtime_config()
     _enforce_single_worker()
+
+    # L3 integrity audit — run once per app boot. Must NOT block startup;
+    # any failure is logged and swallowed so the app still serves traffic.
+    # Task 18 will hook _restore_bank_status_after_ownership_fix into the
+    # same try/except shape, sharing the audit_conn lifecycle below.
+    try:
+        from report.db import run_integrity_audit
+        _audit_conn = get_connection(_DB_PATH)
+        try:
+            _findings = run_integrity_audit(_audit_conn)
+            if _findings:
+                _logger.warning(
+                    "integrity audit: %d duplicate confirmation_code(s) found",
+                    len(_findings),
+                )
+                for _f in _findings:
+                    _logger.warning(
+                        "integrity violation: %s seen in %s",
+                        _f["confirmation_code"], _f["occurrences"],
+                    )
+        finally:
+            _audit_conn.close()
+    except Exception:
+        _logger.exception("integrity audit failed")
+
     from report.hostify_sync import HostifySyncTask
     _sync_config = load_runtime_config(_CONFIG_PATH, db_conn=get_connection(_DB_PATH))
     _sync_task_obj = HostifySyncTask(

@@ -399,3 +399,15 @@ def test_run_integrity_audit_appends_new_findings_each_call():
         assert len(rows) == 2  # two events for same dupe
     finally:
         conn.close()
+
+
+def test_run_integrity_audit_callable_from_lifespan_no_findings():
+    """Smoke: empty DB -> no findings, no exception. Mirrors the call shape
+    used inside report/web.py::_app_lifespan."""
+    from report.db import run_integrity_audit
+    conn = get_connection(":memory:")
+    try:
+        findings = run_integrity_audit(conn)
+        assert findings == []
+    finally:
+        conn.close()
