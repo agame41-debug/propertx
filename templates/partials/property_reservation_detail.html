@@ -1,0 +1,153 @@
+{# Expanded reservation row body. Receives `r` (the row) via include's context.
+   Structure:
+     - rs-ex-groups: 3 sémantické skupiny (Finance / Identifikátor / Stav)
+     - rs-ex-actions: 5 buttons (← MM/YYYY) (MM/YYYY →) Vyloučit Úprava │ Otevřít panel →
+     - rs-ov-form: hidden inline override-form (toggled by Úprava button) #}
+
+{% set _user = get_current_user(request) %}
+
+<div class="rs-ex-inner">
+  <div class="rs-ex-groups">
+
+    {# ── Group 1 — Finance ── #}
+    <div class="rs-ex-group">
+      <div>
+        <div class="rex-k">Provize platformy</div>
+        <div class="rex-v neg">{% if r.provize_czk %}−{{ fmt_czk(r.provize_czk) }}{% else %}—{% endif %}</div>
+      </div>
+      <div>
+        <div class="rex-k">City tax</div>
+        <div class="rex-v">{% if r.city_tax_czk %}{{ fmt_czk(r.city_tax_czk) }}{% else %}—{% endif %}</div>
+      </div>
+      <div>
+        <div class="rex-k">Úklid + balíček</div>
+        <div class="rex-v">{% set total_prep = (r.uklid_czk or 0) + (r.balicky_czk or 0) %}{% if total_prep > 0 %}{{ fmt_czk(total_prep) }}{% else %}—{% endif %}</div>
+      </div>
+    </div>
+
+    {# ── Group 2 — Identifikátor ── #}
+    <div class="rs-ex-group cols-2">
+      <div>
+        <div class="rex-k">Kód rezervace</div>
+        <div class="rex-v code">{{ r.confirmation_code }}</div>
+      </div>
+      <div>
+        <div class="rex-k">Kurz EUR/CZK</div>
+        <div class="rex-v {% if not r.kurz %}mute{% endif %}">{{ r.kurz or '—' }}</div>
+      </div>
+    </div>
+
+    {# ── Group 3 — Stav ── #}
+    <div class="rs-ex-group cols-2">
+      {% if r.bank_status == 'DORAZILO' and r.bank_datum %}
+        <div>
+          <div class="rex-k ok">Dorazilo na účet</div>
+          <div class="rex-v ok">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            {{ r.bank_datum }}
+          </div>
+        </div>
+      {% elif not r.is_excluded and not r.is_payout_adjustment and r._mock_status not in ('MOVED_IN', 'MOVED_OUT') %}
+        <div>
+          <div class="rex-k warn">Banka</div>
+          <div class="rex-v warn">Nedorazilo</div>
+        </div>
+      {% endif %}
+
+      {% if r._mock_status == 'ROZDIL' and r.bank_diff_czk %}
+        <div>
+          <div class="rex-k warn">Rozdíl vs. CSV</div>
+          <div class="rex-v warn">{{ fmt_czk(r.bank_diff_czk) }}</div>
+        </div>
+      {% endif %}
+
+      {% if r._mock_status == 'CHYBI_V_CSV' %}
+        <div>
+          <div class="rex-k err">CSV payout</div>
+          <div class="rex-v">Čeká na platbu</div>
+        </div>
+      {% endif %}
+
+      {% if r._mock_status == 'MOVED_IN' and r.adjustment_original_month %}
+        <div>
+          <div class="rex-k info">Původní měsíc</div>
+          <div class="rex-v">{{ '%02d/%d'|format(r.adjustment_original_month, r.adjustment_original_year) }}</div>
+        </div>
+      {% endif %}
+
+      {% if r.comment %}
+        <div style="grid-column:span 2">
+          <div class="rex-k">Poznámka</div>
+          <div class="rex-v mute">{{ r.comment }}</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Action row: 5 buttons (Move-prev, Move-next, Vyloučit, Úprava | Otevřít panel) ── #}
+  <div class="rs-ex-actions">
+    {% set prev_label = '%02d/%d'|format(prev_month_target.month, prev_month_target.year) %}
+    {% set next_label = '%02d/%d'|format(next_month_target.month, next_month_target.year) %}
+
+    <button type="button" class="rex-btn" disabled
+            data-action="move" data-direction="prev"
+            title="Připravujeme">← {{ prev_label }}</button>
+    <button type="button" class="rex-btn" disabled
+            data-action="move" data-direction="next"
+            title="Připravujeme">{{ next_label }} →</button>
+
+    <button type="button" class="rex-btn" disabled
+            data-action="exclude"
+            title="Připravujeme">Vyloučit</button>
+
+    {% if month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
+      <button type="button" class="rex-btn" data-action="override-toggle">Úprava</button>
+    {% endif %}
+
+    <button type="button" class="rex-btn primary" data-action="open-panel"
+            data-code="{{ r.confirmation_code }}"
+            data-slug="{{ slug }}"
+            data-year="{{ year }}"
+            data-month="{{ month }}"
+            data-guest="{{ r.guest_name|default('') }}"
+            data-channel="{{ r.source|default('') }}">Otevřít panel →</button>
+  </div>
+
+  {# ── Inline override-form, hidden by default; toggled by Úprava ── #}
+  {% if month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
+    <div class="rs-ov-form" hidden data-ov-form>
+      <form method="post"
+            action="/property/{{ slug }}/{{ year }}/{{ month }}/reservation/{{ r.confirmation_code }}/override">
+        {{ csrf_input(request) }}
+        <div class="ae-row" style="grid-template-columns:200px 1fr 1fr 1fr;margin-top:14px">
+          <div class="ae-field">
+            <label class="ae-k">Pole</label>
+            <select class="ae-in" name="field" data-ov-field-select>
+              {% for f, lbl in override_field_labels.items() %}
+                <option value="{{ f }}">{{ lbl }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="ae-field">
+            <label class="ae-k">Původní hodnota</label>
+            <div class="ae-in" style="background:transparent;border:0;color:var(--text-400);padding-top:8px" data-ov-original></div>
+          </div>
+          <div class="ae-field">
+            <label class="ae-k">Nová hodnota</label>
+            <input class="ae-in" name="new_value" data-ov-new-input
+                   list="ov-options-{{ r.confirmation_code }}" required>
+            <datalist id="ov-options-{{ r.confirmation_code }}" data-ov-datalist></datalist>
+          </div>
+          <div class="ae-field">
+            <label class="ae-k">Důvod</label>
+            <input class="ae-in" name="reason" placeholder="Volitelně" maxlength="200">
+          </div>
+        </div>
+        <div class="ae-actions-row">
+          <button type="button" class="btn-link" data-ov-cancel>Zrušit</button>
+          <button type="submit" class="btn-add btn-add-solid">Uložit úpravu</button>
+        </div>
+      </form>
+    </div>
+  {% endif %}
+</div>
