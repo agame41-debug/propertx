@@ -730,6 +730,7 @@ def _drop_ownership_columns_from_payout_batch_bank_matches(conn: sqlite3.Connect
     if not {"slug", "year", "month"} & cols:
         return
     conn.executescript("""
+        DROP TABLE IF EXISTS payout_batch_bank_matches__new;
         CREATE TABLE payout_batch_bank_matches__new (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             channel         TEXT NOT NULL,

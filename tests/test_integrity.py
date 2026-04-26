@@ -92,3 +92,55 @@ def test_drop_ownership_columns_migration_idempotent():
     assert {"id", "channel", "batch_ref", "tx_key", "match_method",
             "matched_amount_czk", "matched_at"} == cols
     conn.close()
+
+
+def test_drop_ownership_columns_recovers_from_partial_rename():
+    """If a previous run was interrupted between DROP and RENAME, leaving
+    behind payout_batch_bank_matches__new with no main table, the next
+    migration should still complete cleanly. Reproduces the crash-recovery
+    edge case."""
+    import sqlite3
+    from report.db import _drop_ownership_columns_from_payout_batch_bank_matches
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    # Simulate the post-DROP-pre-RENAME state: __new exists, main does not.
+    conn.executescript("""
+        CREATE TABLE payout_batch_bank_matches__new (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel         TEXT NOT NULL,
+            batch_ref       TEXT NOT NULL,
+            tx_key          TEXT NOT NULL,
+            match_method    TEXT,
+            matched_amount_czk REAL,
+            matched_at      TEXT NOT NULL,
+            UNIQUE(channel, batch_ref, tx_key)
+        );
+        CREATE TABLE payout_batch_bank_matches (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel         TEXT NOT NULL,
+            batch_ref       TEXT NOT NULL,
+            tx_key          TEXT NOT NULL,
+            match_method    TEXT,
+            matched_amount_czk REAL,
+            matched_at      TEXT NOT NULL,
+            slug            TEXT DEFAULT '',
+            year            INTEGER DEFAULT 0,
+            month           INTEGER DEFAULT 0,
+            UNIQUE(channel, batch_ref, tx_key)
+        );
+    """)
+    conn.commit()
+
+    # Should not raise — the leftover __new is dropped first.
+    _drop_ownership_columns_from_payout_batch_bank_matches(conn)
+
+    # The renamed table should exist with the canonical schema.
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(payout_batch_bank_matches)")}
+    assert "slug" not in cols
+    # The leftover __new table should be gone.
+    leftover = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='payout_batch_bank_matches__new'"
+    ).fetchone()
+    assert leftover is None
+    conn.close()
