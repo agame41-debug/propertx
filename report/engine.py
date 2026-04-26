@@ -116,6 +116,58 @@ def _payout_date_in_window(
     return after_prev_cutoff <= payout_dt <= cutoff_date
 
 
+def _persist_csv_payout_artifacts(
+    conn,
+    *,
+    airbnb_payout_data: dict,
+    booking_payout_data: dict,
+    booking_index: dict,
+    bank_rows_all: list,
+    booking_bank_idx_all: dict,
+) -> None:
+    """Persist CSV-derived payout-batch and bank-transaction snapshots.
+
+    The web's bank UI (drilldown, reservation panel, sources delta) reads
+    payout_batches / payout_batch_items / bank_transactions directly. This
+    helper is the single point that keeps those tables aligned with the
+    currently active source CSVs. Idempotent: every save_* underneath is
+    UPSERT-based.
+
+    Called from two places:
+      * source_registry.import_uploaded_source — on each new airbnb/booking
+        import, so the tables move forward as data lands.
+      * engine.generate_report_in_process — defensively on every regen, so
+        any drift between the two paths is auto-healed within one cycle.
+    """
+    from report.db import (
+        fill_missing_payout_item_guest_names,
+        save_bank_transactions,
+        save_payout_batch_items,
+        save_payout_batches,
+    )
+
+    save_payout_batches(conn, "airbnb", airbnb_payout_data.get("batches") or [])
+    save_payout_batch_items(conn, "airbnb", airbnb_payout_data.get("items") or [])
+    save_payout_batches(conn, "booking", booking_payout_data.get("batches") or [])
+    save_payout_batch_items(conn, "booking", booking_payout_data.get("items") or [])
+
+    booking_guest_names = {
+        str(code): str(row.get("guest_name") or "").strip()
+        for code, row in (booking_index or {}).items()
+        if str(code or "").strip() and str(row.get("guest_name") or "").strip()
+    }
+    if booking_guest_names:
+        fill_missing_payout_item_guest_names(
+            conn, "booking", guest_names_by_code=booking_guest_names
+        )
+
+    save_bank_transactions(conn, "airbnb", bank_rows_all or [])
+    booking_bank_rows_flat = [
+        item for rows in (booking_bank_idx_all or {}).values() for item in rows
+    ]
+    save_bank_transactions(conn, "booking", booking_bank_rows_flat)
+
+
 def _build_adjustment_reservation(past_row: dict, batch_info: dict, suffix: str = "__ADJ") -> dict:
     """
     Build a synthetic reservation dict for a payout adjustment.
