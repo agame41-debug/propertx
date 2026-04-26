@@ -1378,3 +1378,122 @@ def _load_reconciliation_view(
         "total_pairs": len(kpi_rows),
         "total_diff": round(total_diff, 2),
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Property-page helpers (Phase 1 of property-page-redesign)
+# ─────────────────────────────────────────────────────────────────────────
+
+_STATUS_MAP_BY_VS: dict[str, tuple[str, str, str]] = {
+    # verification_status (Czech, encoded form) → (mock_status, badge_class, label)
+    "MATCHED":          ("MATCHED",         "badge-ok",   "MATCHED"),
+    "ROZDÍL":           ("ROZDIL",          "badge-warn", "ROZDÍL"),
+    "CHYBÍ_V_CSV":      ("CHYBI_V_CSV",     "badge-err",  "CHYBÍ V CSV"),
+    "CHYBÍ_V_HOSTIFY":  ("CHYBI_V_HOSTIFY", "badge-err",  "CHYBÍ V HOSTIFY"),
+    "ZRUŠENO":          ("ZRUSENO",         "badge-mute", "ZRUŠENO"),
+    "KE KONTROLE":      ("KE_KONTROLE",     "badge-mute", "KE KONTROLE"),
+}
+
+
+def attach_mock_status(rows: list[dict]) -> None:
+    """In-place: adds ``_mock_status``, ``_mock_status_class``, ``_mock_status_label`` to each row.
+
+    Maps production fields (``is_excluded``, ``is_payout_adjustment``, ``is_split_transaction``,
+    ``adjustment_original_year/month``, ``display_year/month``, ``verification_status``)
+    to the mock STATUS keys used by filter-pills and badge rendering.
+
+    Precedence (first match wins):
+        1. is_excluded → EXCLUDED
+        2. is_payout_adjustment → ADJUSTMENT (child row)
+        3. is_split_transaction → SPLIT
+        4. display_year/month set → MOVED_OUT (Phase 3 only)
+        5. adjustment_original_year/month set → MOVED_IN
+        6. verification_status (table lookup)
+        7. fallback → KE_KONTROLE
+    """
+    for r in rows:
+        if r.get("is_excluded"):
+            r["_mock_status"] = "EXCLUDED"
+            r["_mock_status_class"] = "badge-mute"
+            r["_mock_status_label"] = "VYLOUČENO"
+            continue
+        if r.get("is_payout_adjustment"):
+            r["_mock_status"] = "ADJUSTMENT"
+            r["_mock_status_class"] = "badge-brand"
+            r["_mock_status_label"] = "ÚPRAVA"
+            continue
+        if r.get("is_split_transaction"):
+            r["_mock_status"] = "SPLIT"
+            r["_mock_status_class"] = "badge-brand"
+            r["_mock_status_label"] = "SPLÁTKA"
+            continue
+        # MOVED_OUT (Phase 3 only — display_year/month override): rows that were moved
+        # to a different month show in their *target* month as MOVED_IN, and disappear
+        # from their original. We detect MOVED_OUT only when display_* override exists.
+        # In Phase 1 these fields are absent so the branch is dead; harmless.
+        if r.get("display_year") and r.get("display_month"):
+            r["_mock_status"] = "MOVED_OUT"
+            r["_mock_status_class"] = "badge-info"
+            r["_mock_status_label"] = "PŘESUN DO %02d" % int(r["display_month"])
+            continue
+        if r.get("adjustment_original_year") and r.get("adjustment_original_month"):
+            r["_mock_status"] = "MOVED_IN"
+            r["_mock_status_class"] = "badge-info"
+            r["_mock_status_label"] = "PŘESUN Z %02d" % int(r["adjustment_original_month"])
+            continue
+        vs = r.get("verification_status") or ""
+        triplet = _STATUS_MAP_BY_VS.get(vs)
+        if triplet is None:
+            r["_mock_status"], r["_mock_status_class"], r["_mock_status_label"] = (
+                "KE_KONTROLE", "badge-mute", "KE KONTROLE",
+            )
+        else:
+            r["_mock_status"], r["_mock_status_class"], r["_mock_status_label"] = triplet
+
+
+def compute_status_counts(rows: list[dict]) -> dict:
+    """Counts for filter-pills and card-meta on the property page.
+
+    Returns dict with keys: all_rows, active, nights, adjustments, excluded, moved, problems.
+
+    "active" = not excluded and not a payout-adjustment child row.
+    "nights" = sum of nights over active rows.
+    """
+    active = [r for r in rows if not r.get("is_excluded") and not r.get("is_payout_adjustment")]
+    return {
+        "all_rows": len(rows),
+        "active": len(active),
+        "nights": sum(int(r.get("nights") or 0) for r in active),
+        "adjustments": sum(1 for r in rows if r.get("is_payout_adjustment")),
+        "excluded": sum(1 for r in rows if r.get("is_excluded")),
+        "moved": sum(1 for r in rows if r.get("_mock_status") in ("MOVED_IN", "MOVED_OUT")),
+        "problems": sum(1 for r in rows if r.get("_mock_status") in ("ROZDIL", "CHYBI_V_CSV", "CHYBI_V_HOSTIFY")),
+    }
+
+
+def group_expenses_by_category(expenses: list[dict]) -> dict[str, list[dict]]:
+    """Group expenses by category_name. Preserves first-encountered order.
+
+    None or missing category_name buckets into 'Ostatní'.
+    """
+    groups: dict[str, list[dict]] = {}
+    for e in expenses:
+        cat = e.get("category_name") or "Ostatní"
+        groups.setdefault(cat, []).append(e)
+    return groups
+
+
+def get_adjacent_month(year: int, month: int, direction: str) -> tuple[int, int]:
+    """Return (target_year, target_month) for the previous or next calendar month.
+
+    Wraps year boundaries: (2026, 1) prev → (2025, 12); (2026, 12) next → (2027, 1).
+    """
+    if direction == "prev":
+        if month == 1:
+            return year - 1, 12
+        return year, month - 1
+    if direction == "next":
+        if month == 12:
+            return year + 1, 1
+        return year, month + 1
+    raise ValueError(f"direction must be 'prev' or 'next', got {direction!r}")
