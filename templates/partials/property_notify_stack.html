@@ -1,0 +1,50 @@
+{# Stack of notify-strips above the KPI row. Each strip is conditional on its
+   driving context var. Order: highest-severity first.
+   The .notify, .notify-error, .notify-info, .notify-success, .notify-warn classes
+   come from base_styles_components.html and are reused as-is. #}
+
+{# 1. Generation FAILED #}
+{% if generation_job and generation_job.status == 'FAILED' %}
+  <div class="notify notify-error" style="margin-top:16px">
+    <strong>Generace selhala.</strong>
+    {% if generation_job.error_detail %}
+      <details style="margin-top:6px"><summary style="cursor:pointer">Detail</summary><pre style="white-space:pre-wrap;font-size:11px;margin-top:6px">{{ generation_job.error_detail }}</pre></details>
+    {% endif %}
+  </div>
+{% endif %}
+
+{# 2. Locked-month warning #}
+{% if month_state.status == 'LOCKED' %}
+  <div class="notify notify-warn" style="margin-top:12px">
+    <strong>Měsíc je uzamčen.</strong>
+    Změny v rezervacích a výdajích nejsou možné, dokud nebude odemčen.
+  </div>
+{% endif %}
+
+{# 3. New data available #}
+{% if month_state.has_new_data_since_generation %}
+  <div class="notify notify-warn" style="margin-top:12px">
+    <strong>Nová data jsou k dispozici.</strong>
+    Doporučujeme znovu vygenerovat report.
+  </div>
+{% endif %}
+
+{# 4. Month notifications (change-log lines from previous regenerations) #}
+{% if month_notifications %}
+  {% for n in month_notifications %}
+    <div class="notify notify-info" style="margin-top:12px">
+      <strong>Změny:</strong> {{ n.message }}
+      {% if n.created_at %}<span class="dim" style="font-size:11px">· {{ n.created_at }}</span>{% endif %}
+    </div>
+  {% endfor %}
+{% endif %}
+
+{# 5. Flash (transient — last so user sees it on top after redirect) #}
+{% if flash %}
+  <div class="notify notify-{{ flash.level }}" style="margin-top:12px" data-flash="1">
+    {{ flash.message }}
+    {% if flash.detail %}
+      <details style="margin-top:6px"><summary style="cursor:pointer">Detail</summary><div style="margin-top:6px;font-size:12px">{{ flash.detail }}</div></details>
+    {% endif %}
+  </div>
+{% endif %}
