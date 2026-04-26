@@ -8,7 +8,11 @@ import sqlite3
 
 import pytest
 
-from report.db import _SCHEMA, _backfill_payout_batches_from_active_sources
+from report.db import (
+    _SCHEMA,
+    _backfill_payout_batches_from_active_sources,
+    _reset_payout_batches_backfill_guard_for_tests,
+)
 
 # Reuse the inline CSV fixture crafted in tests/test_source_registry_payout_batch_persistence.py
 # (avoid drift between two fixtures parsing the same parser).
@@ -16,6 +20,15 @@ from tests.test_source_registry_payout_batch_persistence import (
     _AIRBNB_PAYOUT_CSV,
     _BOOKING_PAYOUT_CSV,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_backfill_guard():
+    """The helper memoizes itself once-per-process. Reset between tests
+    so each one exercises a fresh run."""
+    _reset_payout_batches_backfill_guard_for_tests()
+    yield
+    _reset_payout_batches_backfill_guard_for_tests()
 
 
 @pytest.fixture
@@ -88,6 +101,63 @@ def test_backfill_is_idempotent(conn):
     second = conn.execute("SELECT COUNT(*) FROM payout_batches").fetchone()[0]
 
     assert first == second
+
+
+def test_backfill_runs_only_once_per_process(conn, monkeypatch):
+    """get_connection() fires per request; the backfill must not re-parse
+    CSVs on every call. Once it ran successfully, further calls are no-ops
+    even if new source rows appear (those go through the import path)."""
+    import report.db as db_mod
+
+    call_count = {"n": 0}
+    real_build = db_mod.__dict__.get("build_airbnb_payout_data")  # not module-level
+    from report.verifier import build_airbnb_payout_data as real_airbnb_build
+
+    def _spy(*args, **kwargs):
+        call_count["n"] += 1
+        return real_airbnb_build(*args, **kwargs)
+
+    monkeypatch.setattr("report.verifier.build_airbnb_payout_data", _spy)
+
+    _insert_source(
+        conn, source_type="airbnb", name="ab.csv",
+        body=_AIRBNB_PAYOUT_CSV.encode("utf-8"),
+    )
+
+    db_mod._backfill_payout_batches_from_active_sources(conn)
+    assert call_count["n"] == 1, "first call should parse"
+
+    db_mod._backfill_payout_batches_from_active_sources(conn)
+    db_mod._backfill_payout_batches_from_active_sources(conn)
+    assert call_count["n"] == 1, "subsequent calls must NOT re-parse"
+
+
+def test_backfill_no_active_sources_also_marks_done(conn, monkeypatch):
+    """Even when there are no active sources to parse, mark the guard so
+    we don't re-run the SELECT on every request."""
+    import report.db as db_mod
+    from report.verifier import build_airbnb_payout_data as real_airbnb_build
+
+    call_count = {"n": 0}
+
+    def _spy(*args, **kwargs):
+        call_count["n"] += 1
+        return real_airbnb_build(*args, **kwargs)
+
+    monkeypatch.setattr("report.verifier.build_airbnb_payout_data", _spy)
+
+    db_mod._backfill_payout_batches_from_active_sources(conn)
+    db_mod._backfill_payout_batches_from_active_sources(conn)
+    assert call_count["n"] == 0, "no sources means parser is never called"
+
+    # Inserting a source after the guard fired must NOT trigger re-parse —
+    # the import path is responsible for new sources.
+    _insert_source(
+        conn, source_type="airbnb", name="ab.csv",
+        body=_AIRBNB_PAYOUT_CSV.encode("utf-8"),
+    )
+    db_mod._backfill_payout_batches_from_active_sources(conn)
+    assert call_count["n"] == 0, "guard must persist across calls"
 
 
 def test_backfill_no_op_when_no_active_sources(conn):

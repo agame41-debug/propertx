@@ -808,6 +808,15 @@ def _deactivate_legacy_checkin_source_files(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+_payout_batches_backfill_done = False
+
+
+def _reset_payout_batches_backfill_guard_for_tests() -> None:
+    """Test hook: reset the once-per-process guard so each test gets a fresh run."""
+    global _payout_batches_backfill_done
+    _payout_batches_backfill_done = False
+
+
 def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> None:
     """Re-parse every active airbnb/booking source_file and re-persist its
     payout_batches / payout_batch_items / bank_transactions snapshot.
@@ -817,14 +826,23 @@ def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> No
     a prod DB whose CSVs were imported before the engine took over would
     show empty bank-drilldown data until the next CSV upload.
 
-    Idempotent: every save_* underneath is UPSERT, so running on every
-    boot is safe and effectively a no-op once tables are aligned.
+    Runs at most once per process — `get_connection()` (and therefore
+    `_run_migrations()`) fires on every web request, but this helper is
+    only useful as a one-shot catch-up. After the first invocation the
+    payout_batches table is aligned, and any further drift is healed by
+    the engine on regen (Task 2) or by source_registry on import (Task 3).
+    Repeating the regex-heavy CSV parse per request would add hundreds of
+    ms to every page load.
 
     Bank transactions are intentionally excluded — they are populated by
     `source_registry.import_uploaded_source` on bank-CSV upload. If prod's
     `bank_transactions` is ever out of sync, re-uploading the bank CSV is
     the documented remediation.
     """
+    global _payout_batches_backfill_done
+    if _payout_batches_backfill_done:
+        return
+
     from report.engine import _persist_csv_payout_artifacts
     from report.verifier import (
         build_airbnb_payout_data,
@@ -838,6 +856,7 @@ def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> No
         "WHERE source_type IN ('airbnb', 'booking') AND is_active = 1"
     ).fetchall()
     if not rows:
+        _payout_batches_backfill_done = True
         return
 
     try:
@@ -877,12 +896,15 @@ def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> No
             booking_bank_idx_all={},
         )
         conn.commit()
+        _payout_batches_backfill_done = True
     except Exception:
         import logging
         logging.getLogger(__name__).warning(
             "payout_batches backfill failed; bank UI may be stale until next regen",
             exc_info=True,
         )
+        # Don't set the guard — let a later request retry, in case the
+        # parse failure was transient (e.g., a partially-written CSV blob).
         conn.rollback()
 
 
