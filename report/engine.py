@@ -386,10 +386,6 @@ def generate_report_in_process(
         (slug, year, month),
     )
 
-    # ── Clear bank match ownership for this slug/month ─────────────────────
-    from report.db import clear_bank_matches_for_month
-    clear_bank_matches_for_month(conn, slug, year, month)
-
     # ── Cutoff date ─────────────────────────────────────────────────────────
     if month == 12:
         cutoff_year, cutoff_month_num = year + 1, 1

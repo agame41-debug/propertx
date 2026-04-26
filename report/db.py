@@ -2439,19 +2439,6 @@ def save_payout_batch_bank_matches(
     conn.commit()
 
 
-def clear_bank_matches_for_month(
-    conn: sqlite3.Connection,
-    slug: str,
-    year: int,
-    month: int,
-) -> None:
-    """Remove bank match records for a specific slug/month before regeneration."""
-    conn.execute(
-        "DELETE FROM payout_batch_bank_matches WHERE slug = ? AND year = ? AND month = ?",
-        (slug, year, month),
-    )
-
-
 def get_bank_match_owner(
     conn: sqlite3.Connection,
     channel: str,
