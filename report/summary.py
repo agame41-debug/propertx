@@ -94,7 +94,7 @@ def build_report_summary(
     )
     bank_received_this_month_czk = _r(bank_confirmed_czk + bank_transferred_czk)
 
-    return {
+    result = {
         "gross_payout_czk": gross_payout_czk,
         "accommodation_income_czk": accommodation_income_czk,
         "room_prep_czk": room_prep_czk,
@@ -115,3 +115,41 @@ def build_report_summary(
         "bank_received_this_month_czk": bank_received_this_month_czk,
         "integrity_warnings": integrity_warnings,
     }
+
+    # ── New fields (property-page redesign Phase 1) ──────────────────────
+    # Alias: dph_prefakturace_klient_czk == vat_output_czk semantically.
+    # Kept under both names for template clarity without renaming the field
+    # used elsewhere (Excel, other consumers).
+    result["vat_output_czk"] = result["dph_prefakturace_klient_czk"]
+
+    # vat_input: sum of DPH from expenses that have a VAT rate set.
+    # Legacy expenses with NULL vat_rate are excluded from the aggregate
+    # so we don't lie about the deduction.
+    rated_expenses = [
+        e for e in expenses
+        if (e.get("vat_rate") is not None) and (float(e.get("vat_rate") or 0) > 0)
+    ]
+    result["vat_input_czk"] = _r(sum(float(e.get("amount_dph_czk") or 0) for e in rated_expenses))
+    result["vat_input_count"] = len(rated_expenses)
+    result["vat_balance_czk"] = _r(result["vat_output_czk"] - result["vat_input_czk"])
+
+    # Net total for the expense-table footer (same exclusion rule as above).
+    # Falls back to amount_czk for legacy rows so the footer still adds up.
+    result["expenses_net_total_czk"] = _r(sum(
+        float(e.get("amount_net_czk") if e.get("amount_net_czk") is not None else (e.get("amount_czk") or 0))
+        for e in expenses
+    ))
+
+    # Zisk — Rentero's residual margin. Only meaningful when the property is
+    # Rentero-owned; for klient/z_klient the equivalent KPI is
+    # client_payout_after_expenses_czk (which is already in the dict).
+    if client_type == "rentero":
+        result["zisk_czk"] = _r(
+            result["gross_payout_czk"]
+            - result["expenses_total_czk"]
+            - result["vat_balance_czk"]
+        )
+    else:
+        result["zisk_czk"] = None
+
+    return result
