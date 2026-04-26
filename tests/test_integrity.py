@@ -340,3 +340,62 @@ def test_integrity_audit_table_exists_after_ensure_schema():
         assert "idx_integrity_audit_detected_at" in idx
     finally:
         conn.close()
+
+
+def test_run_integrity_audit_finds_cross_snapshot_dupe():
+    from report.db import run_integrity_audit, save_report_rows
+
+    conn = get_connection(":memory:")
+    try:
+        save_report_rows(conn, "apt_A", 2026, 3, [{"confirmation_code": "X"}])
+        save_report_rows(conn, "apt_B", 2026, 4, [{"confirmation_code": "X"}])
+        save_report_rows(conn, "apt_C", 2026, 5, [{"confirmation_code": "Y"}])  # unique
+
+        findings = run_integrity_audit(conn)
+        assert len(findings) == 1
+        assert findings[0]["confirmation_code"] == "X"
+        # Occurrences string contains both snapshots
+        occ = findings[0]["occurrences"]
+        assert "apt_A/2026-03" in occ
+        assert "apt_B/2026-04" in occ
+
+        # And one row was inserted into integrity_audit
+        rows = conn.execute(
+            "SELECT confirmation_code, occurrences FROM integrity_audit"
+        ).fetchall()
+        assert len(rows) == 1
+        assert rows[0]["confirmation_code"] == "X"
+    finally:
+        conn.close()
+
+
+def test_run_integrity_audit_ignores_empty_codes():
+    from report.db import run_integrity_audit, save_report_rows
+
+    conn = get_connection(":memory:")
+    try:
+        save_report_rows(conn, "apt_A", 2026, 3, [{"confirmation_code": ""}])
+        save_report_rows(conn, "apt_B", 2026, 4, [{"confirmation_code": ""}])
+        findings = run_integrity_audit(conn)
+        assert findings == []
+        rows = conn.execute("SELECT * FROM integrity_audit").fetchall()
+        assert rows == []
+    finally:
+        conn.close()
+
+
+def test_run_integrity_audit_appends_new_findings_each_call():
+    """The audit table is an event log; each call appends new detected_at
+    rows even for the same dupe."""
+    from report.db import run_integrity_audit, save_report_rows
+
+    conn = get_connection(":memory:")
+    try:
+        save_report_rows(conn, "apt_A", 2026, 3, [{"confirmation_code": "X"}])
+        save_report_rows(conn, "apt_B", 2026, 4, [{"confirmation_code": "X"}])
+        run_integrity_audit(conn)
+        run_integrity_audit(conn)
+        rows = conn.execute("SELECT * FROM integrity_audit").fetchall()
+        assert len(rows) == 2  # two events for same dupe
+    finally:
+        conn.close()

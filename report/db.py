@@ -2450,6 +2450,33 @@ def save_payout_batch_bank_matches(
     conn.commit()
 
 
+def run_integrity_audit(conn: sqlite3.Connection) -> list[dict]:
+    """Find confirmation_codes appearing in multiple report_rows snapshots.
+
+    Writes findings to integrity_audit (event log — one row per call when a
+    dupe exists) and returns the same list. Empty codes are ignored.
+    """
+    rows = conn.execute("""
+        SELECT confirmation_code,
+               GROUP_CONCAT(slug || '/' || year || '-' || printf('%02d', month), ',') AS occurrences,
+               COUNT(*) AS occ_count
+        FROM report_rows
+        WHERE confirmation_code <> ''
+        GROUP BY confirmation_code
+        HAVING occ_count > 1
+        ORDER BY occ_count DESC, confirmation_code
+    """).fetchall()
+    findings = [dict(r) for r in rows]
+    if findings:
+        now = _now()
+        conn.executemany(
+            "INSERT INTO integrity_audit (confirmation_code, occurrences, detected_at) VALUES (?, ?, ?)",
+            [(f["confirmation_code"], f["occurrences"], now) for f in findings],
+        )
+        conn.commit()
+    return findings
+
+
 # --------------------------------------------------------------------------- #
 #  Accounting entries (Hlavní kniha účet 315)                                   #
 # --------------------------------------------------------------------------- #
