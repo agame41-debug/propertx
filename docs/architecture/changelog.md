@@ -6,6 +6,28 @@ It is not a plan.
 
 It describes the delivered architecture after the completed work in Phase 1, Phase 2, Phase 3, and the hardening pass completed today.
 
+## 2026-04-26 — Engine unification
+
+* Removed `report/main.py`, `report/excel.py`, `report/preview_service.py`,
+  `report/generation_job_runner.py`, `_enqueue_report_generation`,
+  `_enqueue_generate_all_for_month`, `_run_report_generation`,
+  `_start_report_generation_runner`, `_build_report_main_cmd`,
+  `calculate_totals`, `calculate_totals_with_config`. The 2026-04-06
+  auto-generation design left these alongside the engine as a
+  deliberately partial migration; this work finishes it.
+* `engine.generate_report_in_process` is now the single execution path
+  for report regeneration. CLI replaced by `bin/regen.py`.
+* `payout_batches` / `payout_batch_items` / `bank_transactions` are
+  persisted at CSV import time in `source_registry` (mirrors the
+  existing bank-CSV pattern) and defensively at regen time in the
+  engine. A boot-time backfill re-materializes legacy DBs (once per
+  process, not per request).
+* Excel download button + `/property/{slug}/{year}/{month}/download`
+  + `/preview` routes removed.
+* Dashboard's broken "Generovat" form (POSTed to a non-existent route)
+  removed.
+* `signal.SIGCHLD = SIG_IGN` bandage removed; default SIGCHLD restored.
+
 ## 2026-04-13
 
 ### Z Klient property type

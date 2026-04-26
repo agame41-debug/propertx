@@ -17,32 +17,35 @@ Hostify API  →  loader.py  →  normalized Hostify snapshots in SQLite
                     │
             summary.py  →  canonical property/month summary
                     │
-         ┌──────────┼──────────┐
-         │          │          │
-         ▼          ▼          ▼
-  excel.py     SQLite state    web.py entrypoint
-  (.xlsx)      db.py facade    + routes/ + web_support.py
-               + db_months.py
-               + db_admin.py
+         ┌──────────┴──────────┐
+         │                     │
+         ▼                     ▼
+  SQLite state          web.py entrypoint
+  db.py facade          + routes/ + web_support.py
+  + db_months.py
+  + db_admin.py
 ```
 
-`excel.py` and the web layer are parallel consumers of the same calculated state. The web UI does not depend on Excel generation.
+Jediný generační entrypoint je `engine.generate_report_in_process`. Excel výstup byl odstraněn; web UI pracuje výhradně s persistovanými daty v SQLite.
 
 ## Modules
 
-| Module | Role |
+## Kódové vrstvy
+
+| Modul | Role |
 |---|---|
+| `bin/regen.py` | Tenký administrátorský CLI: `bin/regen.py SLUG YEAR MONTH` nebo `--all YEAR MONTH`. Volá `engine.generate_report_in_process` přímo, bez Excelu, bez subprocess zprostředkování. |
+| `report/engine.py` | Jediný in-process generační engine — sdílený webem (synchronní mutace), bulk_generation_runnerem (separátní subprocess pro paměťovou izolaci) a `bin/regen.py`. Plní `report_rows`, `payout_batches`, `payout_batch_items`, `bank_transactions`. Excel se nepíše. |
+| `report/source_registry.py` | Importní pipeline. Při importu airbnb/booking/bank CSV materializuje payout_batches / payout_batch_items / bank_transactions okamžitě, takže webové view-modely (bank drilldown, reservation panel) jsou aktuální bez čekání na příští regeneraci. |
 | `loader.py` | Fetch Hostify by date range, filter by Hostify listing nicknames / aliases, assign report month. SQLite cache 2h TTL. Also normalizes and persists Hostify reservation snapshots for later reconciliation, including non-Airbnb / non-Booking sources such as `HVMB` (Marriott). |
 | `verifier.py` | Load Airbnb/Booking CSVs with encoding and delimiter autodetection, then enforce strict required-column checks. Cross-check payout. Build `payout_ref_map`: code → `{gref, airbnb_rate}`. For Booking, compare CSV `net_eur` against Hostify payout after subtracting raw `Hostify city_tax_eur`, then apply tolerance rules. Small drifts within `±1.00 EUR` remain `MATCHED`. Can re-link Booking CSV-only rows to stored Hostify reservations by exact booking id when Hostify lags behind. |
 | `calculator.py` | Pure functions. Airbnb payout/cleaning use `airbnb_batch_rate`, but Airbnb commission uses CNB rate on reservation date. Booking uses actual payout CZK / payout rate from CSV. Other sources fall back to CNB. `Balíčky` use the city-tax/checkin guest count, cancelled reservations do not accrue stay-derived costs, and `cena_ubytovani_czk` is clamped to `>= 0`. Carries batch metadata forward for UI/storage. |
 | `bank.py` | Load bank CSV (UTF-16). Match bank transaction per payout batch, not per reservation. |
-| `excel.py` | One sheet "Finální sestava". Columns A–R + Payout ref / Banka datum / Banka status. |
 | `cnb.py` | CNB EUR/CZK rate. Two-level cache (memory + SQLite). Weekend/holiday fallback up to 5 days back. |
 | `db.py` | SQLite connection, schema, migrations, and facade exports for the rest of the app. |
 | `db_months.py` | Month lifecycle and background generation jobs (`report_month_state`, `report_generation_jobs`, `bulk_generation_runs`). |
 | `db_admin.py` | Report objects, aliases, clients, expenses, and override events. |
 | `config.py` | Load `config/properties.json`. Lookup by listing_id or slug. |
-| `main.py` | CLI. Prefers DB-backed active source files, applies active overrides before export/persist, persists batch drill-down data, isolates errors per property. |
 | `web.py` | Thin FastAPI app entrypoint: auth, session, CSRF, dependency wiring, route registration. |
 | `routes/` | Route modules split by domain: auth, dashboard, sources, property, operations. |
 | `web_support.py` | Web orchestration helpers, route-neutral view assembly, generation runner commands. |
