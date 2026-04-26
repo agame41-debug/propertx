@@ -723,6 +723,9 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "report_month_state", "data_state", "data_state TEXT NOT NULL DEFAULT 'EMPTY'")
     _ensure_column(conn, "report_month_state", "has_new_data_since_generation", "has_new_data_since_generation INTEGER NOT NULL DEFAULT 0")
     _ensure_column(conn, "report_month_state", "notes", "notes TEXT DEFAULT ''")
+    _ensure_column(conn, "expenses", "amount_net_czk", "amount_net_czk REAL")
+    _ensure_column(conn, "expenses", "amount_dph_czk", "amount_dph_czk REAL")
+    _ensure_column(conn, "expenses", "vat_rate", "vat_rate REAL")
     _dedupe_source_files_by_type_sha256(conn)
     conn.execute(
         """CREATE INDEX IF NOT EXISTS idx_report_rows_code_lookup
