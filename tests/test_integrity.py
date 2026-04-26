@@ -411,3 +411,56 @@ def test_run_integrity_audit_callable_from_lifespan_no_findings():
         assert findings == []
     finally:
         conn.close()
+
+
+def test_admin_integrity_endpoint_renders_with_admin_auth():
+    """Smoke: /admin/integrity returns 200 and renders audit.html when an
+    admin is authenticated. Uses FastAPI dependency overrides to bypass the
+    full login flow (which would require a seeded users-table admin row in
+    the on-disk DB)."""
+    import os
+
+    from fastapi.testclient import TestClient
+    import report.web as web_module
+    from report.web import require_auth, require_admin
+
+    old_allow = os.environ.get("RENTERO_ALLOW_INSECURE_DEFAULTS")
+    os.environ["RENTERO_ALLOW_INSECURE_DEFAULTS"] = "1"
+    web_module.app.dependency_overrides[require_auth] = lambda: None
+    web_module.app.dependency_overrides[require_admin] = lambda: None
+    try:
+        with TestClient(web_module.app) as client:
+            response = client.get("/admin/integrity")
+    finally:
+        web_module.app.dependency_overrides.pop(require_auth, None)
+        web_module.app.dependency_overrides.pop(require_admin, None)
+        if old_allow is None:
+            os.environ.pop("RENTERO_ALLOW_INSECURE_DEFAULTS", None)
+        else:
+            os.environ["RENTERO_ALLOW_INSECURE_DEFAULTS"] = old_allow
+
+    assert response.status_code == 200
+    # Template inherits from audit.html — header text always present
+    assert "Historie změn" in response.text
+
+
+def test_admin_integrity_endpoint_requires_auth():
+    """Unauthenticated request should redirect to /login (302)."""
+    import os
+
+    from fastapi.testclient import TestClient
+    import report.web as web_module
+
+    old_allow = os.environ.get("RENTERO_ALLOW_INSECURE_DEFAULTS")
+    os.environ["RENTERO_ALLOW_INSECURE_DEFAULTS"] = "1"
+    try:
+        with TestClient(web_module.app) as client:
+            response = client.get("/admin/integrity", follow_redirects=False)
+    finally:
+        if old_allow is None:
+            os.environ.pop("RENTERO_ALLOW_INSECURE_DEFAULTS", None)
+        else:
+            os.environ["RENTERO_ALLOW_INSECURE_DEFAULTS"] = old_allow
+
+    # require_auth raises 302 → /login on missing session
+    assert response.status_code in (302, 401, 403)

@@ -13,6 +13,45 @@
     <div style="font-size:12px;color:var(--text-400);">{{ events|length }} záznamů</div>
   </div>
 
+  {# ── Integrity violations (L3 audit) ───────────────────────────────────── #}
+  {% if integrity_rows %}
+  <div class="card" style="margin-bottom:24px;border-left:3px solid var(--color-red, #b04040);">
+    <div style="padding:12px 16px 8px;display:flex;align-items:center;gap:10px;">
+      <span class="badge badge-red" style="font-size:10px;">Integrita</span>
+      <h2 style="font-size:14px;font-weight:600;color:var(--text-100);margin:0;">
+        Porušení integrity ({{ integrity_rows|length }})
+      </h2>
+      <span style="font-size:12px;color:var(--text-400);">
+        Stejný confirmation_code se objevil ve více snapshotu měsíců.
+      </span>
+    </div>
+    <table class="data-table responsive-cards">
+      <thead>
+        <tr>
+          <th style="width:200px;">Confirmation code</th>
+          <th>Snapshoty</th>
+          <th style="width:160px;">Detekováno</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in integrity_rows %}
+        <tr>
+          <td style="font-family:monospace;font-size:12px;color:var(--text-200);">
+            {{ row.confirmation_code }}
+          </td>
+          <td style="font-family:monospace;font-size:11px;color:var(--text-300);word-break:break-all;">
+            {{ row.occurrences }}
+          </td>
+          <td style="font-size:11px;color:var(--text-300);white-space:nowrap;">
+            {{ row.detected_at[:16].replace('T', ' ') if row.detected_at else "—" }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
   {# ── Filters ───────────────────────────────────────────────────────────── #}
   <form method="get" action="/audit" style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
     <div style="display:flex;flex-direction:column;gap:4px;">

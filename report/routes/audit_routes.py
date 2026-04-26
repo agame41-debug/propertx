@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse
 
 def register(app, state) -> None:
     require_auth = state["require_auth"]
+    require_admin = state["require_admin"]
     get_db = state["get_db"]
     get_config = state["get_config"]
 
@@ -63,6 +64,42 @@ def register(app, state) -> None:
                 "filter_month": month,
                 "events": events,
                 "current_year": date.today().year,
+                "integrity_rows": [],
+            },
+        )
+
+    @app.get("/admin/integrity", response_class=HTMLResponse)
+    async def admin_integrity_page(
+        request: Request,
+        _=Depends(require_admin),
+        conn=Depends(get_db),
+        config=Depends(get_config),
+    ):
+        """Show recent L3 integrity-audit findings (cross-snapshot duplicate
+        confirmation_codes). Reuses audit.html — only the integrity section
+        renders because we pass empty events/props.
+        """
+        rows = conn.execute(
+            """
+            SELECT id, confirmation_code, occurrences, detected_at
+              FROM integrity_audit
+             ORDER BY detected_at DESC, id DESC
+             LIMIT 200
+            """
+        ).fetchall()
+        integrity_rows = [dict(r) for r in rows]
+
+        return state["templates"].TemplateResponse(
+            request,
+            "audit.html",
+            {
+                "props": [],
+                "filter_slug": "",
+                "filter_year": 0,
+                "filter_month": 0,
+                "events": [],
+                "current_year": date.today().year,
+                "integrity_rows": integrity_rows,
             },
         )
 
