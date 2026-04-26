@@ -1,0 +1,1087 @@
+<style>
+/* ═══════════════════════════════════════════════════════════
+   Rentero — Property page (DPH redesign)
+   Tokens (--brand, --dph, --bg-*, --text-*, --color-*, --space-*) live
+   in base_styles.html. This file holds property-page-specific component
+   styles only. Class names are prefixed (.kpi-, .rs-, .bd-, .dph-, .exp-,
+   .ae-, .rex-, .ph-) and `.badge` is scoped under `.page` to avoid
+   collision with the global .badge in base_styles_components.html.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ───────── property-page-local token aliases ─────────
+   The reference mock used short names (--ok, --warn, --err, --info,
+   --ch-airbnb, --ch-booking). Map them to existing global tokens here
+   without polluting :root. Variables declared on .page cascade down.
+*/
+.page {
+  --ok:           var(--color-green);
+  --warn:         var(--color-amber);
+  --err:          var(--color-red);
+  --info:         var(--color-blue);
+
+  --ok-soft:      oklch(0.72 0.17 155 / 0.10);
+  --ok-line:      oklch(0.72 0.17 155 / 0.35);
+  --warn-soft:    oklch(0.78 0.14 75 / 0.10);
+  --warn-line:    oklch(0.78 0.14 75 / 0.35);
+  --err-soft:     oklch(0.70 0.19 25 / 0.10);
+  --err-line:     oklch(0.70 0.19 25 / 0.35);
+  --info-soft:    oklch(0.72 0.14 250 / 0.10);
+  --info-line:    oklch(0.72 0.14 250 / 0.35);
+
+  --ch-airbnb:    oklch(0.72 0.18 25);
+  --ch-booking:   oklch(0.70 0.14 250);
+
+  /* Mock used --t-fast / --t-med / --ease — alias to existing names */
+  --t-fast:       var(--duration-fast, 150ms);
+  --t-med:        var(--duration-normal, 250ms);
+  --ease:         var(--ease-out, cubic-bezier(.23, 1, .32, 1));
+
+  /* Mock used --line-1 / --line-2 / --line-hair — alias to existing border tokens */
+  --line-1:       oklch(1 0 0 / 0.06);
+  --line-2:       oklch(1 0 0 / 0.10);
+  --line-hair:    oklch(1 0 0 / 0.04);
+
+  --shadow-sm:    var(--shadow-sm, 0 1px 2px oklch(0 0 0 / .35));
+  --shadow-md:    var(--shadow-md, 0 8px 28px oklch(0 0 0 / .45));
+
+  --radius-sm:    var(--radius-xs, 6px);
+  --radius-md:    var(--radius-md, 12px);
+  --radius-lg:    var(--radius-lg, 16px);
+  --radius-full:  var(--radius-full, 9999px);
+}
+
+[data-theme="light"] .page {
+  --ok:           oklch(0.52 0.16 155);
+  --warn:         oklch(0.60 0.15 60);
+  --err:          oklch(0.55 0.20 25);
+  --info:         oklch(0.50 0.16 250);
+
+  --ch-airbnb:    oklch(0.58 0.20 25);
+  --ch-booking:   oklch(0.50 0.16 250);
+
+  --line-1:       oklch(0 0 0 / 0.08);
+  --line-2:       oklch(0 0 0 / 0.12);
+  --line-hair:    oklch(0 0 0 / 0.04);
+
+  --shadow-sm:    0 1px 2px oklch(0 0 0 / .05);
+  --shadow-md:    0 8px 24px oklch(0 0 0 / .08);
+}
+
+/* ═══ ported from /Users/nikitashlykov/Downloads/315n/property/styles.css line 156-1171 ═══ */
+
+/* ───────── page header ───────── */
+.ph-crumbs {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-300); letter-spacing: .02em;
+}
+.ph-crumbs .sep { opacity: .4; }
+.ph-crumbs a:hover { color: var(--text-200); }
+
+.ph-title-row {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--space-6); margin-top: 8px;
+}
+.ph-title {
+  font-size: 28px; font-weight: 700; letter-spacing: -0.025em;
+  color: var(--text-100);
+}
+.ph-title-meta {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 8px;
+}
+.ph-actions {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  padding-top: 6px;
+}
+
+/* ───────── month nav (compact) ───────── */
+.month-nav {
+  display: inline-flex; align-items: center;
+  background: var(--bg-2); border: 1px solid var(--line-1);
+  border-radius: var(--radius-full); padding: 2px;
+  font-family: var(--font-mono);
+}
+.month-nav button {
+  background: transparent; border: 0; color: var(--text-300);
+  width: 28px; height: 28px; cursor: pointer; border-radius: var(--radius-full);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.month-nav button:hover { background: oklch(1 0 0 / .06); color: var(--text-100); }
+[data-theme="light"] .month-nav button:hover { background: oklch(0 0 0 / .05); }
+.month-nav .label {
+  padding: 0 14px; font-size: 12px; font-weight: 600;
+  color: var(--text-100); letter-spacing: .02em; line-height: 28px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───────── buttons ───────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: var(--radius-sm);
+  font-size: 12.5px; font-weight: 500; cursor: pointer;
+  border: 1px solid transparent; background: transparent;
+  color: var(--text-200); font-family: inherit; white-space: nowrap;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast), transform 80ms;
+}
+.btn:active { transform: scale(.97); }
+.btn:hover { color: var(--text-100); }
+
+.btn-ghost { border-color: var(--line-1); }
+.btn-ghost:hover { background: var(--bg-hover); border-color: var(--line-2); }
+
+.btn-secondary {
+  background: oklch(1 0 0 / .04);
+  border-color: var(--line-1); color: var(--text-100);
+}
+[data-theme="light"] .btn-secondary { background: oklch(0 0 0 / .04); }
+.btn-secondary:hover { background: oklch(1 0 0 / .08); border-color: var(--line-2); }
+[data-theme="light"] .btn-secondary:hover { background: oklch(0 0 0 / .07); }
+
+.btn-primary {
+  background: var(--brand); color: #fff; border-color: oklch(1 0 0 / .12);
+  font-weight: 600;
+  box-shadow: 0 1px 3px oklch(0.66 0.18 285 / .3);
+}
+.btn-primary:hover { background: oklch(0.71 0.17 285); color: #fff; }
+
+.btn-sm {
+  padding: 5px 10px; font-size: 11.5px;
+}
+.btn-icon {
+  padding: 6px; width: 28px; height: 28px;
+  justify-content: center;
+}
+
+/* ───────── badges — naked text marks, mono CAPS ─────────
+   No fill, no border, no glow. Pure colored caps with a leading dot.
+   Hue carries the semantic; tracking + caps carries the editorial feel. */
+.page .badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 0;
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: transparent;
+  border: none;
+  color: var(--text-200);
+  line-height: 1.4;
+  transition: color var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+}
+
+.page .badge-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* Semantic colors — text-only marks */
+.page .badge-ok    { color: var(--ok); }
+.page .badge-warn  { color: var(--warn); }
+.page .badge-err   { color: var(--err); }
+.page .badge-info  { color: var(--info); }
+.page .badge-brand { color: var(--brand-text); }
+.page .badge-dph   { color: var(--dph-text); }
+.page .badge-mute  { color: var(--text-300); }
+
+[data-theme="light"] .page .badge-ok    { color: oklch(0.42 0.16 155); }
+[data-theme="light"] .page .badge-warn  { color: oklch(0.48 0.14 60); }
+[data-theme="light"] .page .badge-err   { color: oklch(0.46 0.19 25); }
+[data-theme="light"] .page .badge-info  { color: oklch(0.45 0.13 245); }
+
+.page .badge:hover { opacity: .75; }
+
+/* ═══════════════════════════════════════════════════
+   KPI ROW
+   ═══════════════════════════════════════════════════ */
+.kpi-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  margin-top: 20px;
+}
+.kpi {
+  position: relative; overflow: hidden;
+  background: var(--bg-2); border: 1px solid var(--line-1);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px 16px;
+  box-shadow: var(--shadow-sm), var(--glass-hi);
+  transition: border-color var(--t-fast), transform var(--t-fast);
+}
+.kpi-blue   { border-color: var(--info-line); }
+.kpi-ok     { border-color: var(--ok-line); }
+.kpi-err    { border-color: var(--err-line); }
+.kpi-warn   { border-color: var(--warn-line); }
+.kpi-brand  { border-color: var(--brand-line); }
+.kpi-dph    { border-color: var(--dph-line); }
+
+.kpi-label {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text-300);
+}
+.kpi-value {
+  font-family: var(--font-mono); font-weight: 600;
+  font-size: 26px; line-height: 1.1;
+  letter-spacing: -0.02em;
+  letter-spacing: -0.02em;
+  color: var(--text-100);
+  margin-top: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kpi-value.neg { color: var(--err); }
+.kpi-value.warn { color: var(--warn); }
+.kpi-value.brand { color: var(--brand-text); }
+.kpi-value.dph { color: var(--dph-text); }
+.kpi-value.ok { color: var(--ok); }
+
+/* KPI sub: allow line break BETWEEN logical pairs, never within them */
+.kpi-sub {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-300); margin-top: 8px;
+  display: flex; align-items: baseline; gap: 4px 8px; flex-wrap: wrap;
+  min-height: 17px;
+  line-height: 1.4;
+}
+.kpi-sub .v { color: var(--text-200); font-variant-numeric: tabular-nums; }
+.kpi-sub .sep { opacity: .3; }
+/* atomic = "label + value" stays on one line; line break can happen
+   only at the · separator between such groups */
+.kpi-sub .pair {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  white-space: nowrap;
+}
+
+/* small spark line for bank-received inside KPI1 */
+.kpi-spark {
+  display: flex; align-items: flex-end; gap: 2px; height: 18px;
+  margin-top: 8px;
+}
+.kpi-spark span {
+  flex: 1; background: var(--info); opacity: .5;
+  border-radius: 1px; min-height: 2px;
+}
+.kpi-spark span.miss { background: var(--text-300); opacity: .25; }
+
+/* Zisk (brand) gets subtle glow in top-right */
+/* Zisk — same sizing as other KPI; just a subtle ok-green glow */
+.kpi-zisk { background: var(--bg-2); }
+.kpi-zisk::before {
+  content: ''; position: absolute;
+  top: -40px; right: -40px; width: 160px; height: 160px;
+  background: radial-gradient(circle, oklch(0.72 0.17 155 / .10), transparent 70%);
+  pointer-events: none; z-index: 0;
+}
+.kpi-zisk > * { position: relative; z-index: 1; }
+
+/* ═══════════════════════════════════════════════════
+   CARD (shared surface)
+   ═══════════════════════════════════════════════════ */
+.card {
+  background: var(--bg-2); border: 1px solid var(--line-1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm), var(--glass-hi);
+  overflow: hidden;
+  margin-top: 16px;
+}
+.card-h {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 14px 18px;
+  border-bottom: 1px solid var(--line-hair);
+  background: oklch(0 0 0 / .12);
+}
+[data-theme="light"] .card-h { background: oklch(0 0 0 / .015); }
+.card-h-left {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.card-title {
+  font-size: 13.5px; font-weight: 600; color: var(--text-100);
+  letter-spacing: -0.01em;
+}
+.card-meta {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-300); letter-spacing: .02em;
+}
+.card-meta .v { color: var(--text-200); font-variant-numeric: tabular-nums; }
+
+.card-caret {
+  width: 14px; height: 14px; color: var(--text-300);
+  transition: transform var(--t-med) var(--ease);
+  flex-shrink: 0;
+}
+.card-caret.closed { transform: rotate(-90deg); }
+
+/* ═══════════════════════════════════════════════════
+   TABLE (shared)
+   ═══════════════════════════════════════════════════ */
+.t {
+  width: 100%; border-collapse: collapse;
+  font-size: 13px;
+}
+.t thead th {
+  text-align: left; padding: 10px 18px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--text-300);
+  border-bottom: 1px solid var(--line-1);
+  background: oklch(1 0 0 / .015);
+  white-space: nowrap;
+}
+[data-theme="light"] .t thead th { background: oklch(0 0 0 / .01); }
+.t th.r, .t td.r { text-align: right; }
+.t th.c, .t td.c { text-align: center; }
+.t tbody td {
+  padding: 11px 18px;
+  border-bottom: 1px solid var(--line-hair);
+  color: var(--text-200); vertical-align: middle;
+}
+.t tbody tr:last-child td { border-bottom: 0; }
+.t tbody tr:hover td { background: var(--bg-hover); }
+.t tfoot td {
+  padding: 12px 18px;
+  border-top: 1px solid var(--line-1);
+  background: oklch(0 0 0 / .18);
+  color: var(--text-100); font-weight: 600;
+}
+[data-theme="light"] .t tfoot td { background: oklch(0 0 0 / .025); }
+
+/* money cell — mono, tabular, no-wrap */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--text-200);
+  white-space: nowrap;
+}
+.num.strong { color: var(--text-100); font-weight: 600; }
+.num.dim    { color: var(--text-300); }
+.num.neg    { color: var(--err); }
+.num.warn   { color: var(--warn); }
+.num.ok     { color: var(--ok); }
+.num.dph    { color: var(--dph-text); }
+
+/* ═══════════════════════════════════════════════════
+   RESERVATIONS
+   ═══════════════════════════════════════════════════ */
+.rs-filters {
+  display: inline-flex; gap: 2px; padding: 3px;
+  background: oklch(0 0 0 / .22);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-full);
+}
+[data-theme="light"] .rs-filters { background: oklch(0 0 0 / .035); }
+.rs-filter {
+  background: transparent; border: 0; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: var(--radius-full);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-300);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.rs-filter:hover:not(:disabled) { color: var(--text-200); }
+.rs-filter:disabled { opacity: .35; cursor: not-allowed; }
+.rs-filter.active {
+  background: oklch(1 0 0 / .08); color: var(--text-100);
+}
+[data-theme="light"] .rs-filter.active { background: oklch(0 0 0 / .05); }
+.rs-filter .n {
+  font-size: 10px; font-weight: 500;
+  color: var(--text-300); font-variant-numeric: tabular-nums;
+}
+.rs-filter.active .n { color: var(--text-200); }
+.rs-filter .n.err { color: var(--err); }
+
+/* channel logo — pure colored mark, no fill, no border */
+.ch-logo {
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 0;
+}
+.ch-logo-airbnb  { color: var(--ch-airbnb); }
+.ch-logo-booking { color: var(--ch-booking); }
+
+/* reservation rows */
+/* page idx number */
+.rs-table .rs-idx {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-300); font-variant-numeric: tabular-nums;
+  text-align: center; width: 40px;
+}
+/* row with guest + guests hint — no unwanted join */
+.rs-guest + .hint { margin-left: 8px; }
+.rs-guest {
+  color: var(--text-100); font-weight: 500;
+}
+.rs-guest .hint {
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--text-400); margin-left: 6px; font-weight: 400;
+}
+.rs-date {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  padding-left: 0;
+}
+.rs-date-num {
+  font-size: 12px;
+  color: var(--text-200);
+  font-weight: 500;
+}
+.rs-date-stack {
+  display: inline-flex; flex-direction: column; align-items: flex-end;
+  gap: 1px; line-height: 1.2;
+}
+.rs-date-sub {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-400);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* Výplata cell with ubytování below */
+.rs-payout {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rs-payout-stack {
+  display: inline-flex; flex-direction: column; align-items: flex-end;
+  gap: 1px; line-height: 1.2;
+}
+.rs-payout-num {
+  font-size: 12.5px;
+  color: var(--text-100);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.rs-payout-num.strong { font-weight: 700; }
+.rs-payout-sub {
+  font-size: 10.5px;
+  color: var(--text-400);
+  font-weight: 500;
+}
+
+/* Stav cell — badge + tiny banka indicator below */
+.rs-stav-stack {
+  display: inline-flex; flex-direction: column; align-items: center;
+  gap: 4px; line-height: 1.2;
+}
+.rs-stav-bank {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono); font-size: 9.5px;
+  font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-400);
+  white-space: nowrap;
+}
+.rs-stav-bank-k { color: var(--text-400); }
+.rs-stav-bank-mk {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 12px; height: 12px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.rs-stav-bank.ok .rs-stav-bank-mk {
+  background: color-mix(in oklch, var(--ok) 22%, transparent);
+  color: var(--ok);
+}
+.rs-stav-bank.err .rs-stav-bank-mk {
+  background: color-mix(in oklch, var(--err) 22%, transparent);
+  color: var(--err);
+}
+.rs-stav-bank.na .rs-stav-bank-mk {
+  color: var(--text-400);
+  font-size: 10px; font-weight: 700;
+}
+.rs-stav-bank-d {
+  color: var(--text-300); font-weight: 500;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+}
+.rs-date-child {
+  display: inline-flex; align-items: baseline; gap: 8px;
+  font-size: 12px;
+  color: var(--text-300);
+  justify-content: flex-end;
+  font-style: italic;
+}
+.rs-date-arrow {
+  font-family: var(--font-sans);
+  color: var(--text-400);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Banka column — checkmark + datum (light grey) */
+.rs-bank {
+  vertical-align: middle;
+}
+.rs-bank-ok {
+  display: inline-flex; flex-direction: column;
+  gap: 1px; line-height: 1.25;
+}
+.rs-bank-line1 {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--ok);
+  font-family: var(--font-sans);
+  font-size: 12.5px; font-weight: 500;
+}
+.rs-bank-line1 svg { flex-shrink: 0; }
+.rs-bank-date {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-400);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.005em;
+}
+.rs-bank-miss .rs-bank-line1 {
+  color: var(--warn);
+}
+.rs-bank-na {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-500);
+}
+.rs-row { cursor: pointer; transition: background var(--t-fast); }
+.rs-row-open td {
+  background: oklch(1 0 0 / .035) !important;
+  border-bottom-color: transparent !important;
+}
+[data-theme="light"] .rs-row-open td { background: oklch(0 0 0 / .02) !important; }
+.rs-row-muted td { opacity: .48; }
+/* child row (adjustment) — readable */
+.rs-row-child td {
+  background: oklch(0 0 0 / .10) !important;
+  border-bottom-color: var(--line-hair) !important;
+}
+.rs-row-child .rs-guest { color: var(--text-300); font-style: italic; font-weight: 400; }
+[data-theme="light"] .rs-row-child td { background: oklch(0 0 0 / .015) !important; }
+.rs-caret { width: 24px; color: var(--text-400); text-align: center; }
+.rs-caret svg { transition: transform var(--t-med) var(--ease); }
+
+/* expanded row */
+.rs-ex > td {
+  padding: 0 !important;
+  background: oklch(0 0 0 / .22) !important;
+  border-bottom: 1px solid var(--line-1) !important;
+}
+[data-theme="light"] .rs-ex > td { background: oklch(0 0 0 / .02) !important; }
+.rs-ex-inner { padding: 16px 24px 14px; }
+
+/* 3 sémantické skupiny: Finance · Identifikátor · Stav */
+.rs-ex-groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 0;
+}
+.rs-ex-group {
+  padding: 0 22px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 16px;
+  align-content: start;
+}
+.rs-ex-group:first-child { padding-left: 0; }
+.rs-ex-group:last-child  { padding-right: 0; }
+.rs-ex-group + .rs-ex-group {
+  border-left: 1px solid var(--line-hair);
+}
+/* Group with single column (identifikátor: kurz + kód) */
+.rs-ex-group.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+.rex-k {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text-400); margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rex-k.warn { color: var(--warn); }
+.rex-k.err  { color: var(--err); }
+.rex-k.info { color: var(--info); }
+.rex-k.ok   { color: var(--ok); }
+.rex-v {
+  font-family: var(--font-mono); font-size: 12.5px;
+  color: var(--text-100); font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em; line-height: 1.2;
+}
+.rex-v.mute { color: var(--text-400); font-weight: 400; }
+.rex-v.neg  { color: var(--text-200); }
+.rex-v.warn { color: var(--warn); font-weight: 600; }
+.rex-v.ok   { color: var(--ok); display: inline-flex; align-items: center; gap: 5px; font-weight: 500; }
+.rex-v.code { font-size: 11.5px; color: var(--text-200); }
+.rex-v span.cell { display: inline-flex; align-items: baseline; gap: 5px; }
+
+/* Action row */
+.rs-ex-actions {
+  display: flex; gap: 4px; margin-top: 14px;
+  padding-top: 12px; border-top: 1px solid var(--line-hair);
+  flex-wrap: wrap;
+}
+.rex-btn {
+  background: transparent;
+  border: 1px solid var(--line-1);
+  color: var(--text-300);
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .05em;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.rex-btn:hover {
+  background: var(--bg-hover); color: var(--text-100);
+  border-color: var(--line-2);
+}
+.rex-btn.primary {
+  margin-left: auto;
+  color: var(--brand-text); border-color: var(--brand-line);
+}
+.rex-btn.primary:hover {
+  background: var(--brand-soft); color: var(--brand-text);
+}
+
+/* ═══════════════════════════════════════════════════
+   BREAKDOWN per channel — sémantika sloupců
+   ═══════════════════════════════════════════════════ */
+/* Right-aligned meta in card header */
+.card-meta-r {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-300);
+  letter-spacing: 0.02em;
+}
+.card-meta-r .v { color: var(--text-200); font-weight: 500; }
+
+/* Column semantics */
+.bd-table .income {
+  color: var(--text-100);
+  font-weight: 500;
+}
+.bd-table .income.strong { font-weight: 700; }
+
+.bd-table .deduction {
+  color: var(--text-300);
+  font-weight: 500;
+}
+.bd-table .deduction.strong { color: var(--text-200); font-weight: 600; }
+
+.bd-table .neutral {
+  color: var(--text-300);
+  font-weight: 500;
+}
+.bd-table .neutral.strong { color: var(--text-200); font-weight: 600; }
+
+/* Výplata column — finální tok, mírný highlight */
+.bd-table th.bd-payout-h {
+  background: oklch(1 0 0 / .025);
+  border-left: 1px solid var(--line-hair);
+}
+.bd-table td.bd-payout {
+  background: oklch(1 0 0 / .025);
+  border-left: 1px solid var(--line-hair);
+  color: var(--text-100);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.bd-table td.bd-payout.strong { font-weight: 700; }
+
+[data-theme="light"] .bd-table th.bd-payout-h,
+[data-theme="light"] .bd-table td.bd-payout {
+  background: oklch(0 0 0 / .02);
+  border-left-color: var(--line-hair);
+}
+
+.bd-total-lbl { font-weight: 600; color: var(--text-200); }
+
+/* ═══════════════════════════════════════════════════
+   DPH SUMMARY strip
+   ═══════════════════════════════════════════════════ */
+.dph-box {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  gap: 20px;
+  align-items: stretch;
+  padding: 22px 24px;
+}
+/* DPH summary — vertically center content inside each col */
+.dph-col { min-width: 0; display: flex; flex-direction: column; }
+.dph-col-result {
+  padding-left: 20px;
+  border-left: 1px solid var(--dph-line);
+}
+.dph-k {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text-300);
+}
+.dph-v {
+  font-family: var(--font-sans); font-weight: 700;
+  font-size: 24px; letter-spacing: -0.02em;
+  margin-top: 8px; line-height: 1.1;
+  color: var(--text-100);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dph-v.neg   { color: var(--err); }
+.dph-v.teal  { color: var(--dph-text); }
+.dph-v.ok    { color: var(--ok); }
+.dph-hint {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-400); margin-top: 6px;
+  line-height: 1.5;
+}
+.dph-op {
+  font-family: var(--font-sans); font-weight: 300;
+  font-size: 28px; color: var(--text-400);
+  align-self: center;
+}
+
+/* ═══════════════════════════════════════════════════
+   EXPENSES
+   ═══════════════════════════════════════════════════ */
+/* Category sub-header — colored marker + count + sum on the right */
+.exp-cat-row td {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--text-200);
+  padding: 11px var(--gap-3) 7px !important;
+  background: oklch(0 0 0 / .14) !important;
+  border-bottom: 1px solid var(--line-hair) !important;
+  border-top: 1px solid var(--line-hair) !important;
+}
+[data-theme="light"] .exp-cat-row td { background: oklch(0 0 0 / .025) !important; }
+
+.exp-cat-inner {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+}
+.exp-cat-name { color: var(--text-100); }
+.exp-cat-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  display: inline-block; flex-shrink: 0;
+}
+.exp-cat-count {
+  color: var(--text-400); font-weight: 500;
+  font-size: 10px; letter-spacing: .08em;
+}
+.exp-cat-sum {
+  margin-left: auto;
+  color: var(--text-300); font-size: 10.5px; font-weight: 500;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+}
+.exp-cat-sum b {
+  color: var(--text-200); font-weight: 600; margin-left: 4px;
+}
+
+/* Category dot palette (semantic, low saturation) */
+.exp-dot-rent  { background: oklch(0.65 0.18 280); }   /* sub-nájem — brand */
+.exp-dot-energy{ background: oklch(0.78 0.14 75); }    /* energie — amber */
+.exp-dot-svc   { background: oklch(0.70 0.13 250); }   /* služby — blue */
+.exp-dot-fix   { background: oklch(0.72 0.18 25); }    /* opravy — red */
+.exp-dot-ins   { background: oklch(0.68 0.13 180); }   /* pojištění — teal */
+.exp-dot-other { background: oklch(0.60 0.02 260); }   /* ostatní — neutral */
+
+/* Subtler row borders within a category — denser feel */
+.exp-cat-row + tr td,
+.exp-cat-row ~ tr td {
+  border-bottom-color: oklch(1 0 0 / .035);
+}
+[data-theme="light"] .exp-cat-row + tr td,
+[data-theme="light"] .exp-cat-row ~ tr td {
+  border-bottom-color: oklch(0 0 0 / .04);
+}
+
+/* VAT mark — naked text, hue carries the rate */
+.vat-21 { color: var(--dph-text); }
+.vat-12 { color: var(--info); }
+.vat-0  { color: var(--text-400); }
+[data-theme="light"] .vat-21 { color: oklch(0.42 0.13 185); }
+[data-theme="light"] .vat-12 { color: oklch(0.45 0.13 245); }
+
+/* Pencil edit button — icon-only, ghost */
+.exp-edit {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  background: transparent; border: none;
+  color: var(--text-400);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--t-fast) var(--ease),
+              background var(--t-fast) var(--ease);
+}
+.exp-edit:hover {
+  color: var(--brand-text);
+  background: oklch(1 0 0 / .04);
+}
+[data-theme="light"] .exp-edit:hover { background: oklch(0 0 0 / .04); }
+
+/* ───────── add buttons — naked, mono CAPS ─────────
+   Used for primary actions inside cards (Přidat výdaj, etc).
+   Same family as .badge — text-only, hue carries semantic. */
+.btn-add {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 10px;
+  background: transparent; border: 1px solid var(--line-1);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  color: var(--text-200);
+  text-transform: uppercase; letter-spacing: .12em;
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease),
+              background var(--t-fast) var(--ease);
+}
+.btn-add:hover {
+  color: var(--brand-text);
+  border-color: var(--brand-line);
+  background: oklch(0.66 0.18 285 / .06);
+}
+.btn-add svg { opacity: .85; }
+.btn-add:disabled,
+.btn-add[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* Solid variant — for the primary save action inside the form */
+.btn-add-solid {
+  color: var(--brand-text);
+  border-color: var(--brand-line);
+  background: oklch(0.66 0.18 285 / .08);
+}
+.btn-add-solid:hover {
+  background: oklch(0.66 0.18 285 / .14);
+}
+
+/* Bare text link button — for cancel / tertiary actions */
+.btn-link {
+  background: none; border: 0; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  color: var(--text-400);
+  text-transform: uppercase; letter-spacing: .12em;
+  padding: 6px 8px;
+  transition: color var(--t-fast);
+}
+.btn-link:hover { color: var(--text-200); }
+
+/* ───────── add-expense form ───────── */
+.ae-form {
+  padding: 16px 20px 18px;
+  background: oklch(0 0 0 / .16);
+  border-bottom: 1px solid var(--line-1);
+}
+[data-theme="light"] .ae-form { background: oklch(0 0 0 / .015); }
+
+.ae-h {
+  display: flex; align-items: baseline; gap: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-hair);
+}
+.ae-h-title {
+  font-size: 12.5px; font-weight: 600; color: var(--text-100);
+  letter-spacing: -0.005em;
+}
+.ae-h-hint {
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--text-400); letter-spacing: .02em;
+}
+
+/* Row 1 only: metadata grid (Datum · Kategorie · Popis) */
+.ae-row {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  grid-template-columns: 140px 180px 1fr;
+}
+
+.ae-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ae-k {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .12em;
+  color: var(--text-400);
+  height: 14px;
+}
+
+/* auto / manual mode chip — naked text, hue only */
+.ae-mode {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .14em;
+}
+.ae-mode.auto   { color: var(--text-300); }
+.ae-mode.manual { color: var(--warn); }
+
+.ae-reset {
+  background: none; border: 0; cursor: pointer;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 600;
+  color: var(--brand-text); text-transform: uppercase; letter-spacing: .12em;
+  padding: 0; margin-left: 2px;
+}
+.ae-reset:hover { opacity: .75; }
+
+.ae-in {
+  background: oklch(0 0 0 / .25);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-100);
+  width: 100%; min-width: 0;
+  height: 34px;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+[data-theme="light"] .ae-in { background: oklch(1 0 0 / 1); }
+.ae-in:focus {
+  outline: 0;
+  border-color: var(--brand-line);
+  background: oklch(0 0 0 / .35);
+  box-shadow: 0 0 0 3px oklch(0.66 0.18 285 / .1);
+}
+[data-theme="light"] .ae-in:focus { background: oklch(1 0 0 / 1); }
+.ae-in:disabled { opacity: .5; cursor: not-allowed; }
+
+.ae-amount-wrap { position: relative; }
+.ae-amount-wrap .suf {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-400);
+  pointer-events: none;
+}
+.ae-amount-wrap .ae-in {
+  padding-right: 30px;
+  font-family: var(--font-mono);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ae-in-dph { color: var(--dph-text) !important; }
+
+.ae-seg {
+  display: inline-flex; padding: 2px;
+  background: oklch(0 0 0 / .25); border: 1px solid var(--line-1);
+  border-radius: var(--radius-sm);
+  height: 34px;
+}
+[data-theme="light"] .ae-seg { background: oklch(0 0 0 / .03); }
+.ae-seg button {
+  flex: 1; background: transparent; border: 0;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  color: var(--text-300); padding: 0 12px;
+  cursor: pointer; border-radius: calc(var(--radius-sm) - 2px);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.ae-seg button:hover { color: var(--text-200); }
+.ae-seg button.active {
+  background: oklch(1 0 0 / .08);
+  color: var(--text-100);
+}
+[data-theme="light"] .ae-seg button.active { background: oklch(1 0 0 / 1); box-shadow: var(--shadow-sm); }
+
+/* ───────── Calculator strip — three editable cells ─────────
+   Bez DPH  +  DPH (with sazba switch)  =  Celkem
+   Each cell: small mono caps label + big mono numeric input. */
+.ae-calc {
+  display: flex; align-items: stretch;
+  gap: 0;
+  background: oklch(0 0 0 / .12);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+}
+[data-theme="light"] .ae-calc {
+  background: oklch(0 0 0 / .015);
+}
+
+.ae-cell {
+  display: flex; flex-direction: column; gap: 6px;
+  flex: 1; min-width: 0;
+  padding: 4px 0;
+  cursor: text;
+}
+.ae-cell-k {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .14em;
+  color: var(--text-400);
+  height: 18px;
+}
+.ae-cell-input {
+  position: relative; display: flex; align-items: baseline;
+}
+.ae-cell-input input {
+  background: transparent; border: 0; outline: 0;
+  width: 100%; padding: 0 22px 0 0;
+  font-family: var(--font-mono);
+  font-size: 22px; font-weight: 600;
+  color: var(--text-100);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-fast), color var(--t-fast);
+}
+.ae-cell-input input::placeholder { color: var(--text-500, var(--text-400)); opacity: .35; font-weight: 500; }
+.ae-cell-input input:focus { border-bottom-color: var(--brand-line); }
+.ae-cell-suf {
+  position: absolute; right: 0; bottom: 4px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-400);
+  pointer-events: none;
+}
+.ae-cell-dph .ae-cell-input input { color: var(--dph-text); }
+.ae-cell-total .ae-cell-input input { font-size: 24px; }
+
+/* Operator separators between cells */
+.ae-calc-op {
+  align-self: center;
+  font-family: var(--font-mono); font-size: 18px; font-weight: 400;
+  color: var(--text-500, var(--text-400)); opacity: .4;
+  padding: 0 14px;
+  user-select: none;
+}
+
+/* Mini segmented switch — sits inline with the DPH label */
+.ae-seg-mini {
+  display: inline-flex; padding: 1px;
+  background: oklch(0 0 0 / .25);
+  border: 1px solid var(--line-1);
+  border-radius: 3px;
+  height: 18px;
+}
+[data-theme="light"] .ae-seg-mini { background: oklch(0 0 0 / .04); }
+.ae-seg-mini button {
+  background: transparent; border: 0;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 600;
+  color: var(--text-400);
+  padding: 0 6px; line-height: 1;
+  cursor: pointer; border-radius: 2px;
+  letter-spacing: .04em;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.ae-seg-mini button:hover { color: var(--text-200); }
+.ae-seg-mini button.active {
+  background: oklch(1 0 0 / .08);
+  color: var(--dph-text);
+}
+[data-theme="light"] .ae-seg-mini button.active {
+  background: oklch(1 0 0 / 1); box-shadow: var(--shadow-sm);
+  color: var(--dph-text);
+}
+
+/* Form footer actions */
+.ae-actions-row {
+  display: flex; justify-content: flex-end; align-items: center; gap: 4px;
+  margin-top: 16px;
+}
+
+/* ═══════════════════════════════════════════════════
+   UTIL
+   ═══════════════════════════════════════════════════ */
+.hr-soft {
+  height: 1px; background: var(--line-hair); margin: 20px 0;
+}
+.dim { color: var(--text-300); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+</style>
