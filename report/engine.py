@@ -76,6 +76,46 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 log = logging.getLogger(__name__)
 
 
+_ADJ_FALLBACK_CZK_PER_EUR = 25.0  # used only when both payout_eur and airbnb_rate are missing
+
+
+_PAYOUT_DATE_FORMATS = ("%m/%d/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d.%m.%Y")
+
+
+def _payout_date_in_window(
+    payout_date_str: str,
+    *,
+    after_prev_cutoff: date_cls,
+    cutoff_date: date_cls,
+) -> bool:
+    """True if the given payout date falls within the current month's window.
+
+    An empty/missing date is treated conservatively as "in window" so legacy
+    rows without payout-date metadata are not silently dropped. An unparseable
+    date is treated as "out of window" and logged at WARNING — letting it
+    through would risk pulling a malformed batch into every month it gets
+    evaluated against.
+    """
+    payout_date_str = (payout_date_str or "").strip()
+    if not payout_date_str:
+        return True
+    payout_dt = None
+    for fmt in _PAYOUT_DATE_FORMATS:
+        try:
+            payout_dt = datetime_cls.strptime(payout_date_str, fmt).date()
+            break
+        except ValueError:
+            pass
+    if payout_dt is None:
+        log.warning(
+            "Unparseable payout_date %r — excluding from adjustment window. "
+            "Add the format to engine._PAYOUT_DATE_FORMATS if it is legitimate.",
+            payout_date_str,
+        )
+        return False
+    return after_prev_cutoff <= payout_dt <= cutoff_date
+
+
 def _build_adjustment_reservation(past_row: dict, batch_info: dict, suffix: str = "__ADJ") -> dict:
     """
     Build a synthetic reservation dict for a payout adjustment.
@@ -84,11 +124,22 @@ def _build_adjustment_reservation(past_row: dict, batch_info: dict, suffix: str 
     """
     source = past_row.get("source", "")
     parent_code = past_row.get("confirmation_code", "")
-    payout_eur = float(
-        batch_info.get("payout_eur")
-        or batch_info.get("payout_czk", 0) / max(float(batch_info.get("airbnb_rate") or 25.0), 1.0)
-        or 0.0
-    )
+    explicit_eur = batch_info.get("payout_eur")
+    airbnb_rate = float(batch_info.get("airbnb_rate") or 0.0)
+    payout_czk = float(batch_info.get("payout_czk") or 0.0)
+    if explicit_eur is not None and explicit_eur != 0:
+        payout_eur = float(explicit_eur)
+    elif airbnb_rate > 0:
+        payout_eur = payout_czk / max(airbnb_rate, 1.0)
+    elif payout_czk:
+        log.warning(
+            "ADJ %s%s: missing payout_eur and airbnb_rate — synthesizing EUR with "
+            "fallback %.1f CZK/EUR (payout_czk=%.2f). Verify the source CSV.",
+            parent_code, suffix, _ADJ_FALLBACK_CZK_PER_EUR, payout_czk,
+        )
+        payout_eur = payout_czk / _ADJ_FALLBACK_CZK_PER_EUR
+    else:
+        payout_eur = 0.0
     return {
         "confirmation_code": f"{parent_code}{suffix}",
         "adjustment_parent_code": parent_code,
@@ -462,21 +513,12 @@ def generate_report_in_process(
     booking_pid = booking_cfg.get("property_id", "")
     after_prev_cutoff = date_cls(year, month, cutoff_day + 1)
 
-    def _payout_date_in_window(payout_date_str: str) -> bool:
-        """Check if payout date falls within the current month's adjustment window."""
-        payout_date_str = (payout_date_str or "").strip()
-        if not payout_date_str:
-            return True  # no date info → include conservatively
-        payout_dt = None
-        for fmt in ("%m/%d/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d.%m.%Y"):
-            try:
-                payout_dt = datetime_cls.strptime(payout_date_str, fmt).date()
-                break
-            except ValueError:
-                pass
-        if payout_dt is None:
-            return True
-        return after_prev_cutoff <= payout_dt <= cutoff_date
+    def _in_window(payout_date_str: str) -> bool:
+        return _payout_date_in_window(
+            payout_date_str,
+            after_prev_cutoff=after_prev_cutoff,
+            cutoff_date=cutoff_date,
+        )
 
     # Collect all Airbnb codes with ANY batch in this month's window
     # adj_grefs_out: suppress adjustments moved OUT of this month
@@ -540,9 +582,9 @@ def generate_report_in_process(
             if code in adj_codes_in:
                 # Only include the specific gref(s) that were moved here
                 if adj_grefs_in and (code, gref) not in adj_grefs_in:
-                    if not _payout_date_in_window(batch_info.get("payout_date", "")):
+                    if not _in_window(batch_info.get("payout_date", "")):
                         continue
-            elif not _payout_date_in_window(batch_info.get("payout_date", "")):
+            elif not _in_window(batch_info.get("payout_date", "")):
                 continue
             seen_adjustment_grefs.add(gref)
             adj_suffix = _next_adj_suffix(code)
@@ -569,7 +611,7 @@ def generate_report_in_process(
         bref = pinfo.get("gref", "") or pinfo.get("batch_ref", "")
         if (code, bref) in adj_grefs_out:
             continue
-        if code not in adj_codes_in and not _payout_date_in_window(pinfo.get("payout_date", "")):
+        if code not in adj_codes_in and not _in_window(pinfo.get("payout_date", "")):
             continue
         adj_suffix = _next_adj_suffix(code)
         adj_code = f"{code}{adj_suffix}"
@@ -594,7 +636,7 @@ def generate_report_in_process(
         bref = batch_info.get("gref", "") or batch_info.get("batch_ref", "")
         if (code, bref) in adj_grefs_out:
             continue
-        if code not in adj_codes_in and not _payout_date_in_window(batch_info.get("payout_date", "")):
+        if code not in adj_codes_in and not _in_window(batch_info.get("payout_date", "")):
             continue
         adj_suffix = _next_adj_suffix(code)
         adj_code = f"{code}{adj_suffix}"
@@ -621,7 +663,7 @@ def generate_report_in_process(
             continue
         ac_count = 0
         for ac_item in ac_items:
-            if code not in ac_codes_in and not _payout_date_in_window(ac_item.get("payout_date", "")):
+            if code not in ac_codes_in and not _in_window(ac_item.get("payout_date", "")):
                 continue
             ac_count += 1
             suffix = "__AC" if ac_count == 1 else f"__AC{ac_count}"
