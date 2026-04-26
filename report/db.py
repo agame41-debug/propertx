@@ -809,12 +809,29 @@ def _deactivate_legacy_checkin_source_files(conn: sqlite3.Connection) -> None:
 
 
 _payout_batches_backfill_done = False
+_checkin_snapshots_backfill_done = False
+_booking_guest_names_backfill_done = False
 
 
 def _reset_payout_batches_backfill_guard_for_tests() -> None:
     """Test hook: reset the once-per-process guard so each test gets a fresh run."""
     global _payout_batches_backfill_done
     _payout_batches_backfill_done = False
+
+
+def _reset_one_shot_migration_guards_for_tests() -> None:
+    """Test hook: reset all once-per-process migration guards.
+
+    Use this in tests that exercise migration helpers across multiple
+    invocations. In production each guard flips True after its helper's
+    first successful (or no-op) run and stays True until the process
+    restarts.
+    """
+    global _payout_batches_backfill_done, _checkin_snapshots_backfill_done
+    global _booking_guest_names_backfill_done
+    _payout_batches_backfill_done = False
+    _checkin_snapshots_backfill_done = False
+    _booking_guest_names_backfill_done = False
 
 
 def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> None:
@@ -1770,6 +1787,18 @@ def save_checkin_source_snapshot(
 
 
 def _backfill_checkin_source_snapshots(conn: sqlite3.Connection) -> None:
+    """Once-per-process: materialize legacy checkin source snapshots.
+
+    `_run_migrations()` runs on every `get_connection()`, which fires per
+    web request. Without the guard, every request would issue write
+    statements and contend with the bulk_generation_runner subprocess
+    for the SQLite write lock — surfacing as 'database is locked' 500s
+    under load.
+    """
+    global _checkin_snapshots_backfill_done
+    if _checkin_snapshots_backfill_done:
+        return
+
     rows = conn.execute(
         """SELECT sf.id, sf.original_name, sf.content
              FROM source_files sf
@@ -1781,47 +1810,73 @@ def _backfill_checkin_source_snapshots(conn: sqlite3.Connection) -> None:
                 )"""
     ).fetchall()
     if not rows:
+        _checkin_snapshots_backfill_done = True
         return
     try:
         from report.checkin import load_checkin_groups, load_checkin_guest_rows, prepare_checkin_groups_for_storage
         from report.config import get_all_properties, load_runtime_config
     except Exception:
         return
+
     try:
-        properties = get_all_properties(load_runtime_config(None, db_conn=conn), active_only=True)
-    except Exception:
-        properties = []
-    for row in rows:
-        source = {
-            "id": int(row["id"]),
-            "original_name": row["original_name"],
-            "content": row["content"],
-        }
-        groups = prepare_checkin_groups_for_storage(load_checkin_groups([source]), properties)
-        property_slug_by_reservation = {
-            str(group.get("reservation_id") or ""): str(group.get("property_slug") or "")
-            for group in groups
-        }
-        guest_rows = [
-            {
-                **guest_row,
-                "property_slug": property_slug_by_reservation.get(str(guest_row.get("reservation_id") or ""), ""),
+        try:
+            properties = get_all_properties(load_runtime_config(None, db_conn=conn), active_only=True)
+        except Exception:
+            properties = []
+        for row in rows:
+            source = {
+                "id": int(row["id"]),
+                "original_name": row["original_name"],
+                "content": row["content"],
             }
-            for guest_row in load_checkin_guest_rows([source])
-        ]
-        save_checkin_source_snapshot(
-            conn,
-            int(row["id"]),
-            guest_rows,
-            groups,
-            commit=False,
+            groups = prepare_checkin_groups_for_storage(load_checkin_groups([source]), properties)
+            property_slug_by_reservation = {
+                str(group.get("reservation_id") or ""): str(group.get("property_slug") or "")
+                for group in groups
+            }
+            guest_rows = [
+                {
+                    **guest_row,
+                    "property_slug": property_slug_by_reservation.get(str(guest_row.get("reservation_id") or ""), ""),
+                }
+                for guest_row in load_checkin_guest_rows([source])
+            ]
+            save_checkin_source_snapshot(
+                conn,
+                int(row["id"]),
+                guest_rows,
+                groups,
+                commit=False,
+            )
+        conn.commit()
+        _checkin_snapshots_backfill_done = True
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            "checkin source-snapshot backfill failed; will retry on next request",
+            exc_info=True,
         )
-    conn.commit()
+        conn.rollback()
 
 
 def _backfill_booking_payout_item_guest_names(conn: sqlite3.Connection) -> None:
-    """Backfill legacy Booking payout items that were persisted without guest names."""
-    fill_missing_payout_item_guest_names(conn, "booking", commit=True)
+    """Once-per-process: backfill legacy Booking payout items with guest names.
+
+    Same per-request-write contention story as the checkin backfill above.
+    """
+    global _booking_guest_names_backfill_done
+    if _booking_guest_names_backfill_done:
+        return
+    try:
+        fill_missing_payout_item_guest_names(conn, "booking", commit=True)
+        _booking_guest_names_backfill_done = True
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            "booking guest-names backfill failed; will retry on next request",
+            exc_info=True,
+        )
+        conn.rollback()
 
 
 def _migrate_month_assignments_scope(conn: sqlite3.Connection) -> None:
