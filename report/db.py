@@ -765,6 +765,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "payout_batch_bank_matches", "year", "year INTEGER DEFAULT 0")
     _ensure_column(conn, "payout_batch_bank_matches", "month", "month INTEGER DEFAULT 0")
     _deactivate_legacy_checkin_source_files(conn)
+    _backfill_payout_batches_from_active_sources(conn)
     _seed_admin_user(conn)
 
 
@@ -803,6 +804,71 @@ def _deactivate_legacy_checkin_source_files(conn: sqlite3.Connection) -> None:
     conn.execute(
         f"UPDATE source_files SET is_active = 0 WHERE id IN ({placeholders})",
         deactivated_ids,
+    )
+    conn.commit()
+
+
+def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> None:
+    """Re-parse every active airbnb/booking source_file and re-persist its
+    payout_batches / payout_batch_items / bank_transactions snapshot.
+
+    Needed because the engine path historically did not write these tables;
+    only the (now removed) report.main wrote them. Without this backfill,
+    a prod DB whose CSVs were imported before the engine took over would
+    show empty bank-drilldown data until the next CSV upload.
+
+    Idempotent: every save_* underneath is UPSERT, so running on every
+    boot is safe and effectively a no-op once tables are aligned.
+    """
+    from report.engine import _persist_csv_payout_artifacts
+    from report.verifier import (
+        build_airbnb_payout_data,
+        build_booking_payout_data,
+        load_booking_csv,
+    )
+
+    rows = conn.execute(
+        "SELECT id, source_type, original_name, content "
+        "FROM source_files "
+        "WHERE source_type IN ('airbnb', 'booking') AND is_active = 1"
+    ).fetchall()
+    if not rows:
+        return
+
+    airbnb_sources, booking_sources = [], []
+    for row in rows:
+        content = row["content"]
+        if isinstance(content, memoryview):
+            content = content.tobytes()
+        source = {
+            "id": row["id"],
+            "original_name": row["original_name"],
+            "content": bytes(content),
+        }
+        if row["source_type"] == "airbnb":
+            airbnb_sources.append(source)
+        else:
+            booking_sources.append(source)
+
+    airbnb_payout = (
+        build_airbnb_payout_data(airbnb_sources)
+        if airbnb_sources
+        else {"reservation_map": {}, "all_batches_map": {}, "batches": [], "items": []}
+    )
+    booking_payout = (
+        build_booking_payout_data(booking_sources)
+        if booking_sources
+        else {"reservation_map": {}, "batches": [], "items": []}
+    )
+    booking_index = load_booking_csv(booking_sources) if booking_sources else {}
+
+    _persist_csv_payout_artifacts(
+        conn,
+        airbnb_payout_data=airbnb_payout,
+        booking_payout_data=booking_payout,
+        booking_index=booking_index,
+        bank_rows_all=[],
+        booking_bank_idx_all={},
     )
     conn.commit()
 
