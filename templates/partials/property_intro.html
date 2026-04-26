@@ -118,6 +118,20 @@
   </div>
 </div>
 
+{% if summary and summary.integrity_warnings %}
+<div style="background:rgba(244,67,54,0.1);border:1px solid rgba(244,67,54,0.4);color:var(--red);
+            padding:12px 16px;border-radius:8px;margin:12px 0;display:flex;
+            justify-content:space-between;align-items:center;">
+  <div>
+    <strong>Pozor: nalezeny duplicitní rezervace v reportu ({{ summary.integrity_warnings|length }})</strong>
+    <div style="font-size:12px;margin-top:4px;">
+      {{ summary.integrity_warnings|join(', ') }}
+    </div>
+  </div>
+  <a href="/admin/integrity" style="color:var(--red);text-decoration:underline;font-size:13px;">Detail</a>
+</div>
+{% endif %}
+
 {% if flash %}
 <div class="notify {% if flash.level == 'error' %}notify-error{% elif flash.level == 'info' %}notify-info{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;">
