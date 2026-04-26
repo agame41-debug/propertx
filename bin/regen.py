@@ -28,11 +28,6 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from dotenv import load_dotenv
-
-load_dotenv(os.path.join(_PROJECT_ROOT, ".env"))
-
-
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Regenerate Rentero report data for one or all properties.",
@@ -92,6 +87,13 @@ def _regen_one(conn, slug: str, year: int, month: int, config: dict) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:
+        from dotenv import load_dotenv
+        _env_path = os.path.join(_PROJECT_ROOT, ".env")
+        if os.path.exists(_env_path):
+            load_dotenv(_env_path)
+    except ImportError:
+        pass
     args = parse_args(argv)
     _setup_logging(args.verbose)
     log = logging.getLogger("regen")
@@ -99,8 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     from report.config import load_runtime_config
     from report.db import get_connection
 
-    db_path = os.path.join(_PROJECT_ROOT, "cache", "rentero.db")
-    conn = get_connection(db_path)
+    conn = get_connection()
     try:
         config = load_runtime_config(
             os.path.join(_PROJECT_ROOT, "config", "properties.json"),
