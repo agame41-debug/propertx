@@ -754,13 +754,21 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
 
 
 def _seed_admin_user(conn: sqlite3.Connection) -> None:
-    """Create initial admin user from env vars if users table is empty (one-time)."""
+    """Create initial admin user from env vars if users table is empty.
+
+    Refuses to seed unless both RENTERO_USERNAME and RENTERO_PASSWORD are
+    explicitly set. The legacy admin/admin fallback and the client1/client2
+    test seeds were security hazards in production and have been removed —
+    web.py's _validate_web_runtime_config raises a clear error if the env
+    vars are missing.
+    """
     row = conn.execute("SELECT COUNT(*) AS cnt FROM users").fetchone()
     if row["cnt"] > 0:
         return
-    import secrets as _secrets
-    username = os.environ.get("RENTERO_USERNAME", "admin").strip() or "admin"
-    password = os.environ.get("RENTERO_PASSWORD", "admin") or "admin"
+    username = os.environ.get("RENTERO_USERNAME", "").strip()
+    password = os.environ.get("RENTERO_PASSWORD", "")
+    if not username or not password:
+        return
     now_str = _now()
     pw_hash, pw_salt = hash_password(password)
     conn.execute(
@@ -769,14 +777,6 @@ def _seed_admin_user(conn: sqlite3.Connection) -> None:
            VALUES (?, ?, ?, 'admin', 'Administrator', 1, ?, ?)""",
         (username, pw_hash, pw_salt, now_str, now_str),
     )
-    for tu, tp, tn in [("client1", "client123", "Test Client 1"), ("client2", "client456", "Test Client 2")]:
-        h, s = hash_password(tp)
-        conn.execute(
-            """INSERT INTO users (username, password_hash, password_salt, role, display_name,
-               is_active, created_at, updated_at)
-               VALUES (?, ?, ?, 'client', ?, 1, ?, ?)""",
-            (tu, h, s, tn, now_str, now_str),
-        )
 
 
 def _dedupe_source_files_by_type_sha256(conn: sqlite3.Connection) -> None:

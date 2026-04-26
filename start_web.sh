@@ -18,7 +18,10 @@ if [ "${RENTERO_SERVER_WINDOW:-}" = "1" ]; then
   fi
 
   if [ -z "${RENTERO_SESSION_SECRET:-}" ] || [ -z "${RENTERO_USERNAME:-}" ] || [ -z "${RENTERO_PASSWORD:-}" ]; then
-    export RENTERO_ALLOW_INSECURE_DEFAULTS=1
+    echo "ERROR: missing RENTERO_SESSION_SECRET / RENTERO_USERNAME / RENTERO_PASSWORD."
+    echo "  - Copy .env.example to .env and fill in the values."
+    echo "  - For an insecure local-only run, export RENTERO_ALLOW_INSECURE_DEFAULTS=1 manually."
+    exit 1
   fi
 
   PYTHON="$PROJECT_DIR/.venv/bin/python"

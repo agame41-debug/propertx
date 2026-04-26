@@ -38,14 +38,16 @@ function Import-DotEnv {
 
 Import-DotEnv (Join-Path $PROJECT_DIR ".env")
 
-$needFallback =
+$missingSecrets =
     [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable("RENTERO_SESSION_SECRET", "Process")) -or
     [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable("RENTERO_USERNAME", "Process")) -or
     [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable("RENTERO_PASSWORD", "Process"))
 
-if ($needFallback) {
-    [Environment]::SetEnvironmentVariable("RENTERO_ALLOW_INSECURE_DEFAULTS", "1", "Process")
-    Write-Host "Používám localhost-only fallback auth/session defaults (RENTERO_ALLOW_INSECURE_DEFAULTS=1)."
+if ($missingSecrets) {
+    Write-Host "CHYBA: chybí RENTERO_SESSION_SECRET / RENTERO_USERNAME / RENTERO_PASSWORD."
+    Write-Host "  - Zkopírujte .env.example do .env a vyplňte hodnoty."
+    Write-Host "  - Pro nezabezpečený lokální běh nastavte RENTERO_ALLOW_INSECURE_DEFAULTS=1 ručně."
+    exit 1
 }
 
 function Stop-ListenerOnPort {
