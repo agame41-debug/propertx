@@ -715,6 +715,44 @@ def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) 
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
 
 
+def _drop_ownership_columns_from_payout_batch_bank_matches(conn: sqlite3.Connection) -> None:
+    """One-shot migration: remove slug/year/month columns added 2026-04-13.
+
+    These columns powered the buggy ownership/downgrade mechanism that
+    silently flipped DORAZILO → CHYBÍ on locked months. Removing them is
+    safe because no callers read them after this fix lands.
+
+    Idempotent: detects already-migrated schema and returns immediately.
+    """
+    cols = {row["name"] for row in conn.execute(
+        "PRAGMA table_info(payout_batch_bank_matches)"
+    )}
+    if not {"slug", "year", "month"} & cols:
+        return
+    conn.executescript("""
+        CREATE TABLE payout_batch_bank_matches__new (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel         TEXT NOT NULL,
+            batch_ref       TEXT NOT NULL,
+            tx_key          TEXT NOT NULL,
+            match_method    TEXT,
+            matched_amount_czk REAL,
+            matched_at      TEXT NOT NULL,
+            UNIQUE(channel, batch_ref, tx_key)
+        );
+        INSERT INTO payout_batch_bank_matches__new
+            (id, channel, batch_ref, tx_key, match_method,
+             matched_amount_czk, matched_at)
+        SELECT id, channel, batch_ref, tx_key, match_method,
+               matched_amount_czk, matched_at
+        FROM payout_batch_bank_matches;
+        DROP TABLE payout_batch_bank_matches;
+        ALTER TABLE payout_batch_bank_matches__new
+              RENAME TO payout_batch_bank_matches;
+    """)
+    conn.commit()
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Small additive migrations for existing local SQLite databases."""
     _ensure_column(conn, "pending_payments", "batch_expected_czk", "batch_expected_czk REAL")
@@ -761,9 +799,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         )
     """)
     _ensure_column(conn, "report_objects", "client_type", "client_type TEXT NOT NULL DEFAULT 'rentero'")
-    _ensure_column(conn, "payout_batch_bank_matches", "slug", "slug TEXT DEFAULT ''")
-    _ensure_column(conn, "payout_batch_bank_matches", "year", "year INTEGER DEFAULT 0")
-    _ensure_column(conn, "payout_batch_bank_matches", "month", "month INTEGER DEFAULT 0")
+    _drop_ownership_columns_from_payout_batch_bank_matches(conn)
     _deactivate_legacy_checkin_source_files(conn)
     _backfill_payout_batches_from_active_sources(conn)
     _seed_admin_user(conn)
