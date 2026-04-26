@@ -316,6 +316,17 @@ def _fmt_czk(value, empty: str = "—") -> str:
         return empty
 
 
+def _fmt_czk_2dp(value) -> str:
+    """Like fmt_czk but always 2 decimal places (for net/dph cells)."""
+    try:
+        n = float(value or 0)
+    except (TypeError, ValueError):
+        return "—"
+    sign = "−" if n < 0 else ""
+    s = f"{abs(n):,.2f}".replace(",", " ").replace(".", ",")
+    return sign + s
+
+
 def _source_family(source: str | None) -> str:
     normalized = str(source or "").strip().lower()
     if "airbnb" in normalized:
@@ -342,6 +353,7 @@ templates.env.globals["now"] = datetime.now
 templates.env.globals["current_year"] = date.today().year
 templates.env.globals["current_month"] = date.today().month
 templates.env.globals["fmt_czk"] = _fmt_czk
+templates.env.globals["fmt_czk_2dp"] = _fmt_czk_2dp
 templates.env.globals["source_family"] = _source_family
 templates.env.globals["source_label"] = _source_label
 

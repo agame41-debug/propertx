@@ -1,61 +1,64 @@
+{# Override audit-trail: read-only history of manual reservation field overrides.
+   Default-collapsed card. Pure restyle — same data, same revert endpoint as before. #}
+
+{% set _user = get_current_user(request) %}
+
 {% if override_events %}
-<div class="card" style="margin-bottom:16px;">
-  <div class="card-header" style="cursor:pointer;user-select:none;" onclick="toggleSection('overrides-body', 'caret-ov')">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <svg id="caret-ov" class="caret-icon rotated" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-      <span class="card-title">Historie ručních úprav</span>
+  <div class="card">
+    <div class="card-h" data-section-toggle="overrides" style="cursor:pointer">
+      <div class="card-h-left">
+        <svg class="card-caret closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        <span class="card-title">Historie ručních úprav</span>
+        <span class="card-meta"><span class="v">{{ override_events|length }}</span> změn</span>
+      </div>
     </div>
-    <span style="font-size:12px;color:var(--text-muted);">{{ override_events|length }} událostí</span>
-  </div>
-  <div id="overrides-body" class="collapsed">
-    <table class="data-table">
+
+    <table class="t" data-section-body="overrides" hidden>
       <thead>
         <tr>
-          <th>Rezervace</th>
-          <th>Pole</th>
+          <th style="width:140px">Rezervace</th>
+          <th style="width:120px">Pole</th>
           <th>Původní → Nová</th>
           <th>Důvod</th>
-          <th>Datum</th>
-          <th>Stav</th>
-          <th></th>
+          <th class="r" style="width:130px">Datum</th>
+          <th class="c" style="width:90px">Stav</th>
+          <th style="width:84px"></th>
         </tr>
       </thead>
       <tbody>
         {% for ev in override_events %}
-        <tr style="{% if not ev.is_active %}opacity:0.5;{% endif %}">
-          <td class="num" style="font-size:12px;color:var(--text-secondary);">{{ ev.scope_id }}</td>
-          <td style="color:var(--text-secondary);">{{ override_field_labels.get(ev.field, ev.field) }}</td>
-          <td>
-            <span style="font-size:11px;color:var(--text-muted);text-decoration:line-through;">{{ ev.old_value or "—" }}</span>
-            <span style="font-size:11px;color:var(--text-muted);margin:0 4px;">→</span>
-            <span style="font-size:12px;font-weight:500;color:var(--text-primary);">{{ ev.new_value or "—" }}</span>
-          </td>
-          <td style="font-size:12px;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ ev.reason }}">{{ ev.reason or "—" }}</td>
-          <td style="font-size:11px;white-space:nowrap;" class="num">{{ ev.created_at[:16].replace('T', ' ') }}</td>
-          <td>
-            {% if ev.is_active %}
-            <span class="badge badge-amber" style="font-size:10px;">Aktivní</span>
-            {% else %}
-            <span class="badge badge-neutral" style="font-size:10px;">Obnoveno</span>
-            {% endif %}
-          </td>
-          <td style="text-align:right;">
-            {% set _user = get_current_user(request) %}
-            {% if ev.is_active and month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
-            <form method="post"
-                  action="/property/{{ slug }}/{{ year }}/{{ month }}/override/{{ ev.id }}/revert"
-                  onsubmit="return confirm('Obnovit původní hodnotu?')" style="display:inline;">
-              {{ csrf_input(request) }}
-              <button type="submit" style="font-size:12px;color:var(--red);background:none;border:none;cursor:pointer;">Obnovit</button>
-            </form>
-            {% elif not ev.is_active and ev.reverted_at %}
-            <span style="font-size:11px;color:var(--text-muted);">{{ ev.reverted_at[:10] }}</span>
-            {% endif %}
-          </td>
-        </tr>
+          <tr>
+            <td class="num">{{ ev.scope_id }}</td>
+            <td>{{ override_field_labels.get(ev.field, ev.field) }}</td>
+            <td>
+              <span class="num dim" style="text-decoration:line-through">{{ ev.old_value or '—' }}</span>
+              <span class="dim" style="margin:0 6px">→</span>
+              <span class="num strong">{{ ev.new_value }}</span>
+            </td>
+            <td class="dim" title="{{ ev.reason }}" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ev.reason or '—' }}</td>
+            <td class="r num">{{ ev.created_at }}</td>
+            <td class="c">
+              {% if ev.is_active %}
+                <span class="badge badge-warn"><span class="badge-dot"></span>Aktivní</span>
+              {% else %}
+                <span class="badge badge-mute">Obnoveno</span>
+              {% endif %}
+            </td>
+            <td class="r exp-actions">
+              {% if ev.is_active and month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
+                <form method="post" action="/property/{{ slug }}/{{ year }}/{{ month }}/override/{{ ev.id }}/revert" style="display:inline" onsubmit="return confirm('Obnovit původní hodnotu pro {{ ev.scope_id }}?');">
+                  {{ csrf_input(request) }}
+                  <button class="exp-edit" type="submit" title="Obnovit" aria-label="Obnovit původní hodnotu">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                  </button>
+                </form>
+              {% elif not ev.is_active %}
+                <span class="num dim" style="font-size:11px">{{ ev.reverted_at }}</span>
+              {% endif %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-</div>
 {% endif %}
