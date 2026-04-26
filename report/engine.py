@@ -420,6 +420,18 @@ def generate_report_in_process(
         bank_rows_all = load_bank_csv(bank_csvs) if bank_csvs else []
         booking_bank_idx_all = load_booking_bank_transactions(bank_csvs) if bank_csvs else {}
 
+    # Persist CSV-derived payout artifacts so the web's bank UI stays
+    # aligned with the active sources. Idempotent UPSERTs underneath —
+    # safe to call once per regen.
+    _persist_csv_payout_artifacts(
+        conn,
+        airbnb_payout_data=airbnb_payout_data,
+        booking_payout_data=booking_payout_data,
+        booking_index=booking_index,
+        bank_rows_all=bank_rows_all,
+        booking_bank_idx_all=booking_bank_idx_all,
+    )
+
     gref_map = airbnb_payout_data["reservation_map"]
     airbnb_all_batches = airbnb_payout_data.get("all_batches_map", {})
     booking_batch_map = booking_payout_data["reservation_map"]

@@ -241,3 +241,51 @@ def test_empty_inputs_are_no_op(conn):
         "tx": conn.execute("SELECT COUNT(*) FROM bank_transactions").fetchone()[0],
     }
     assert counts == {"batches": 0, "items": 0, "tx": 0}
+
+
+def test_generate_report_in_process_calls_helper_once(monkeypatch, tmp_path):
+    """When generate_report_in_process runs, _persist_csv_payout_artifacts
+    is invoked at least once with the expected kwargs structure."""
+    import report.engine as engine_mod
+    from report.db import get_connection
+
+    seen: list[dict] = []
+
+    def _spy(conn, **kwargs):
+        seen.append(kwargs)
+
+    monkeypatch.setattr(engine_mod, "_persist_csv_payout_artifacts", _spy)
+
+    db_path = str(tmp_path / "test.db")
+    conn = get_connection(db_path)
+    try:
+        # Minimal config with one property
+        config = {
+            "properties": {
+                "test_slug": {
+                    "display_name": "Test",
+                    "listing_nickname": "Test",
+                    "listing_id": "1",
+                    "active": True,
+                }
+            }
+        }
+        # Will fail somewhere downstream because there's no Hostify data,
+        # but the helper should have been invoked before that point.
+        try:
+            engine_mod.generate_report_in_process(conn, "test_slug", 2026, 4, config)
+        except Exception:
+            pass
+    finally:
+        conn.close()
+
+    assert len(seen) >= 1, (
+        "Expected _persist_csv_payout_artifacts to be called at least once during "
+        f"generate_report_in_process; saw {len(seen)} calls."
+    )
+    # Verify expected kwargs structure on the first call
+    assert "airbnb_payout_data" in seen[0]
+    assert "booking_payout_data" in seen[0]
+    assert "booking_index" in seen[0]
+    assert "bank_rows_all" in seen[0]
+    assert "booking_bank_idx_all" in seen[0]
