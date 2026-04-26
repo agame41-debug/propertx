@@ -16,7 +16,10 @@ Formula reference:
   cena_ubytovani    = payout_czk − priprava_pokoje − city_tax − dph_provize − dph_uklid_balicky
 """
 
+import logging
 from datetime import date
+
+log = logging.getLogger(__name__)
 
 
 def _r(v) -> float:
@@ -138,10 +141,22 @@ def calculate_row(
     balicky = 0.0 if _no_fees else (balicky_per_person * city_tax_guest_count)
     dph_uklid_balicky = (uklid_czk + balicky) * vat_rate
     priprava_pokoje = uklid_czk + balicky
-    cena_ubytovani = max(
-        payout_czk - priprava_pokoje - city_tax - dph_provize - dph_uklid_balicky,
-        0.0,
+    raw_cena_ubytovani = (
+        payout_czk - priprava_pokoje - city_tax - dph_provize - dph_uklid_balicky
     )
+    if raw_cena_ubytovani < 0:
+        log.warning(
+            "cena_ubytovani < 0 clamped to 0: code=%s nights=%s payout_czk=%.2f "
+            "priprava_pokoje=%.2f city_tax=%.2f dph_provize=%.2f dph_uklid_balicky=%.2f",
+            reservation.get("confirmation_code", ""),
+            nights,
+            payout_czk,
+            priprava_pokoje,
+            city_tax,
+            dph_provize,
+            dph_uklid_balicky,
+        )
+    cena_ubytovani = max(raw_cena_ubytovani, 0.0)
 
     return {
         # Identity
