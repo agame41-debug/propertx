@@ -45,3 +45,27 @@ def test_legacy_expenses_table_gets_columns_added(tmp_path):
     assert row["amount_net_czk"] is None
     assert row["amount_dph_czk"] is None
     assert row["vat_rate"] is None
+
+
+DEFAULT_CATEGORIES = ["Sub-nájem", "Energie", "Služby", "Opravy", "Pojištění", "Ostatní"]
+
+
+def test_default_categories_seeded_on_empty_db(tmp_path):
+    db_path = str(tmp_path / "fresh.db")
+    conn = get_connection(db_path)
+    names = [row["name"] for row in conn.execute("SELECT name FROM expense_categories ORDER BY id")]
+    assert names == DEFAULT_CATEGORIES
+
+
+def test_existing_categories_not_overwritten(tmp_path):
+    db_path = str(tmp_path / "existing.db")
+    raw = sqlite3.connect(db_path)
+    raw.execute("CREATE TABLE expense_categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL)")
+    raw.execute("INSERT INTO expense_categories (name) VALUES ('Custom Category')")
+    raw.commit()
+    raw.close()
+
+    conn = get_connection(db_path)
+    names = [row["name"] for row in conn.execute("SELECT name FROM expense_categories ORDER BY id")]
+    # Existing single category preserved, defaults NOT seeded
+    assert names == ["Custom Category"]
