@@ -211,12 +211,18 @@ async def _app_lifespan(_app: FastAPI):
 
     # L3 integrity audit — run once per app boot. Must NOT block startup;
     # any failure is logged and swallowed so the app still serves traffic.
-    # Task 18 will hook _restore_bank_status_after_ownership_fix into the
-    # same try/except shape, sharing the audit_conn lifecycle below.
+    # The ownership-fix migration runs first so the audit's findings reflect
+    # the post-restore state, sharing the same _audit_conn lifecycle.
     try:
-        from report.db import run_integrity_audit
+        from report.db import run_integrity_audit, _restore_bank_status_after_ownership_fix
         _audit_conn = get_connection(_DB_PATH)
         try:
+            _restored = _restore_bank_status_after_ownership_fix(_audit_conn)
+            if _restored:
+                _logger.warning(
+                    "ownership-fix migration: restored %d previously-downgraded rows",
+                    _restored,
+                )
             _findings = run_integrity_audit(_audit_conn)
             if _findings:
                 _logger.warning(
