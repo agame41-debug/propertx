@@ -996,6 +996,7 @@ def generate_report_in_process(
     save_pending_payments(conn, slug, year, month, chybi_rows)
 
     # ── Persist ─────────────────────────────────────────────────────────────
+    _flag_duplicate_codes_within_snapshot(calc_rows)
     save_report_rows(conn, slug, year, month, calc_rows)
     log_report_generated(conn, slug, year, month, "", calc_rows)  # no Excel path
     touch_report_month_generation(conn, slug, year, month)

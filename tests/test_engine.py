@@ -302,3 +302,21 @@ def test_flag_duplicate_codes_preserves_existing_comment():
     _flag_duplicate_codes_within_snapshot(rows)
     assert "RECOVERED: prior" in rows[0]["verification_comment"]
     assert rows[0]["verification_comment"].startswith("INTEGRITY:")
+
+
+def test_generate_report_in_process_flags_no_duplicate_in_clean_data():
+    """Smoke: empty DB → no duplicates → no INTEGRITY: comments."""
+    conn = get_connection(":memory:")
+    try:
+        result = generate_report_in_process(
+            conn, "test_prop", 2026, 3, _make_config()
+        )
+        assert "rows_count" in result
+        rows = conn.execute(
+            "SELECT data FROM report_rows WHERE slug = 'test_prop' AND year = 2026 AND month = 3"
+        ).fetchall()
+        for r in rows:
+            data = json.loads(r["data"])
+            assert "INTEGRITY:" not in (data.get("verification_comment") or "")
+    finally:
+        conn.close()
