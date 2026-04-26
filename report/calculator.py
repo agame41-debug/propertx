@@ -68,13 +68,20 @@ def calculate_row(
     source = (reservation.get("source") or "").lower()
     payout_eur = reservation.get("effective_payout_eur") or 0.0
     czk_booked = reservation.get("czk_booked") or 0.0
-    derived_booking_rate = (float(czk_booked) / float(payout_eur)) if ("booking" in source and czk_booked and payout_eur) else 0.0
+    # Refund-flow rows can have payout_eur < 0 with a positive czk_booked
+    # snapshot (or vice versa). Sign-mismatched division yields a negative
+    # implied rate that would propagate everywhere downstream — clamp here.
+    derived_booking_rate = 0.0
+    if "booking" in source and czk_booked and payout_eur:
+        candidate = float(czk_booked) / float(payout_eur)
+        if candidate > 0:
+            derived_booking_rate = candidate
 
     if "airbnb" in source and airbnb_batch_rate > 0:
         kurz = airbnb_batch_rate
         kurz_date = reservation.get("airbnb_payout_date", "")
     elif "booking" in source and (derived_booking_rate > 0 or booking_rate > 0):
-        kurz = derived_booking_rate or booking_rate
+        kurz = derived_booking_rate if derived_booking_rate > 0 else booking_rate
         kurz_date = reservation.get("booking_payout_date", "") or reservation.get("batch_payout_date", "")
     else:
         kurz = float(cnb_rate_result.get("rate", 0))
