@@ -230,6 +230,8 @@ def register(app, state) -> None:
         year = row["year"]
         month = row["month"]
 
+        state["check_property_access"](request, slug, conn)
+
         rows_with_overrides = state["apply_overrides_to_rows"](conn, [row], slug, year, month)
         row = rows_with_overrides[0] if rows_with_overrides else row
 
