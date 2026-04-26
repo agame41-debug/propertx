@@ -764,6 +764,21 @@ def _drop_ownership_columns_from_payout_batch_bank_matches(conn: sqlite3.Connect
     conn.commit()
 
 
+DEFAULT_EXPENSE_CATEGORIES = ("Sub-nájem", "Energie", "Služby", "Opravy", "Pojištění", "Ostatní")
+
+
+def _seed_default_expense_categories(conn: sqlite3.Connection) -> None:
+    """Seed the standard 6 categories only if expense_categories is empty.
+
+    Skips entirely if the user already has any categories — never overwrites.
+    """
+    n = conn.execute("SELECT COUNT(*) FROM expense_categories").fetchone()[0]
+    if n > 0:
+        return
+    for name in DEFAULT_EXPENSE_CATEGORIES:
+        conn.execute("INSERT OR IGNORE INTO expense_categories (name) VALUES (?)", (name,))
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Small additive migrations for existing local SQLite databases."""
     _ensure_column(conn, "pending_payments", "batch_expected_czk", "batch_expected_czk REAL")
@@ -775,6 +790,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "expenses", "amount_net_czk", "amount_net_czk REAL")
     _ensure_column(conn, "expenses", "amount_dph_czk", "amount_dph_czk REAL")
     _ensure_column(conn, "expenses", "vat_rate", "vat_rate REAL")
+    _seed_default_expense_categories(conn)
     _dedupe_source_files_by_type_sha256(conn)
     conn.execute(
         """CREATE INDEX IF NOT EXISTS idx_report_rows_code_lookup
