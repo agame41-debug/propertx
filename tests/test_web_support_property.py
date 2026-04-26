@@ -80,6 +80,39 @@ class TestAttachMockStatus:
         assert result is None
         assert "_mock_status" in rows[0]
 
+    def test_matched_with_incomplete_tax_verification_downgrades_to_ke_kontrole(self):
+        """If tax_verification_required=True and checkin_verified=False, MATCHED downgrades."""
+        rows = [{
+            "verification_status": "MATCHED",
+            "tax_verification_required": True,
+            "checkin_verified": False,
+            "checkin_missing_age_guests": 0,
+        }]
+        attach_mock_status(rows)
+        assert rows[0]["_mock_status"] == "KE_KONTROLE"
+        assert rows[0]["_mock_status_label"] == "KE KONTROLE"
+
+    def test_matched_with_completed_tax_verification_stays_matched(self):
+        """If tax_verification_required=True and checkin_verified=True, MATCHED stays."""
+        rows = [{
+            "verification_status": "MATCHED",
+            "tax_verification_required": True,
+            "checkin_verified": True,
+            "checkin_missing_age_guests": 0,
+        }]
+        attach_mock_status(rows)
+        assert rows[0]["_mock_status"] == "MATCHED"
+
+    def test_matched_when_no_tax_verification_required_stays_matched(self):
+        """If tax_verification_required=False, MATCHED stays regardless of checkin status."""
+        rows = [{
+            "verification_status": "MATCHED",
+            "tax_verification_required": False,
+            "checkin_verified": False,
+        }]
+        attach_mock_status(rows)
+        assert rows[0]["_mock_status"] == "MATCHED"
+
 
 class TestComputeStatusCounts:
     def test_empty(self):
@@ -105,6 +138,23 @@ class TestComputeStatusCounts:
         assert c["excluded"] == 1
         assert c["moved"] == 1
         assert c["problems"] == 2  # ROZDIL + CHYBI_V_CSV
+
+    def test_composes_with_attach_mock_status(self):
+        """Realistic composition: attach_mock_status THEN compute_status_counts."""
+        rows = [
+            {"verification_status": "MATCHED", "nights": 3},
+            {"verification_status": "ROZDÍL", "nights": 4},
+            {"is_excluded": 1, "verification_status": "MATCHED", "nights": 5},
+            {"adjustment_original_year": 2026, "adjustment_original_month": 3, "verification_status": "MATCHED", "nights": 2},
+        ]
+        attach_mock_status(rows)
+        counts = compute_status_counts(rows)
+        assert counts["all_rows"] == 4
+        assert counts["active"] == 3        # MATCHED + ROZDIL + MOVED_IN
+        assert counts["nights"] == 9        # 3 + 4 + 2
+        assert counts["excluded"] == 1
+        assert counts["moved"] == 1
+        assert counts["problems"] == 1      # ROZDIL
 
 
 class TestGroupExpensesByCategory:
