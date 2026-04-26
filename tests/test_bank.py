@@ -699,3 +699,98 @@ class TestEnrichBookingRowsWithBank:
         assert enriched[0]["bank_status"] == "DORAZILO"
         assert enriched[0]["bank_amount_czk"] == 2016.0
         assert match_details[0]["match_method"] == "descriptor_ref_global"
+
+
+def test_cross_month_batch_no_silent_downgrade():
+    """Regression: a batch spanning two months must show DORAZILO in BOTH
+    months regardless of regen order. Pre-fix this would downgrade one to
+    CHYBÍ via get_bank_match_owner."""
+    from report.bank import enrich_rows_with_bank, build_bank_index
+    from report.db import save_report_rows
+
+    conn = get_connection(":memory:")
+    try:
+        # One bank tx covers two reservations, different months, same slug.
+        save_bank_transactions(
+            conn,
+            "airbnb",
+            [
+                {
+                    "tx_key": "2026-04-05|18000.00|G-XMONTH|",
+                    "tx_id": "TX-XM",
+                    "datum": date(2026, 4, 5),
+                    "amount_czk": 18000.0,
+                    "gref": "G-XMONTH",
+                    "zprava": "G-XMONTH payout",
+                    "source_name": "bank.csv",
+                }
+            ],
+        )
+        bank_rows = [
+            {
+                "datum": date(2026, 4, 5),
+                "amount_czk": 18000.0,
+                "gref": "G-XMONTH",
+                "booking_ref": "",
+                "tx_id": "TX-XM",
+                "tx_key": "2026-04-05|18000.00|G-XMONTH|",
+                "zprava": "G-XMONTH payout",
+                "source_name": "bank.csv",
+            }
+        ]
+        index_by_gref, no_ref_rows = build_bank_index(bank_rows)
+
+        gref_map = {
+            "MARCH-CODE": {"gref": "G-XMONTH", "payout_date": "2026-04-05", "payout_czk": 10000.0},
+            "APRIL-CODE": {"gref": "G-XMONTH", "payout_date": "2026-04-05", "payout_czk": 8000.0},
+        }
+        all_batches_map = {
+            "MARCH-CODE": [{"gref": "G-XMONTH", "payout_date": "2026-04-05", "payout_czk": 10000.0}],
+            "APRIL-CODE": [{"gref": "G-XMONTH", "payout_date": "2026-04-05", "payout_czk": 8000.0}],
+        }
+
+        # March regen: row for MARCH-CODE
+        march_rows = [{
+            "confirmation_code": "MARCH-CODE",
+            "source": "Airbnb",
+            "batch_ref": "G-XMONTH",
+            "batch_payout_date": "2026-04-05",
+            "batch_amount_czk_expected": 10000.0,
+        }]
+        march_enriched, march_matches = enrich_rows_with_bank(
+            march_rows, gref_map, index_by_gref, no_ref_rows,
+            all_batches_map=all_batches_map,
+            conn=conn, slug="apt", year=2026, month=3,
+        )
+        from report.db import save_payout_batch_bank_matches
+        # NOTE: slug/year/month kwargs are required pre-fix to reproduce the
+        # bug (the legacy ownership row needs year/month populated for
+        # get_bank_match_owner's `year > 0 AND month > 0` filter). Task 3
+        # strips these kwargs from the function — when that lands, remove
+        # them from this and the April call below.
+        save_payout_batch_bank_matches(conn, "airbnb", march_matches,
+                                       slug="apt", year=2026, month=3)
+        save_report_rows(conn, "apt", 2026, 3, march_enriched)
+
+        # April regen: row for APRIL-CODE — same batch
+        april_rows = [{
+            "confirmation_code": "APRIL-CODE",
+            "source": "Airbnb",
+            "batch_ref": "G-XMONTH",
+            "batch_payout_date": "2026-04-05",
+            "batch_amount_czk_expected": 8000.0,
+        }]
+        april_enriched, april_matches = enrich_rows_with_bank(
+            april_rows, gref_map, index_by_gref, no_ref_rows,
+            all_batches_map=all_batches_map,
+            conn=conn, slug="apt", year=2026, month=4,
+        )
+        save_payout_batch_bank_matches(conn, "airbnb", april_matches,
+                                       slug="apt", year=2026, month=4)
+        save_report_rows(conn, "apt", 2026, 4, april_enriched)
+
+        # Both months must show DORAZILO. Pre-fix April would be CHYBÍ.
+        assert march_enriched[0]["bank_status"] == "DORAZILO"
+        assert april_enriched[0]["bank_status"] == "DORAZILO"
+    finally:
+        conn.close()
