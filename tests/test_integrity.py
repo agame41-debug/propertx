@@ -183,3 +183,48 @@ def test_save_payout_batch_bank_matches_signature_has_no_ownership_kwargs():
     assert "slug" not in sig.parameters
     assert "year" not in sig.parameters
     assert "month" not in sig.parameters
+
+
+def test_find_code_in_other_snapshots_finds_cross_report_dupe():
+    from report.bank import _find_code_in_other_snapshots
+    from report.db import save_report_rows
+
+    conn = get_connection(":memory:")
+    try:
+        save_report_rows(conn, "apt", 2026, 3, [
+            {"confirmation_code": "DUPE", "data_marker": "march"},
+        ])
+        save_report_rows(conn, "apt", 2026, 4, [
+            {"confirmation_code": "DUPE", "data_marker": "april"},
+        ])
+        # Looking from April's perspective, March is "other"
+        result = _find_code_in_other_snapshots(conn, "DUPE", "apt", 2026, 4)
+        assert result == [("apt", 2026, 3)]
+    finally:
+        conn.close()
+
+
+def test_find_code_in_other_snapshots_returns_empty_when_unique():
+    from report.bank import _find_code_in_other_snapshots
+    from report.db import save_report_rows
+
+    conn = get_connection(":memory:")
+    try:
+        save_report_rows(conn, "apt", 2026, 3, [
+            {"confirmation_code": "ONLY"},
+        ])
+        result = _find_code_in_other_snapshots(conn, "ONLY", "apt", 2026, 3)
+        assert result == []
+    finally:
+        conn.close()
+
+
+def test_find_code_in_other_snapshots_ignores_empty_code():
+    from report.bank import _find_code_in_other_snapshots
+
+    conn = get_connection(":memory:")
+    try:
+        result = _find_code_in_other_snapshots(conn, "", "apt", 2026, 3)
+        assert result == []
+    finally:
+        conn.close()

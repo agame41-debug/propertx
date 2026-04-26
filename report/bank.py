@@ -33,6 +33,31 @@ logger = logging.getLogger(__name__)
 #  Helpers                                                                     #
 # --------------------------------------------------------------------------- #
 
+def _find_code_in_other_snapshots(
+    conn,
+    code: str,
+    slug: str,
+    year: int,
+    month: int,
+    limit: int = 5,
+) -> list[tuple[str, int, int]]:
+    """L2 integrity defense: locate the same confirmation_code in other
+    (slug, year, month) snapshots. Empty codes never trigger.
+
+    Uses idx_report_rows_code_lookup for the lookup."""
+    if not code:
+        return []
+    rows = conn.execute(
+        """SELECT slug, year, month FROM report_rows
+           WHERE confirmation_code = ?
+             AND NOT (slug = ? AND year = ? AND month = ?)
+           ORDER BY year DESC, month DESC
+           LIMIT ?""",
+        (code, slug, year, month, limit),
+    ).fetchall()
+    return [(r["slug"], r["year"], r["month"]) for r in rows]
+
+
 def _safe_float(v) -> float:
     try:
         return float(str(v).replace("\xa0", "").replace(",", ".").replace(" ", "").strip())
