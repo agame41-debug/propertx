@@ -750,7 +750,47 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "payout_batch_bank_matches", "slug", "slug TEXT DEFAULT ''")
     _ensure_column(conn, "payout_batch_bank_matches", "year", "year INTEGER DEFAULT 0")
     _ensure_column(conn, "payout_batch_bank_matches", "month", "month INTEGER DEFAULT 0")
+    _deactivate_legacy_checkin_source_files(conn)
     _seed_admin_user(conn)
+
+
+def _deactivate_legacy_checkin_source_files(conn: sqlite3.Connection) -> None:
+    """Mark active checkin source_files with the pre-Birth-Date header as inactive.
+
+    The checkin CSV format gained a 'Birth Date' column in commit e8c6462
+    and the legacy header is no longer parseable (the parser silently
+    skips such files). Leaving them is_active=1 makes the active-only
+    filter in the engine return zero checkin rows for any month that
+    only has a legacy file, with no warning surfaced to the operator.
+    Deactivate them so the Sources UI shows the issue clearly.
+    """
+    from report.checkin import _EXPECTED_HEADER, _decode_source_content
+
+    rows = conn.execute(
+        "SELECT id, original_name, content FROM source_files "
+        "WHERE source_type = 'checkin' AND is_active = 1"
+    ).fetchall()
+    deactivated_ids: list[int] = []
+    for row in rows:
+        content = row["content"]
+        if isinstance(content, memoryview):
+            content = content.tobytes()
+        text = _decode_source_content(bytes(content or b""))
+        first_line = next(
+            (line.strip("﻿") for line in text.splitlines() if line.strip()),
+            "",
+        )
+        header = [part.strip() for part in first_line.split(";")]
+        if header[: len(_EXPECTED_HEADER)] != _EXPECTED_HEADER:
+            deactivated_ids.append(int(row["id"]))
+    if not deactivated_ids:
+        return
+    placeholders = ",".join("?" for _ in deactivated_ids)
+    conn.execute(
+        f"UPDATE source_files SET is_active = 0 WHERE id IN ({placeholders})",
+        deactivated_ids,
+    )
+    conn.commit()
 
 
 def _seed_admin_user(conn: sqlite3.Connection) -> None:
