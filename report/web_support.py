@@ -1410,6 +1410,11 @@ def attach_mock_status(rows: list[dict]) -> None:
         5. adjustment_original_year/month set → MOVED_IN
         6. verification_status (table lookup)
         7. fallback → KE_KONTROLE
+
+    Note: Reads the *effective* verification status — i.e. ``MATCHED`` is
+    downgraded to ``KE KONTROLE`` when tax-verification is required but
+    incomplete. This matches what filter-pills, summary aggregates and other
+    surfaces show.
     """
     for r in rows:
         if r.get("is_excluded"):
@@ -1441,7 +1446,10 @@ def attach_mock_status(rows: list[dict]) -> None:
             r["_mock_status_class"] = "badge-info"
             r["_mock_status_label"] = "PŘESUN Z %02d" % int(r["adjustment_original_month"])
             continue
-        vs = r.get("verification_status") or ""
+        # Use effective status (applies tax-verification downgrade), not raw — matches what
+        # the rest of the property page surfaces show (filter-pill counts, SQL aggregates,
+        # display_verification_status).
+        vs, _note = effective_verification_status(r)
         triplet = _STATUS_MAP_BY_VS.get(vs)
         if triplet is None:
             r["_mock_status"], r["_mock_status_class"], r["_mock_status_label"] = (
