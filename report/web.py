@@ -36,7 +36,7 @@ if _os2.name != "nt":
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -160,12 +160,10 @@ from report.web_support import (
     _property_listing_names,
     _render_property_template,
     _resolve_inventory_bulk_run,
-    _run_report_generation,
     _set_flash,
     _source_type_label,
     _sources_redirect,
     _start_bulk_generation_runner,
-    _start_report_generation_runner,
     _summarize_generation_error,
     _truncate_generation_detail,
 )
@@ -494,16 +492,6 @@ def _show_recent_generation_success(generation_job: dict | None, *, window_secon
     return _web_support._show_recent_generation_success(generation_job, window_seconds=window_seconds)
 
 
-def _run_report_generation(slug: str, year: int, month: int) -> None:
-    _web_support.subprocess = subprocess
-    return _web_support._run_report_generation(slug, year, month)
-
-
-def _start_report_generation_runner(job_id: int, slug: str, year: int, month: int, *, db_path: str) -> None:
-    _web_support.subprocess = subprocess
-    return _web_support._start_report_generation_runner(job_id, slug, year, month, db_path=db_path)
-
-
 def _start_bulk_generation_runner(run_id: int, year: int, month: int, *, db_path: str) -> None:
     _web_support.subprocess = subprocess
     return _web_support._start_bulk_generation_runner(run_id, year, month, db_path=db_path)
@@ -518,46 +506,6 @@ def _checkin_match_status_label(status: str) -> tuple[str, str]:
         "UNMATCHED_GROUP": ("Bez rezervace", "red"),
     }
     return mapping.get(normalized, (normalized or "—", "gray"))
-
-
-def _enqueue_report_generation(
-    conn,
-    *,
-    slug: str,
-    year: int,
-    month: int,
-    requested_by: str,
-) -> tuple[str, dict | None]:
-    active_job = get_active_report_generation_job(conn, slug, year, month)
-    if active_job:
-        return "already_running", active_job
-
-    job = create_report_generation_job(
-        conn,
-        slug,
-        year,
-        month,
-        requested_by=requested_by,
-    )
-    try:
-        _start_report_generation_runner(
-            int(job["id"]),
-            slug,
-            year,
-            month,
-            db_path=_db_path_for_connection(conn),
-        )
-    except Exception as exc:
-        detail = _truncate_generation_detail(str(exc))
-        finish_report_generation_job(
-            conn,
-            int(job["id"]),
-            status=GENERATION_JOB_FAILED,
-            message="Nepodařilo se spustit background generování reportu.",
-            detail=detail,
-        )
-        raise RuntimeError(detail) from exc
-    return "started", job
 
 
 def _apply_import_impacts(
@@ -720,47 +668,6 @@ def _format_impact_result_lines(impact_result: dict) -> list[str]:
         )
         lines.append(f"Uzamčené měsíce pouze notifikovány: {formatted}")
     return lines
-
-
-def _enqueue_generate_all_for_month(
-    conn,
-    *,
-    properties: list[dict],
-    year: int,
-    month: int,
-    requested_by: str,
-) -> dict:
-    result = {
-        "started": [],
-        "already_running": [],
-        "locked": [],
-        "no_data": [],
-    }
-    for prop in properties:
-        slug = str(prop.get("slug") or "").strip()
-        if not slug:
-            continue
-        state = get_report_month_state(conn, slug, year, month)
-        latest_report = _latest_report_for_month(conn, slug, year, month)
-        has_data = _month_has_data(conn, prop, year, month)
-        if state.get("status") == MONTH_STATUS_LOCKED:
-            result["locked"].append((slug, year, month))
-            continue
-        if not has_data and not latest_report:
-            result["no_data"].append((slug, year, month))
-            continue
-        status, _job = _enqueue_report_generation(
-            conn,
-            slug=slug,
-            year=year,
-            month=month,
-            requested_by=requested_by,
-        )
-        if status == "started":
-            result["started"].append((slug, year, month))
-        else:
-            result["already_running"].append((slug, year, month))
-    return result
 
 
 def _format_generate_all_month_result(result: dict, *, year: int, month: int) -> tuple[str, str]:
