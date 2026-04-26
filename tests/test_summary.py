@@ -61,3 +61,59 @@ def test_build_report_summary_defaults_to_zero_without_optional_inputs():
     assert summary["expenses_total_czk"] == 0.0
     assert summary["client_payout_after_expenses_czk"] == 0.0
     assert summary["bank_received_this_month_czk"] == 0.0
+
+
+def test_build_report_summary_dedupes_duplicate_codes_and_reports_warnings():
+    from report.summary import build_report_summary
+
+    rows = [
+        {"confirmation_code": "AAA", "payout_czk": 100.0, "cena_ubytovani_czk": 80.0,
+         "city_tax_czk": 0, "priprava_pokoje_czk": 0, "dph_uklid_balicky_czk": 0,
+         "is_excluded": False},
+        {"confirmation_code": "AAA", "payout_czk": 100.0, "cena_ubytovani_czk": 80.0,
+         "city_tax_czk": 0, "priprava_pokoje_czk": 0, "dph_uklid_balicky_czk": 0,
+         "is_excluded": False},
+        {"confirmation_code": "BBB", "payout_czk": 50.0, "cena_ubytovani_czk": 40.0,
+         "city_tax_czk": 0, "priprava_pokoje_czk": 0, "dph_uklid_balicky_czk": 0,
+         "is_excluded": False},
+    ]
+    prop = {"client_type": "rentero", "rentero_commission": 0.15, "vat_rate": 0.21}
+    summary = build_report_summary(rows, prop)
+
+    # Sums must use deduplicated rows: 100 (AAA once) + 50 (BBB) = 150
+    assert summary["gross_payout_czk"] == 150.0
+    assert summary["accommodation_income_czk"] == 120.0
+    assert summary["integrity_warnings"] == ["AAA"]
+
+
+def test_build_report_summary_no_warnings_when_unique():
+    from report.summary import build_report_summary
+
+    rows = [
+        {"confirmation_code": "AAA", "payout_czk": 100.0, "cena_ubytovani_czk": 80.0,
+         "city_tax_czk": 0, "priprava_pokoje_czk": 0, "dph_uklid_balicky_czk": 0,
+         "is_excluded": False},
+    ]
+    prop = {"client_type": "rentero", "rentero_commission": 0.15, "vat_rate": 0.21}
+    summary = build_report_summary(rows, prop)
+    assert summary["integrity_warnings"] == []
+
+
+def test_build_report_summary_empty_codes_dont_warn():
+    """Multiple rows with empty confirmation_code are legitimate (synthetic
+    rows). They should not trigger integrity warnings, but should NOT be
+    deduped (each is a distinct synthetic record)."""
+    from report.summary import build_report_summary
+
+    rows = [
+        {"confirmation_code": "", "payout_czk": 10.0, "cena_ubytovani_czk": 8.0,
+         "city_tax_czk": 0, "priprava_pokoje_czk": 0, "dph_uklid_balicky_czk": 0,
+         "is_excluded": False},
+        {"confirmation_code": "", "payout_czk": 5.0, "cena_ubytovani_czk": 4.0,
+         "city_tax_czk": 0, "priprava_pokoje_czk": 0, "dph_uklid_balicky_czk": 0,
+         "is_excluded": False},
+    ]
+    prop = {"client_type": "rentero", "rentero_commission": 0.15, "vat_rate": 0.21}
+    summary = build_report_summary(rows, prop)
+    assert summary["integrity_warnings"] == []
+    assert summary["gross_payout_czk"] == 15.0  # both summed, neither deduped

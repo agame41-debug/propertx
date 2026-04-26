@@ -25,6 +25,23 @@ def build_report_summary(
     transferred_rows = transferred_rows or []
     rows = [r for r in rows if not r.get("is_excluded")]
 
+    # Dedup by confirmation_code (L1 integrity defense). Empty codes are
+    # legitimately repeatable (synthetic rows); only non-empty repeats are
+    # treated as duplicates.
+    seen_codes: set[str] = set()
+    integrity_warnings: list[str] = []
+    deduped_rows: list[dict] = []
+    for r in rows:
+        code = r.get("confirmation_code") or ""
+        if code:
+            if code in seen_codes:
+                if code not in integrity_warnings:
+                    integrity_warnings.append(code)
+                continue  # skip duplicate
+            seen_codes.add(code)
+        deduped_rows.append(r)
+    rows = deduped_rows
+
     client_type = property_config.get("client_type", "rentero")
     rentero_commission_rate = float(property_config.get("rentero_commission", 0.15))
     vat_rate = float(property_config.get("vat_rate", 0.21))
@@ -96,4 +113,5 @@ def build_report_summary(
         "bank_pending_czk": bank_pending_czk,
         "bank_transferred_czk": bank_transferred_czk,
         "bank_received_this_month_czk": bank_received_this_month_czk,
+        "integrity_warnings": integrity_warnings,
     }
