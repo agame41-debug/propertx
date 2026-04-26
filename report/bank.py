@@ -642,6 +642,16 @@ def enrich_booking_rows_with_bank(
 
         if matched_bank:
             datum = matched_bank.get("datum")
+            verification_comment = row.get("verification_comment") or ""
+            if conn is not None and slug:
+                others = _find_code_in_other_snapshots(
+                    conn, row.get("confirmation_code", ""), slug, year, month
+                )
+                if others:
+                    where = ", ".join(f"{s}/{y}-{m}" for s, y, m in others)
+                    verification_comment = (
+                        f"INTEGRITY: also in {where}. {verification_comment}".strip()
+                    )
             enriched.append({
                 **row,
                 "payout_gref": batch_ref,
@@ -649,6 +659,7 @@ def enrich_booking_rows_with_bank(
                 "bank_datum":  datum.strftime("%d.%m.%Y") if datum else "",
                 "bank_amount_czk": matched_bank["amount_czk"],
                 "bank_status": "DORAZILO",
+                "verification_comment": verification_comment,
             })
         else:
             enriched.append({
