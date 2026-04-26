@@ -137,7 +137,7 @@
   {% set cena_ubyt = cur_cell.cena_ubytovani_sum_czk|default(0) if cur_cell else 0 %}
   {% set provize = cur_cell.provize_sum_czk|default(0) if cur_cell else 0 %}
   {% set client_payout = cur_cell.client_payout_sum_czk|default(0) if cur_cell else 0 %}
-  {% set has_data = 1 if (cur_cell and cur_cell.kind in ['report', 'generate', 'locked']) else 0 %}
+  {% set has_data = 1 if (cur_cell and cur_cell.kind in ['report', 'locked']) else 0 %}
   {% set rez_prev = prev_cell.rows_count|default(0) if prev_cell else 0 %}
 
   <a href="{% if cur_cell %}/property/{{ row.slug }}/{{ cur_cell.year }}/{{ cur_cell.month }}{% else %}/{% endif %}"
@@ -208,7 +208,7 @@
       {% endif %}
     </div>
 
-    {# Col 4: Status — only surfaces when actionable (issues or generate) #}
+    {# Col 4: Status — only surfaces when actionable (issues) #}
     <div class="pr-stats pr-hide-mobile">
       {% if cur_cell and cur_cell.kind == 'report' and issues_count > 0 %}
         {% if cur_cell.rozdil %}
@@ -216,14 +216,6 @@
         {% endif %}
         {% if cur_cell.ke_kontrole %}
         <span class="badge badge-amber" style="font-size:10px;">?{{ cur_cell.ke_kontrole }}</span>
-        {% endif %}
-      {% elif cur_cell and cur_cell.kind == 'generate' %}
-        {% set _user = get_current_user(request) %}
-        {% if _user and _user.role != 'client' %}
-        <form method="post" action="{{ cur_cell.generate_href }}" onclick="event.stopPropagation()">
-          {{ csrf_input(request) }}
-          <button type="submit" class="btn btn-primary btn-sm" style="font-size:var(--text-xs);">Generovat</button>
-        </form>
         {% endif %}
       {% endif %}
     </div>

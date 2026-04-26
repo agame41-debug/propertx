@@ -660,7 +660,7 @@ def _build_dashboard_view_model(
             if h:
                 kind = "report"
             elif de and not is_locked:
-                kind = "generate"
+                kind = "empty"
             elif is_locked:
                 kind = "locked"
             else:
@@ -673,7 +673,6 @@ def _build_dashboard_view_model(
                     "label": f"{month:02d}/{year}",
                     "is_current": year == cur_y and month == cur_m,
                     "detail_href": f"/property/{slug}/{year}/{month}",
-                    "generate_href": f"/property/{slug}/{year}/{month}/generate",
                     "kind": kind,
                     "is_locked": is_locked,
                     "has_new": has_new,
