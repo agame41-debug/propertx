@@ -763,13 +763,9 @@ def test_cross_month_batch_no_silent_downgrade():
             conn=conn, slug="apt", year=2026, month=3,
         )
         from report.db import save_payout_batch_bank_matches
-        # NOTE: slug/year/month kwargs are required pre-fix to reproduce the
-        # bug (the legacy ownership row needs year/month populated for
-        # get_bank_match_owner's `year > 0 AND month > 0` filter). Task 3
-        # strips these kwargs from the function — when that lands, remove
-        # them from this and the April call below.
-        save_payout_batch_bank_matches(conn, "airbnb", march_matches,
-                                       slug="apt", year=2026, month=3)
+        # NOTE: Task 3 stripped slug/year/month kwargs — bank-match rows no
+        # longer carry per-month ownership, so the silent downgrade can't fire.
+        save_payout_batch_bank_matches(conn, "airbnb", march_matches)
         save_report_rows(conn, "apt", 2026, 3, march_enriched)
 
         # April regen: row for APRIL-CODE — same batch
@@ -785,8 +781,7 @@ def test_cross_month_batch_no_silent_downgrade():
             all_batches_map=all_batches_map,
             conn=conn, slug="apt", year=2026, month=4,
         )
-        save_payout_batch_bank_matches(conn, "airbnb", april_matches,
-                                       slug="apt", year=2026, month=4)
+        save_payout_batch_bank_matches(conn, "airbnb", april_matches)
         save_report_rows(conn, "apt", 2026, 4, april_enriched)
 
         # Both months must show DORAZILO. Pre-fix April would be CHYBÍ.

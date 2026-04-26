@@ -144,3 +144,42 @@ def test_drop_ownership_columns_recovers_from_partial_rename():
     ).fetchone()
     assert leftover is None
     conn.close()
+
+
+def test_save_payout_batch_bank_matches_no_ownership_columns():
+    """Function signature should not accept slug/year/month, and the
+    persisted row should contain only the new columns."""
+    conn = get_connection(":memory:")
+    try:
+        save_payout_batch_bank_matches(
+            conn,
+            "airbnb",
+            [{
+                "batch_ref": "G-XYZ",
+                "tx_key": "TX-XYZ",
+                "match_method": "gref",
+                "matched_amount_czk": 1234.5,
+            }],
+        )
+        rows = conn.execute(
+            "SELECT * FROM payout_batch_bank_matches WHERE batch_ref = 'G-XYZ'"
+        ).fetchall()
+        assert len(rows) == 1
+        assert rows[0]["match_method"] == "gref"
+        assert rows[0]["matched_amount_czk"] == 1234.5
+        # Ownership columns must not exist.
+        cols = rows[0].keys()
+        assert "slug" not in cols
+        assert "year" not in cols
+        assert "month" not in cols
+    finally:
+        conn.close()
+
+
+def test_save_payout_batch_bank_matches_signature_has_no_ownership_kwargs():
+    import inspect
+    from report.db import save_payout_batch_bank_matches
+    sig = inspect.signature(save_payout_batch_bank_matches)
+    assert "slug" not in sig.parameters
+    assert "year" not in sig.parameters
+    assert "month" not in sig.parameters

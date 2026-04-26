@@ -2410,10 +2410,6 @@ def save_payout_batch_bank_matches(
     conn: sqlite3.Connection,
     channel: str,
     matches: list[dict],
-    *,
-    slug: str = "",
-    year: int = 0,
-    month: int = 0,
 ) -> None:
     """Persist batch ↔ bank transaction links for future drill-down screens."""
     if not matches:
@@ -2421,16 +2417,12 @@ def save_payout_batch_bank_matches(
     now = _now()
     conn.executemany(
         """INSERT INTO payout_batch_bank_matches
-           (channel, batch_ref, tx_key, match_method, matched_amount_czk, matched_at,
-            slug, year, month)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (channel, batch_ref, tx_key, match_method, matched_amount_czk, matched_at)
+           VALUES (?, ?, ?, ?, ?, ?)
            ON CONFLICT(channel, batch_ref, tx_key) DO UPDATE SET
              match_method=excluded.match_method,
              matched_amount_czk=excluded.matched_amount_czk,
-             matched_at=excluded.matched_at,
-             slug=excluded.slug,
-             year=excluded.year,
-             month=excluded.month""",
+             matched_at=excluded.matched_at""",
         [
             (
                 channel,
@@ -2439,9 +2431,6 @@ def save_payout_batch_bank_matches(
                 m.get("match_method", ""),
                 m.get("matched_amount_czk"),
                 now,
-                slug,
-                year,
-                month,
             )
             for m in matches
             if m.get("batch_ref") and m.get("tx_key")

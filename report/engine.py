@@ -927,8 +927,8 @@ def generate_report_in_process(
         booking_bank_idx_all=booking_bank_idx_all,
         conn=conn, slug=slug,
     )
-    save_payout_batch_bank_matches(conn, "airbnb", airbnb_matches, slug=slug, year=year, month=month)
-    save_payout_batch_bank_matches(conn, "booking", booking_matches, slug=slug, year=year, month=month)
+    save_payout_batch_bank_matches(conn, "airbnb", airbnb_matches)
+    save_payout_batch_bank_matches(conn, "booking", booking_matches)
 
     # ── Downgrade MATCHED → KE KONTROLE when bank payment missing ──────────
     for row in calc_rows:
