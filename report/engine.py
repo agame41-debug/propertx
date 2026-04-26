@@ -138,6 +138,10 @@ def _persist_csv_payout_artifacts(
         import, so the tables move forward as data lands.
       * engine.generate_report_in_process — defensively on every regen, so
         any drift between the two paths is auto-healed within one cycle.
+
+    Transaction contract: all writes are issued with commit=False, so they
+    participate in whatever transaction the caller has opened. The caller is
+    responsible for committing or rolling back.
     """
     from report.db import (
         fill_missing_payout_item_guest_names,
@@ -146,10 +150,10 @@ def _persist_csv_payout_artifacts(
         save_payout_batches,
     )
 
-    save_payout_batches(conn, "airbnb", airbnb_payout_data.get("batches") or [])
-    save_payout_batch_items(conn, "airbnb", airbnb_payout_data.get("items") or [])
-    save_payout_batches(conn, "booking", booking_payout_data.get("batches") or [])
-    save_payout_batch_items(conn, "booking", booking_payout_data.get("items") or [])
+    save_payout_batches(conn, "airbnb", airbnb_payout_data.get("batches") or [], commit=False)
+    save_payout_batch_items(conn, "airbnb", airbnb_payout_data.get("items") or [], commit=False)
+    save_payout_batches(conn, "booking", booking_payout_data.get("batches") or [], commit=False)
+    save_payout_batch_items(conn, "booking", booking_payout_data.get("items") or [], commit=False)
 
     booking_guest_names = {
         str(code): str(row.get("guest_name") or "").strip()
@@ -158,14 +162,14 @@ def _persist_csv_payout_artifacts(
     }
     if booking_guest_names:
         fill_missing_payout_item_guest_names(
-            conn, "booking", guest_names_by_code=booking_guest_names
+            conn, "booking", guest_names_by_code=booking_guest_names, commit=False
         )
 
-    save_bank_transactions(conn, "airbnb", bank_rows_all or [])
+    save_bank_transactions(conn, "airbnb", bank_rows_all or [], commit=False)
     booking_bank_rows_flat = [
         item for rows in (booking_bank_idx_all or {}).values() for item in rows
     ]
-    save_bank_transactions(conn, "booking", booking_bank_rows_flat)
+    save_bank_transactions(conn, "booking", booking_bank_rows_flat, commit=False)
 
 
 def _build_adjustment_reservation(past_row: dict, batch_info: dict, suffix: str = "__ADJ") -> dict:

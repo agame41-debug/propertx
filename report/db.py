@@ -2009,6 +2009,8 @@ def save_payout_batches(
     conn: sqlite3.Connection,
     channel: str,
     batches: list[dict],
+    *,
+    commit: bool = True,
 ) -> None:
     """Upsert parsed payout batches for later UI drill-down."""
     now = _now()
@@ -2043,13 +2045,16 @@ def save_payout_batches(
             if b.get("batch_ref")
         ],
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def save_payout_batch_items(
     conn: sqlite3.Connection,
     channel: str,
     items: list[dict],
+    *,
+    commit: bool = True,
 ) -> None:
     """Replace known item slots for a payout batch snapshot."""
     if not items:
@@ -2092,7 +2097,8 @@ def save_payout_batch_items(
              source_name=excluded.source_name""",
         rows,
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def fill_missing_payout_item_guest_names(

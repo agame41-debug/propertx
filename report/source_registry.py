@@ -580,6 +580,38 @@ def import_uploaded_source(
             )
             summary["persisted_checkin_groups"] = len(groups)
             summary["persisted_checkin_guest_rows"] = len(enriched_guest_rows)
+        elif source_type == "airbnb" and not stored["is_duplicate"]:
+            from report.engine import _persist_csv_payout_artifacts
+            from report.verifier import build_airbnb_payout_data, load_airbnb_csv
+            source = _source_blob(original_name, content)
+            airbnb_payout = build_airbnb_payout_data([source])
+            airbnb_index = load_airbnb_csv([source])
+            _persist_csv_payout_artifacts(
+                conn,
+                airbnb_payout_data=airbnb_payout,
+                booking_payout_data={"batches": [], "items": []},
+                booking_index={},
+                bank_rows_all=[],
+                booking_bank_idx_all={},
+            )
+            summary["persisted_airbnb_batches"] = len(airbnb_payout.get("batches") or [])
+            summary["persisted_airbnb_items"] = len(airbnb_payout.get("items") or [])
+        elif source_type == "booking" and not stored["is_duplicate"]:
+            from report.engine import _persist_csv_payout_artifacts
+            from report.verifier import build_booking_payout_data, load_booking_csv
+            source = _source_blob(original_name, content)
+            booking_payout = build_booking_payout_data([source])
+            booking_index = load_booking_csv([source])
+            _persist_csv_payout_artifacts(
+                conn,
+                airbnb_payout_data={"batches": [], "items": []},
+                booking_payout_data=booking_payout,
+                booking_index=booking_index,
+                bank_rows_all=[],
+                booking_bank_idx_all={},
+            )
+            summary["persisted_booking_batches"] = len(booking_payout.get("batches") or [])
+            summary["persisted_booking_items"] = len(booking_payout.get("items") or [])
         elif source_type == "bank" and not stored["is_duplicate"]:
             source = _source_blob(original_name, content)
             airbnb_rows = load_bank_csv([source])
