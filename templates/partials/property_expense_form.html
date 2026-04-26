@@ -1,0 +1,86 @@
+{# Add/Edit expense form — calculator-strip with three editable cells (Bez DPH, DPH, Celkem)
+   linked by JS in property_scripts.html (Task 21). Single DOM node reused for both add
+   and edit; JS swaps action URL, title, submit-label, and prefills values when entering edit-mode.
+
+   vat_rate is sent as a percent integer (0/12/21) — the route divides by 100 before validation. #}
+
+<form class="ae-form" hidden
+      method="post"
+      data-expense-form
+      action="/expenses/add">
+  {{ csrf_input(request) }}
+  <input type="hidden" name="property_slug" value="{{ slug }}">
+  <input type="hidden" name="year" value="{{ year }}">
+  <input type="hidden" name="month" value="{{ month }}">
+
+  <div class="ae-h">
+    <span class="ae-h-title" data-form-title>Nový výdaj</span>
+    <span class="ae-h-hint">Vyplňte libovolné pole — ostatní se přepočítají</span>
+  </div>
+
+  <div class="ae-row">
+    <div class="ae-field">
+      <label class="ae-k">Datum</label>
+      <input class="ae-in" type="date" name="date_str" required>
+    </div>
+    <div class="ae-field">
+      <label class="ae-k">Kategorie</label>
+      <select class="ae-in" name="category_id">
+        {% for c in categories %}
+          <option value="{{ c.id }}" data-cat-name="{{ c.name }}">{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="ae-field">
+      <label class="ae-k">Popis</label>
+      <input class="ae-in" name="description" required placeholder="Např. Elektřina PRE za duben" maxlength="200">
+    </div>
+  </div>
+
+  <div class="ae-calc">
+    <label class="ae-cell">
+      <span class="ae-cell-k">Bez DPH</span>
+      <div class="ae-cell-input">
+        <input type="text" inputmode="decimal" name="amount_net_czk" data-calc-net placeholder="0,00">
+        <span class="ae-cell-suf">Kč</span>
+      </div>
+    </label>
+
+    <span class="ae-calc-op">+</span>
+
+    <label class="ae-cell ae-cell-dph">
+      <span class="ae-cell-k">
+        DPH
+        <span class="ae-seg ae-seg-mini" data-calc-rate-tabs>
+          <button type="button" data-rate="0">0%</button>
+          <button type="button" data-rate="12">12%</button>
+          <button type="button" class="active" data-rate="21">21%</button>
+        </span>
+      </span>
+      <div class="ae-cell-input">
+        <input type="text" inputmode="decimal" name="amount_dph_czk" data-calc-dph placeholder="0,00">
+        <span class="ae-cell-suf">Kč</span>
+      </div>
+    </label>
+
+    <span class="ae-calc-op">=</span>
+
+    <label class="ae-cell ae-cell-total">
+      <span class="ae-cell-k">Celkem</span>
+      <div class="ae-cell-input">
+        <input type="text" inputmode="decimal" name="amount_czk" data-calc-gross placeholder="0,00" required>
+        <span class="ae-cell-suf">Kč</span>
+      </div>
+    </label>
+  </div>
+
+  {# vat_rate as percent integer; default 21 to match the active tab. JS keeps in sync. #}
+  <input type="hidden" name="vat_rate" value="21" data-calc-rate-input>
+
+  <div class="ae-actions-row">
+    <button type="button" class="btn-link" data-form-cancel>Zrušit</button>
+    <button type="submit" class="btn-add btn-add-solid">
+      <span data-form-submit-label>Uložit výdaj</span>
+    </button>
+  </div>
+</form>
