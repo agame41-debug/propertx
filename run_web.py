@@ -31,9 +31,17 @@ if __name__ == "__main__":
     print(f"\n  Rentero běží na http://{args.host}:{args.port}")
     print(f"  Přihlášení: {username} / <configured password>\n")
 
+    # Pinned to a single worker on purpose. The Hostify sync loop, the
+    # import-triggered regeneration thread, and the bulk_generation_runner
+    # subprocess all assume there is exactly one of them per host. Running
+    # uvicorn with workers > 1 would start N parallel sync loops hitting
+    # Hostify, race on report_rows writes, and split the cnb._rate_cache
+    # across processes. See _enforce_single_worker() in report/web.py for
+    # the corresponding runtime guard.
     uvicorn.run(
         "report.web:app",
         host=args.host,
         port=args.port,
         reload=args.reload,
+        workers=1,
     )

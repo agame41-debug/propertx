@@ -186,9 +186,31 @@ _CSRF_FORM_FIELD = "csrf_token"
 _CSRF_HEADER = "x-csrf-token"
 
 
+def _enforce_single_worker() -> None:
+    """Hard-fail if started under uvicorn workers > 1.
+
+    The Hostify sync loop, the import-triggered regen thread, and the
+    bulk_generation_runner subprocess all assume one process per host.
+    Multiple workers would race on report_rows writes, send N parallel
+    requests to Hostify, and split cnb._rate_cache across processes.
+
+    Detection relies on uvicorn's WEB_CONCURRENCY / UVICORN_NUM_WORKERS
+    env vars (set by the launcher) or a count of sibling uvicorn workers
+    sharing this binding. We only block on values we recognize as >1.
+    """
+    for var in ("WEB_CONCURRENCY", "UVICORN_NUM_WORKERS"):
+        raw = os.environ.get(var, "").strip()
+        if raw.isdigit() and int(raw) > 1:
+            raise RuntimeError(
+                f"Rentero must run with a single uvicorn worker; {var}={raw} "
+                "would start parallel Hostify sync loops and race on SQLite writes."
+            )
+
+
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI):
     _validate_web_runtime_config()
+    _enforce_single_worker()
     from report.hostify_sync import HostifySyncTask
     _sync_config = load_runtime_config(_CONFIG_PATH, db_conn=get_connection(_DB_PATH))
     _sync_task_obj = HostifySyncTask(
