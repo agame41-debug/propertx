@@ -319,11 +319,11 @@ def test_l2_annotates_cross_report_duplicate_in_booking_enrichment():
             conn=conn, slug="apt",
         )
         comment = enriched[0].get("verification_comment") or ""
-        # If the row was matched, expect the INTEGRITY note. If the booking
-        # match logic does not match the synthetic data above, the test still
-        # needs to be meaningful — assert at least that bank_status is set.
-        assert enriched[0].get("bank_status") in ("DORAZILO", "CHYBÍ")
-        if enriched[0]["bank_status"] == "DORAZILO":
-            assert "INTEGRITY:" in comment
+        # The synthetic data is constructed so booking enrichment matches
+        # successfully → bank_status DORAZILO. If a future change breaks
+        # this assumption, the test fails loudly and prompts a revisit.
+        assert enriched[0]["bank_status"] == "DORAZILO"
+        assert "INTEGRITY:" in comment
+        assert "apt/2026-3" in comment or "apt/2026-03" in comment
     finally:
         conn.close()
