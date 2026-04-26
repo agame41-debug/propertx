@@ -145,6 +145,17 @@
     --red:            var(--color-red);
     --amber:          var(--color-amber);
     --blue:           var(--color-blue);
+
+  /* ── property-page redesign: brand (Rentero) + DPH (teal) ── */
+  --brand:        oklch(0.66 0.18 285);
+  --brand-soft:   oklch(0.66 0.18 285 / 0.12);
+  --brand-line:   oklch(0.66 0.18 285 / 0.35);
+  --brand-text:   oklch(0.80 0.14 285);
+  --dph:          oklch(0.72 0.12 185);
+  --dph-soft:     oklch(0.72 0.12 185 / 0.10);
+  --dph-line:     oklch(0.72 0.12 185 / 0.30);
+  --dph-text:     oklch(0.78 0.10 185);
+  --glass-hi:     inset 0 1px 0 oklch(1 0 0 / 0.04);
   }
 
   /* ── Light theme overrides ── */
@@ -184,6 +195,12 @@
       transparent 68%
     );
     --ambient-tertiary: none;
+
+  --brand:        oklch(0.55 0.18 285);
+  --brand-text:   oklch(0.45 0.18 285);
+  --dph:          oklch(0.55 0.12 185);
+  --dph-text:     oklch(0.42 0.13 185);
+  --glass-hi:     inset 0 1px 0 oklch(1 0 0 / 0.6);
   }
 
   /* ── Reset ── */
