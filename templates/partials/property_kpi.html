@@ -1,0 +1,107 @@
+{# 4 KPI cards. Layout is identical for all client_types; first card's content varies:
+   - rentero  → "Zisk" with vat_balance sub-row (only if platce_dph)
+   - klient   → "Zisk" = client_payout_after_expenses_czk, sub: "Před výdaji"
+   - z_klient → "Zisk" = client_payout_after_expenses_czk, sub: "Před výdaji"
+   The KPI label is unified ("Zisk") for all roles; meaning shifts with role. #}
+
+<div class="kpi-row">
+
+  {# ── KPI 1: Zisk ────────────────────────────────────────── #}
+  <div class="kpi kpi-ok kpi-zisk">
+    <div class="kpi-label">Zisk</div>
+    {% if prop.client_type == 'rentero' %}
+      <div class="kpi-value ok" data-copy="{{ '%.2f'|format(summary.zisk_czk or 0) }}">
+        {{ fmt_czk(summary.zisk_czk or 0) }}
+      </div>
+      <div class="kpi-sub">
+        <span class="pair">
+          <span>Hrubý zisk</span>
+          <span class="v">{{ fmt_czk((summary.gross_payout_czk or 0) - (summary.expenses_total_czk or 0)) }}</span>
+        </span>
+        {% if client and client.platce_dph %}
+          <span class="sep">·</span>
+          <span class="pair" style="color:var(--dph-text)">
+            <span>DPH&nbsp;=</span>
+            <span class="v">{% if (summary.vat_balance_czk or 0) < 0 %}+{% else %}−{% endif %}{{ fmt_czk((summary.vat_balance_czk or 0)|abs) }}</span>
+          </span>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="kpi-value ok" data-copy="{{ '%.2f'|format(summary.client_payout_after_expenses_czk or 0) }}">
+        {{ fmt_czk(summary.client_payout_after_expenses_czk or 0) }}
+      </div>
+      <div class="kpi-sub">
+        <span class="pair">
+          <span>Před výdaji</span>
+          <span class="v">{{ fmt_czk(summary.client_payout_before_expenses_czk or 0) }}</span>
+        </span>
+        {% if client and client.bank_account %}
+          <span class="sep">·</span>
+          <span class="pair" title="{{ client.bank_account }}">
+            <span class="v" style="overflow:hidden;text-overflow:ellipsis;max-width:160px;display:inline-block;vertical-align:bottom;">{{ client.bank_account }}</span>
+          </span>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  {# ── KPI 2: Vyplaceno platformami ────────────────────────── #}
+  <div class="kpi kpi-blue">
+    <div class="kpi-label">Vyplaceno platformami</div>
+    <div class="kpi-value" data-copy="{{ '%.2f'|format(summary.gross_payout_czk or 0) }}">
+      {{ fmt_czk(summary.gross_payout_czk or 0) }}
+    </div>
+    <div class="kpi-sub">
+      <span class="pair">
+        <span>Cena ubytování</span>
+        <span class="v">{{ fmt_czk(summary.accommodation_income_czk or 0) }}</span>
+      </span>
+    </div>
+  </div>
+
+  {# ── KPI 3: Rentero fee ────────────────────────────────── #}
+  <div class="kpi kpi-err">
+    <div class="kpi-label">
+      {% if prop.client_type == 'z_klient' %}
+        Odměna Rentero (3 %)
+      {% else %}
+        Rentero fee ({{ '%.0f'|format((summary.rentero_commission_rate or 0) * 100) }} %)
+      {% endif %}
+    </div>
+    <div class="kpi-value neg" data-copy="{{ '%.2f'|format((summary.rentero_fee_czk or 0) + (summary.vat_rentero_fee_czk or 0)) }}">
+      −{{ fmt_czk((summary.rentero_fee_czk or 0) + (summary.vat_rentero_fee_czk or 0)) }}
+    </div>
+    <div class="kpi-sub">
+      <span class="pair"><span>Net</span><span class="v">−{{ fmt_czk(summary.rentero_fee_czk or 0) }}</span></span>
+      {% if (summary.vat_rentero_fee_czk or 0) > 0 %}
+        <span class="sep">·</span>
+        <span class="pair" style="color:var(--dph-text)">
+          <span>DPH</span>
+          <span class="v">−{{ fmt_czk(summary.vat_rentero_fee_czk) }}</span>
+        </span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── KPI 4: Výdaje ────────────────────────────────────── #}
+  <div class="kpi {% if summary.expenses_total_czk %}kpi-warn{% else %}kpi-mute{% endif %}">
+    <div class="kpi-label">Výdaje</div>
+    <div class="kpi-value {% if summary.expenses_total_czk %}warn{% endif %}"
+         {% if summary.expenses_total_czk %}data-copy="{{ '%.2f'|format(summary.expenses_total_czk) }}"{% endif %}>
+      {% if summary.expenses_total_czk %}−{{ fmt_czk(summary.expenses_total_czk) }}{% else %}—{% endif %}
+    </div>
+    <div class="kpi-sub">
+      {% if expenses %}
+        <span class="pair"><span class="v">{{ expenses|length }}</span><span>položek</span></span>
+        {% if client and client.platce_dph and (summary.vat_input_czk or 0) > 0 %}
+          <span class="sep">·</span>
+          <span class="pair" style="color:var(--dph-text)">
+            <span>DPH</span>
+            <span class="v">+{{ fmt_czk(summary.vat_input_czk) }}</span>
+          </span>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+</div>
