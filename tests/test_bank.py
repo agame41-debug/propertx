@@ -789,3 +789,75 @@ def test_cross_month_batch_no_silent_downgrade():
         assert april_enriched[0]["bank_status"] == "DORAZILO"
     finally:
         conn.close()
+
+
+def test_cross_property_batch_no_silent_downgrade():
+    """Regression: a batch covering reservations from two different slugs
+    must show DORAZILO in BOTH slugs."""
+    from report.bank import enrich_rows_with_bank, build_bank_index
+    from report.db import save_report_rows, save_payout_batch_bank_matches
+
+    conn = get_connection(":memory:")
+    try:
+        save_bank_transactions(
+            conn,
+            "airbnb",
+            [
+                {
+                    "tx_key": "2026-03-15|15000.00|G-XPROP|",
+                    "tx_id": "TX-XP",
+                    "datum": date(2026, 3, 15),
+                    "amount_czk": 15000.0,
+                    "gref": "G-XPROP",
+                    "zprava": "G-XPROP payout",
+                    "source_name": "bank.csv",
+                }
+            ],
+        )
+        bank_rows = [{
+            "datum": date(2026, 3, 15),
+            "amount_czk": 15000.0,
+            "gref": "G-XPROP",
+            "booking_ref": "",
+            "tx_id": "TX-XP",
+            "tx_key": "2026-03-15|15000.00|G-XPROP|",
+            "zprava": "G-XPROP payout",
+            "source_name": "bank.csv",
+        }]
+        index_by_gref, no_ref_rows = build_bank_index(bank_rows)
+
+        gref_map = {
+            "PROP-A-CODE": {"gref": "G-XPROP", "payout_date": "2026-03-15", "payout_czk": 9000.0},
+            "PROP-B-CODE": {"gref": "G-XPROP", "payout_date": "2026-03-15", "payout_czk": 6000.0},
+        }
+        all_batches_map = {
+            "PROP-A-CODE": [{"gref": "G-XPROP", "payout_date": "2026-03-15", "payout_czk": 9000.0}],
+            "PROP-B-CODE": [{"gref": "G-XPROP", "payout_date": "2026-03-15", "payout_czk": 6000.0}],
+        }
+
+        rows_a = [{"confirmation_code": "PROP-A-CODE", "source": "Airbnb",
+                   "batch_ref": "G-XPROP", "batch_payout_date": "2026-03-15",
+                   "batch_amount_czk_expected": 9000.0}]
+        enriched_a, matches_a = enrich_rows_with_bank(
+            rows_a, gref_map, index_by_gref, no_ref_rows,
+            all_batches_map=all_batches_map,
+            conn=conn, slug="apt_A", year=2026, month=3,
+        )
+        save_payout_batch_bank_matches(conn, "airbnb", matches_a)
+        save_report_rows(conn, "apt_A", 2026, 3, enriched_a)
+
+        rows_b = [{"confirmation_code": "PROP-B-CODE", "source": "Airbnb",
+                   "batch_ref": "G-XPROP", "batch_payout_date": "2026-03-15",
+                   "batch_amount_czk_expected": 6000.0}]
+        enriched_b, matches_b = enrich_rows_with_bank(
+            rows_b, gref_map, index_by_gref, no_ref_rows,
+            all_batches_map=all_batches_map,
+            conn=conn, slug="apt_B", year=2026, month=3,
+        )
+        save_payout_batch_bank_matches(conn, "airbnb", matches_b)
+        save_report_rows(conn, "apt_B", 2026, 3, enriched_b)
+
+        assert enriched_a[0]["bank_status"] == "DORAZILO"
+        assert enriched_b[0]["bank_status"] == "DORAZILO"
+    finally:
+        conn.close()
