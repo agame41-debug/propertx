@@ -6,15 +6,12 @@ Covers:
   - Exchange rate selection: Airbnb batch rate / Booking derived rate / CNB fallback
   - _stay_label formatting
   - _null_row when kurz=0
-  - calculate_totals_with_config: Rentero commission + DPH
   - calculate_all_rows: sort order, per-row CNB rate lookup
 """
 import pytest
 from report.calculator import (
     calculate_row,
     calculate_all_rows,
-    calculate_totals,
-    calculate_totals_with_config,
     _stay_label,
 )
 
@@ -295,54 +292,6 @@ class TestCalculateRowWithChildren:
         )
         assert row["payout_czk"] == 510.0
         assert row["cena_ubytovani_czk"] == 0.0
-
-
-# ---------------------------------------------------------------------------
-# calculate_totals_with_config
-# ---------------------------------------------------------------------------
-
-class TestTotals:
-    def test_totals_sum_nights(self):
-        rows = [
-            calculate_row(_airbnb_res(nights=3), CNB_RATE, PROP, 1),
-            calculate_row(_airbnb_res(nights=2, confirmation_code="HM999"), CNB_RATE, PROP, 2),
-        ]
-        totals = calculate_totals(rows)
-        assert totals["nights"] == 5
-
-    def test_totals_skip_none_fields(self):
-        row_with_value = calculate_row(_airbnb_res(), CNB_RATE, PROP, 1)
-        row_null = calculate_row(
-            _airbnb_res(source="Other", airbnb_batch_rate=0, confirmation_code="X"),
-            {"rate": 0, "valid_for": ""},
-            PROP, 2,
-        )
-        totals = calculate_totals([row_with_value, row_null])
-        # Only row_with_value has numeric city_tax_czk; null row has None → should be skipped
-        assert totals["city_tax_czk"] == row_with_value["city_tax_czk"]
-
-    def test_rentero_commission_applied(self):
-        rows = [calculate_row(_airbnb_res(), CNB_RATE, PROP, 1)]
-        totals = calculate_totals_with_config(rows, PROP)
-        cena = totals["cena_ubytovani_czk"]
-        assert totals["rentero_odmena"] == pytest.approx(cena * 0.15, abs=0.01)
-        assert totals["dph_rentero_odmena"] == pytest.approx(cena * 0.15 * 0.21, abs=0.01)
-
-    def test_klient_vyplaceno(self):
-        rows = [calculate_row(_airbnb_res(), CNB_RATE, PROP, 1)]
-        totals = calculate_totals_with_config(rows, PROP)
-        expected = (
-            totals["cena_ubytovani_czk"]
-            - totals["rentero_odmena"]
-            - totals["dph_rentero_odmena"]
-        )
-        assert totals["klient_vyplaceno"] == pytest.approx(expected, abs=0.01)
-
-    def test_dph_prefakturace_klient(self):
-        rows = [calculate_row(_airbnb_res(), CNB_RATE, PROP, 1)]
-        totals = calculate_totals_with_config(rows, PROP)
-        expected = totals["dph_uklid_balicky_czk"] + totals["dph_rentero_odmena"]
-        assert totals["dph_prefakturace_klient"] == pytest.approx(expected, abs=0.01)
 
 
 # ---------------------------------------------------------------------------
