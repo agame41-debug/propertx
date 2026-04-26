@@ -464,3 +464,97 @@ def test_admin_integrity_endpoint_requires_auth():
 
     # require_auth raises 302 → /login on missing session
     assert response.status_code in (302, 401, 403)
+
+
+def test_restore_bank_status_after_ownership_fix_patches_locked_chybi_row():
+    """A LOCKED report_row with bank_status=CHYBÍ whose batch_ref has a
+    match should be patched to DORAZILO with RECOVERED: prepended."""
+    from datetime import date
+    from report.db import (
+        _restore_bank_status_after_ownership_fix,
+        save_bank_transactions,
+        save_payout_batch_bank_matches,
+        save_report_rows,
+        set_report_month_locked,
+    )
+
+    conn = get_connection(":memory:")
+    try:
+        save_bank_transactions(conn, "airbnb", [{
+            "tx_key": "2026-04-05|18000.00|G-RECOVER|",
+            "tx_id": "TX-RC",
+            "datum": date(2026, 4, 5),
+            "amount_czk": 18000.0,
+            "gref": "G-RECOVER",
+            "zprava": "G-RECOVER payout",
+            "source_name": "bank.csv",
+        }])
+        save_payout_batch_bank_matches(conn, "airbnb", [{
+            "batch_ref": "G-RECOVER",
+            "tx_key": "2026-04-05|18000.00|G-RECOVER|",
+            "match_method": "gref",
+            "matched_amount_czk": 18000.0,
+        }])
+        # Save a CHYBÍ row, then lock the month.
+        save_report_rows(conn, "apt", 2026, 3, [{
+            "confirmation_code": "STUCK",
+            "batch_ref": "G-RECOVER",
+            "bank_status": "CHYBÍ",
+            "bank_tx_key": "",
+            "bank_datum": "",
+            "bank_amount_czk": None,
+            "verification_comment": "prior note",
+        }])
+        set_report_month_locked(conn, "apt", 2026, 3, locked=True)
+
+        count = _restore_bank_status_after_ownership_fix(conn)
+        assert count == 1
+
+        # Inspect the patched JSON
+        row = conn.execute(
+            "SELECT data FROM report_rows WHERE slug='apt' AND year=2026 AND month=3"
+        ).fetchone()
+        data = json.loads(row["data"])
+        assert data["bank_status"] == "DORAZILO"
+        assert data["bank_tx_key"] == "2026-04-05|18000.00|G-RECOVER|"
+        assert data["bank_amount_czk"] == 18000.0
+        assert data["verification_comment"].startswith("RECOVERED:")
+        assert "prior note" in data["verification_comment"]
+    finally:
+        conn.close()
+
+
+def test_restore_bank_status_idempotent():
+    from datetime import date
+    from report.db import (
+        _restore_bank_status_after_ownership_fix,
+        save_bank_transactions,
+        save_payout_batch_bank_matches,
+        save_report_rows,
+    )
+
+    conn = get_connection(":memory:")
+    try:
+        save_bank_transactions(conn, "airbnb", [{
+            "tx_key": "TX-IDEM", "tx_id": "T1",
+            "datum": date(2026, 4, 5), "amount_czk": 100.0,
+            "gref": "G-IDEM", "zprava": "", "source_name": "x",
+        }])
+        save_payout_batch_bank_matches(conn, "airbnb", [{
+            "batch_ref": "G-IDEM",
+            "tx_key": "TX-IDEM",
+            "match_method": "gref",
+            "matched_amount_czk": 100.0,
+        }])
+        save_report_rows(conn, "apt", 2026, 3, [{
+            "confirmation_code": "C", "batch_ref": "G-IDEM",
+            "bank_status": "CHYBÍ", "bank_tx_key": "",
+            "bank_datum": "", "bank_amount_czk": None,
+            "verification_comment": "",
+        }])
+        first = _restore_bank_status_after_ownership_fix(conn)
+        second = _restore_bank_status_after_ownership_fix(conn)
+        assert first == 1
+        assert second == 0
+    finally:
+        conn.close()

@@ -2477,6 +2477,66 @@ def run_integrity_audit(conn: sqlite3.Connection) -> list[dict]:
     return findings
 
 
+def _restore_bank_status_after_ownership_fix(conn: sqlite3.Connection) -> int:
+    """One-shot data migration: patch report_rows that were silently
+    downgraded to bank_status='CHYBÍ' by the old ownership mechanism.
+
+    Targets rows whose batch_ref has a current bank match in
+    payout_batch_bank_matches. Bypasses _assert_report_month_mutable
+    deliberately — this is a corrective rewrite of stored history. The
+    WHERE clause makes it idempotent: once a row is restored to DORAZILO
+    it no longer matches.
+
+    Also clears matching pending_payments rows since a row that resolves
+    to DORAZILO no longer belongs in pending.
+    """
+    cursor = conn.execute("""
+        SELECT rr.id, rr.slug, rr.year, rr.month, rr.confirmation_code, rr.data,
+               pbm.tx_key, pbm.matched_amount_czk,
+               bt.datum AS bank_datum
+        FROM report_rows rr
+        JOIN payout_batch_bank_matches pbm
+          ON json_extract(rr.data, '$.batch_ref') = pbm.batch_ref
+         AND pbm.channel = 'airbnb'
+        LEFT JOIN bank_transactions bt
+          ON bt.tx_key = pbm.tx_key AND bt.channel = 'airbnb'
+        WHERE json_extract(rr.data, '$.bank_status') = 'CHYBÍ'
+          AND COALESCE(json_extract(rr.data, '$.batch_ref'), '') <> ''
+    """)
+    restored = 0
+    for r in cursor.fetchall():
+        data = json.loads(r["data"])
+        prev_comment = data.get("verification_comment") or ""
+        data["bank_status"] = "DORAZILO"
+        data["bank_tx_key"] = r["tx_key"]
+        data["bank_amount_czk"] = r["matched_amount_czk"]
+        # bank_datum may be a stored ISO string; format DD.MM.YYYY for UI.
+        try:
+            from datetime import date as _date
+            d = r["bank_datum"]
+            if isinstance(d, str) and len(d) >= 10:
+                d = _date.fromisoformat(d[:10])
+            data["bank_datum"] = d.strftime("%d.%m.%Y") if hasattr(d, "strftime") else (r["bank_datum"] or "")
+        except Exception:
+            data["bank_datum"] = r["bank_datum"] or ""
+        data["verification_comment"] = (
+            f"RECOVERED: bank match restored after ownership fix. {prev_comment}".strip()
+        )
+        conn.execute(
+            "UPDATE report_rows SET data = ? WHERE id = ?",
+            (json.dumps(data, default=str), r["id"]),
+        )
+        conn.execute(
+            """DELETE FROM pending_payments
+               WHERE slug = ? AND confirmation_code = ?""",
+            (r["slug"], r["confirmation_code"]),
+        )
+        restored += 1
+    if restored:
+        conn.commit()
+    return restored
+
+
 # --------------------------------------------------------------------------- #
 #  Accounting entries (Hlavní kniha účet 315)                                   #
 # --------------------------------------------------------------------------- #
