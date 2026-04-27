@@ -19,13 +19,17 @@
         <span class="badge badge-ok"><span class="badge-dot"></span>Otevřeno</span>
       {% endif %}
 
-      {# 2. Client-type badge #}
-      {% if prop.client_type == 'rentero' %}
-        <span class="badge badge-brand">RENTERO</span>
-      {% elif prop.client_type == 'klient' %}
-        <span class="badge badge-info">KLIENT</span>
-      {% else %}
-        <span class="badge badge-mute">Z KLIENTA</span>
+      {# 2. Owner name + role-color dot.
+         Owner from clients.name (real ownership info). The dot color hints at
+         client_type role: brand=rentero (default), info=klient, mute=z_klient. #}
+      {% if client and client.name %}
+        {% set _role_color = 'var(--brand)' if prop.client_type == 'rentero'
+                            else ('var(--info)' if prop.client_type == 'klient'
+                                  else 'var(--text-300)') %}
+        <span class="badge badge-mute" title="{{ prop.client_type|default('rentero')|upper }}">
+          <span class="badge-dot" style="background:{{ _role_color }};box-shadow:0 0 6px {{ _role_color }}"></span>
+          {{ client.name }}
+        </span>
       {% endif %}
 
       {# 3. VAT-payer badge — only shown if the client is registered for VAT #}
