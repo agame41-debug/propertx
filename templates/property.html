@@ -3,6 +3,15 @@
 
 {% block content %}
 {% include "partials/property_styles_property.html" %}
+
+{# Rentero-owned heuristic — single source of truth, available to every
+   partial below via Jinja's inherited scope. Rentero (the company) is
+   itself a VAT payer, so DPH applies on every Rentero-owned object
+   regardless of whether a client row exists. For external clients we
+   defer to client.platce_dph as before. #}
+{% set _is_rentero_owned = (not client) or (not client.name) or (client.name|lower).startswith('rentero') %}
+{% set _is_dph_applicable = _is_rentero_owned or (client and client.platce_dph) %}
+
 <div class="page">
   {% include "partials/property_intro.html" %}
   {% include "partials/property_notify_stack.html" %}
@@ -10,7 +19,7 @@
   {% include "partials/property_kpi.html" %}
   {% include "partials/property_reservations.html" %}
   {% include "partials/property_breakdown.html" %}
-  {% if client and client.platce_dph %}
+  {% if _is_dph_applicable %}
     {% include "partials/property_dph_summary.html" %}
   {% endif %}
   {% include "partials/property_expenses.html" %}

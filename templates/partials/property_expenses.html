@@ -13,7 +13,7 @@
           <span style="opacity:.3;margin:0 5px">·</span>
           <span class="v" style="color:var(--err)">−{{ fmt_czk(summary.expenses_total_czk) }}</span>
         {% endif %}
-        {% if client and client.platce_dph and (summary.vat_input_czk or 0) > 0 %}
+        {% if _is_dph_applicable and (summary.vat_input_czk or 0) > 0 %}
           <span style="opacity:.3;margin:0 5px">·</span>
           <span style="color:var(--dph-text)">DPH&nbsp;+{{ fmt_czk(summary.vat_input_czk) }}</span>
         {% endif %}

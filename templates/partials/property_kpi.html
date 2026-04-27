@@ -1,16 +1,11 @@
 {# 4 KPI cards. Layout is identical for all client_types; first card's content varies:
    - rentero  → "Zisk", sub: "Hrubý zisk" + DPH (always — Rentero is VAT payer)
-   - klient   → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if platce_dph)
-   - z_klient → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if platce_dph)
+   - klient   → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if dph applies)
+   - z_klient → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if dph applies)
    The KPI label is unified ("Zisk") for all roles; meaning shifts with role.
 
-   Rentero-owned heuristic (shared across cards): no client record, no
-   client.name, OR client.name starts with "Rentero" (e.g. "Rentero
-   Investments", "Rentero Home A"). This bypasses the stale
-   report_objects.client_type which defaults to 'rentero' for every
-   property without explicit configuration AND can be set to 'klient'
-   for Rentero-entity clients. #}
-{% set _is_rentero_owned = (not client) or (not client.name) or (client.name|lower).startswith('rentero') %}
+   _is_rentero_owned and _is_dph_applicable are defined in property.html
+   (template-level scope) so all partials see the same flags. #}
 
 <div class="kpi-row">
 
@@ -53,7 +48,7 @@
           <span>Před výdaji</span>
           <span class="v">{{ fmt_czk(summary.client_payout_before_expenses_czk or 0) }}</span>
         </span>
-        {% if client and client.platce_dph %}
+        {% if _is_dph_applicable %}
           <span class="sep">·</span>
           <span class="pair" style="color:var(--dph-text)">
             <span>DPH&nbsp;=</span>
@@ -143,7 +138,7 @@
     <div class="kpi-sub">
       {% if expenses %}
         <span class="pair"><span class="v">{{ expenses|length }}</span><span>položek</span></span>
-        {% if client and client.platce_dph and (summary.vat_input_czk or 0) > 0 %}
+        {% if _is_dph_applicable and (summary.vat_input_czk or 0) > 0 %}
           <span class="sep">·</span>
           <span class="pair" style="color:var(--dph-text)">
             <span>DPH</span>

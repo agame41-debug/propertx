@@ -1,9 +1,16 @@
-{# DPH summary card — only included by property.html when client.platce_dph == 1.
-   Three-column box: vat_output, vat_input, vat_balance.
-   Saldo color and label flip based on sign (refund vs owed). #}
+{# DPH summary card. Included by property.html when _is_dph_applicable
+   (Rentero-owned OR external client with platce_dph=1).
+   Three-column box:
+     výstup (DPH na výstupu, broken down by Rentero fee and Příprava pokoje)
+     vstup  (DPH na vstupu, the deductible from rated expenses)
+     saldo  (= výstup − vstup; refund or debt depending on sign)
+   Saldo color and label flip based on sign. #}
 
 {% set vat_balance = summary.vat_balance_czk or 0 %}
 {% set is_refund = vat_balance < 0 %}
+{% set vat_input_count = summary.vat_input_count or 0 %}
+{% set vat_input_word = 'položka' if vat_input_count == 1
+                        else ('položky' if vat_input_count < 5 else 'položek') %}
 
 <div class="card">
   <div class="card-h">
@@ -17,29 +24,52 @@
   </div>
 
   <div class="dph-box">
+
+    {# ─── Výstup column ─── #}
     <div class="dph-col">
       <div class="dph-k">DPH na výstupu</div>
       <div class="dph-v teal">+&nbsp;{{ fmt_czk(summary.vat_output_czk or 0) }}</div>
-      <div class="dph-hint">
-        Rentero fee&nbsp;&nbsp;<span class="dim">·</span>&nbsp;&nbsp;{{ fmt_czk(summary.vat_rentero_fee_czk or 0) }}<br>
-        Příprava pokoje&nbsp;&nbsp;<span class="dim">·</span>&nbsp;&nbsp;{{ fmt_czk(summary.vat_room_prep_czk or 0) }}
+      <div class="dph-breakdown">
+        <div class="dph-row">
+          <span class="dph-row-k">Rentero fee</span>
+          <span class="dph-row-v">+&nbsp;{{ fmt_czk(summary.vat_rentero_fee_czk or 0) }}</span>
+        </div>
+        <div class="dph-row">
+          <span class="dph-row-k">Příprava pokoje</span>
+          <span class="dph-row-v">+&nbsp;{{ fmt_czk(summary.vat_room_prep_czk or 0) }}</span>
+        </div>
       </div>
     </div>
 
+    {# ─── Vstup column ─── #}
     <div class="dph-col">
       <div class="dph-k">DPH na vstupu (odpočet)</div>
       <div class="dph-v teal">−&nbsp;{{ fmt_czk(summary.vat_input_czk or 0) }}</div>
-      <div class="dph-hint">
-        Z výdajů (sub-nájem, energie, služby…)<br>
-        {{ summary.vat_input_count or 0 }} {% if (summary.vat_input_count or 0) == 1 %}položka{% elif (summary.vat_input_count or 0) < 5 %}položky{% else %}položek{% endif %} s&nbsp;DPH
+      <div class="dph-breakdown">
+        <div class="dph-row">
+          <span class="dph-row-k">Z výdajů s DPH</span>
+          <span class="dph-row-v">−&nbsp;{{ fmt_czk(summary.vat_input_czk or 0) }}</span>
+        </div>
+        <div class="dph-row">
+          <span class="dph-row-k dim">{{ vat_input_count }} {{ vat_input_word }}</span>
+        </div>
       </div>
     </div>
 
+    {# ─── Saldo column ─── #}
     <div class="dph-col dph-col-result">
       <div class="dph-k">{% if is_refund %}Nadměrný odpočet{% else %}K odvedení státu{% endif %}</div>
       <div class="dph-v {% if is_refund %}ok{% else %}neg{% endif %}">
         {% if is_refund %}+{% else %}−{% endif %}&nbsp;{{ fmt_czk(vat_balance|abs) }}
       </div>
+      <div class="dph-breakdown">
+        <div class="dph-row">
+          <span class="dph-row-k dim">
+            {% if is_refund %}stát vrátí na účet{% else %}odvést finančnímu úřadu{% endif %}
+          </span>
+        </div>
+      </div>
     </div>
+
   </div>
 </div>

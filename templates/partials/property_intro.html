@@ -22,10 +22,10 @@
       {# 2. Owner badge + role-color dot.
          External clients: show client.name (with role color). Rentero objects
          (no client row, empty name, OR name starts with "Rentero"): show a
-         RENTERO / RENTERO INVESTMENTS / RENTERO HOME badge based on sub-entity. #}
+         RENTERO / RENTERO INVESTMENTS / RENTERO HOME badge based on sub-entity.
+         Reuses _is_rentero_owned from property.html for consistency. #}
       {% set _name_lower = (client.name|lower) if client and client.name else '' %}
-      {% set _is_rentero = (not client) or (not client.name) or _name_lower.startswith('rentero') %}
-      {% if _is_rentero %}
+      {% if _is_rentero_owned %}
         {% set _rentero_label = 'RENTERO INVESTMENTS' if 'investments' in _name_lower
                                 else ('RENTERO HOME' if 'home' in _name_lower
                                       else 'RENTERO') %}
@@ -42,8 +42,9 @@
         </span>
       {% endif %}
 
-      {# 3. VAT-payer badge — only shown if the client is registered for VAT #}
-      {% if client and client.platce_dph %}
+      {# 3. VAT-payer badge — shown when DPH applies on this object
+         (Rentero-owned, OR external client with platce_dph). #}
+      {% if _is_dph_applicable %}
         <span class="badge badge-dph">Plátce DPH</span>
       {% endif %}
     </div>
