@@ -19,13 +19,23 @@
         <span class="badge badge-ok"><span class="badge-dot"></span>Otevřeno</span>
       {% endif %}
 
-      {# 2. Owner name + role-color dot.
-         Owner from clients.name (real ownership info). The dot color hints at
-         client_type role: brand=rentero (default), info=klient, mute=z_klient. #}
-      {% if client and client.name %}
-        {% set _role_color = 'var(--brand)' if prop.client_type == 'rentero'
-                            else ('var(--info)' if prop.client_type == 'klient'
-                                  else 'var(--text-300)') %}
+      {# 2. Owner badge + role-color dot.
+         External clients: show client.name (with role color). Rentero objects
+         (no client row, empty name, OR name starts with "Rentero"): show a
+         RENTERO / RENTERO INVESTMENTS / RENTERO HOME badge based on sub-entity. #}
+      {% set _name_lower = (client.name|lower) if client and client.name else '' %}
+      {% set _is_rentero = (not client) or (not client.name) or _name_lower.startswith('rentero') %}
+      {% if _is_rentero %}
+        {% set _rentero_label = 'RENTERO INVESTMENTS' if 'investments' in _name_lower
+                                else ('RENTERO HOME' if 'home' in _name_lower
+                                      else 'RENTERO') %}
+        <span class="badge badge-mute" title="RENTERO-owned object">
+          <span class="badge-dot" style="background:var(--brand);box-shadow:0 0 6px var(--brand)"></span>
+          {{ _rentero_label }}
+        </span>
+      {% elif client and client.name %}
+        {% set _role_color = 'var(--info)' if prop.client_type == 'klient'
+                                            else 'var(--text-300)' %}
         <span class="badge badge-mute" title="{{ prop.client_type|default('rentero')|upper }}">
           <span class="badge-dot" style="background:{{ _role_color }};box-shadow:0 0 6px {{ _role_color }}"></span>
           {{ client.name }}
