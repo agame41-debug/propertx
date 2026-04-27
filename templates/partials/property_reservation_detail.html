@@ -110,7 +110,7 @@
             data-year="{{ year }}"
             data-month="{{ month }}"
             data-guest="{{ r.guest_name|default('') }}"
-            data-channel="{{ r.source|default('') }}">Otevřít panel →</button>
+            data-channel="{{ (r.source or '')|lower }}">Otevřít panel →</button>
   </div>
 
   {# ── Inline override-form, hidden by default; toggled by Úprava ── #}

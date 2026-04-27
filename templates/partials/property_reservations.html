@@ -47,7 +47,7 @@
         <tr class="rs-row{% if r.is_excluded %} rs-row-muted{% endif %}{% if r.is_payout_adjustment %} rs-row-child{% endif %}"
             data-code="{{ r.confirmation_code }}"
             data-status="{{ r._mock_status }}"
-            data-channel="{{ r.source|default('') }}"
+            data-channel="{{ (r.source or '')|lower }}"
             data-payout="{{ r.payout_czk or 0 }}"
             data-ubyt="{{ r.cena_ubytovani_czk or 0 }}"
             data-nights="{{ r.nights or 0 }}">
@@ -55,14 +55,15 @@
           <td class="rs-idx">{{ '%02d'|format(loop.index) }}</td>
 
           <td class="c">
-            {% if r.source == 'airbnb' %}
+            {% set _src = (r.source or '')|lower %}
+            {% if _src.startswith('airbnb') %}
               <span class="ch-logo ch-logo-airbnb" title="Airbnb">
                 <svg width="16" height="16" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M16 5.2c-1.4 0-2.6.85-3.35 2.4L4.95 22.5c-.55 1.1-.85 2.05-.85 2.95 0 2.4 1.85 4.15 4.3 4.15 1.4 0 2.7-.6 4.05-1.85L16 25l3.55 2.75c1.35 1.25 2.65 1.85 4.05 1.85 2.45 0 4.3-1.75 4.3-4.15 0-.9-.3-1.85-.85-2.95L19.35 7.6c-.75-1.55-1.95-2.4-3.35-2.4z"/>
                   <path d="M11.5 19.4c0-1.05.85-1.9 1.9-1.9h5.2c1.05 0 1.9.85 1.9 1.9 0 .65-.35 1.2-.75 1.7L16 26l-3.75-4.9c-.4-.5-.75-1.05-.75-1.7z"/>
                 </svg>
               </span>
-            {% elif r.source == 'booking' %}
+            {% elif _src.startswith('booking') %}
               <span class="ch-logo ch-logo-booking" title="Booking.com">
                 <svg width="16" height="16" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M9 6.5v17"/><path d="M9 6.5h6.2c2.7 0 4.4 1.5 4.4 3.7 0 2.2-1.7 3.7-4.4 3.7H9"/>
