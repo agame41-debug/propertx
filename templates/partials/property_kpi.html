@@ -72,29 +72,52 @@
     </div>
   </div>
 
-  {# ── KPI 3: Rentero fee ────────────────────────────────── #}
-  <div class="kpi kpi-err">
-    <div class="kpi-label">
-      {% if prop.client_type == 'z_klient' %}
-        Odměna Rentero (3 %)
-      {% else %}
-        Rentero fee ({{ '%.0f'|format((summary.rentero_commission_rate or 0) * 100) }} %)
-      {% endif %}
-    </div>
-    <div class="kpi-value neg" data-copy="{{ '%.2f'|format((summary.rentero_fee_czk or 0) + (summary.vat_rentero_fee_czk or 0)) }}">
-      −{{ fmt_czk((summary.rentero_fee_czk or 0) + (summary.vat_rentero_fee_czk or 0)) }}
-    </div>
-    <div class="kpi-sub">
-      <span class="pair"><span>Net</span><span class="v">−{{ fmt_czk(summary.rentero_fee_czk or 0) }}</span></span>
-      {% if (summary.vat_rentero_fee_czk or 0) > 0 %}
-        <span class="sep">·</span>
-        <span class="pair" style="color:var(--dph-text)">
-          <span>DPH</span>
-          <span class="v">−{{ fmt_czk(summary.vat_rentero_fee_czk) }}</span>
+  {# ── KPI 3: Výplata Rentero (klient/z_klient) / Rentero fee (rentero) ──
+     For external clients the cash flowing to Rentero on this object is
+     odměna + výdaje (client reimburses expenses through Rentero), so the
+     headline number is rentero_vyplata_czk. The sub-row breaks it down
+     into Odměna (commission with DPH) and Výdaje (expenses passed
+     through). For Rentero-owned objects there's no commission to charge,
+     so we keep the legacy display. #}
+  {% if prop.client_type in ('klient', 'z_klient') %}
+    {% set _rentero_pct = '3' if prop.client_type == 'z_klient' else '%.0f'|format((summary.rentero_commission_rate or 0) * 100) %}
+    <div class="kpi kpi-err">
+      <div class="kpi-label">Výplata Rentero ({{ _rentero_pct }} % + výdaje)</div>
+      <div class="kpi-value neg" data-copy="{{ '%.2f'|format(summary.rentero_vyplata_czk or 0) }}">
+        −{{ fmt_czk(summary.rentero_vyplata_czk or 0) }}
+      </div>
+      <div class="kpi-sub">
+        <span class="pair">
+          <span>Odměna</span>
+          <span class="v">−{{ fmt_czk(summary.rentero_odmena_czk or 0) }}</span>
         </span>
-      {% endif %}
+        {% if (summary.expenses_total_czk or 0) > 0 %}
+          <span class="sep">·</span>
+          <span class="pair">
+            <span>Výdaje</span>
+            <span class="v">−{{ fmt_czk(summary.expenses_total_czk) }}</span>
+          </span>
+        {% endif %}
+      </div>
     </div>
-  </div>
+  {% else %}
+    <div class="kpi kpi-err">
+      <div class="kpi-label">Rentero fee ({{ '%.0f'|format((summary.rentero_commission_rate or 0) * 100) }} %)</div>
+      <div class="kpi-value neg" data-copy="{{ '%.2f'|format((summary.rentero_fee_czk or 0) + (summary.vat_rentero_fee_czk or 0)) }}">
+        −{{ fmt_czk((summary.rentero_fee_czk or 0) + (summary.vat_rentero_fee_czk or 0)) }}
+      </div>
+      <div class="kpi-sub">
+        <span class="pair"><span>Net</span><span class="v">−{{ fmt_czk(summary.rentero_fee_czk or 0) }}</span></span>
+        {% if (summary.vat_rentero_fee_czk or 0) > 0 %}
+          <span class="sep">·</span>
+          <span class="pair" style="color:var(--dph-text)">
+            <span>DPH</span>
+            <span class="v">−{{ fmt_czk(summary.vat_rentero_fee_czk) }}</span>
+          </span>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
 
   {# ── KPI 4: Výdaje ────────────────────────────────────── #}
   <div class="kpi {% if summary.expenses_total_czk %}kpi-warn{% else %}kpi-mute{% endif %}">

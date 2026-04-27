@@ -72,3 +72,33 @@ def test_expenses_net_total_uses_amount_net_czk_when_present():
     ]
     s = build_report_summary([_row()], _rentero_config(), expenses=expenses)
     assert s["expenses_net_total_czk"] == 600.0  # 100 + 500
+
+
+def test_rentero_odmena_equals_fee_plus_dph():
+    s = build_report_summary([_row()], _klient_config(), expenses=[_expense()])
+    expected = round(s["rentero_fee_czk"] + s["vat_rentero_fee_czk"], 2)
+    assert s["rentero_odmena_czk"] == expected
+
+
+def test_rentero_vyplata_includes_expenses():
+    expenses = [_expense(gross=1210, dph=210, rate=0.21), _expense(gross=500, dph=0, rate=0.0)]
+    s = build_report_summary([_row()], _klient_config(), expenses=expenses)
+    expected = round(s["rentero_odmena_czk"] + s["expenses_total_czk"], 2)
+    assert s["rentero_vyplata_czk"] == expected
+    # And expenses_total IS the bump from odmena to vyplata
+    assert round(s["rentero_vyplata_czk"] - s["rentero_odmena_czk"], 2) == s["expenses_total_czk"]
+
+
+def test_rentero_vyplata_equals_odmena_when_no_expenses():
+    s = build_report_summary([_row()], _klient_config(), expenses=[])
+    assert s["rentero_vyplata_czk"] == s["rentero_odmena_czk"]
+    assert s["expenses_total_czk"] == 0.0
+
+
+def test_rentero_odmena_vyplata_present_for_rentero_owned_too():
+    # On rentero-owned objects the fields are still defined (the template
+    # uses different KPI rendering, but downstream consumers should not
+    # have to special-case the dict shape).
+    s = build_report_summary([_row()], _rentero_config(), expenses=[_expense()])
+    assert "rentero_odmena_czk" in s
+    assert "rentero_vyplata_czk" in s

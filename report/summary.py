@@ -140,6 +140,18 @@ def build_report_summary(
         for e in expenses
     ))
 
+    # Rentero's payout model on klient/z_klient objects:
+    #   odměna  = commission charged to the client (gross, including its DPH)
+    #   výplata = odměna + expenses; the client reimburses property expenses
+    #             through Rentero, so the cash actually flowing to Rentero's
+    #             account on these objects is provize + výdaje.
+    result["rentero_odmena_czk"] = _r(
+        result["rentero_fee_czk"] + result["vat_rentero_fee_czk"]
+    )
+    result["rentero_vyplata_czk"] = _r(
+        result["rentero_odmena_czk"] + result["expenses_total_czk"]
+    )
+
     # Zisk — Rentero's residual margin. Only meaningful when the property is
     # Rentero-owned; for klient/z_klient the equivalent KPI is
     # client_payout_after_expenses_czk (which is already in the dict).

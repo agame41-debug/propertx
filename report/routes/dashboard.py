@@ -320,8 +320,33 @@ def register(app, state) -> None:
             row["client_type"] = client_type_map.get(row["slug"], "rentero")
             row["is_rentero"] = row["client_type"] == "rentero"
 
-        # Recalculate client payout and net profit
+        # Per-property expense totals for the current month, fetched in a
+        # single SQL aggregation so we don't pay per-row queries.
         cur_y, cur_m = months[-1]
+        slug_to_expenses_total: dict[str, float] = {}
+        if dashboard_rows:
+            slug_list = [r["slug"] for r in dashboard_rows]
+            ph = ",".join("?" * len(slug_list))
+            for row in conn.execute(
+                f"SELECT property_slug, COALESCE(SUM(amount_czk), 0) AS s "
+                f"FROM expenses WHERE property_slug IN ({ph}) "
+                f"AND year=? AND month=? GROUP BY property_slug",
+                [*slug_list, cur_y, cur_m],
+            ).fetchall():
+                slug_to_expenses_total[row["property_slug"]] = float(row["s"] or 0)
+
+        # Attach expenses_sum_czk to the current-month cell so the template
+        # can emit it as a data attribute and JS can aggregate on filter.
+        for row in dashboard_rows:
+            for cell in row.get("cells", []):
+                if cell.get("year") == cur_y and cell.get("month") == cur_m:
+                    cell["expenses_sum_czk"] = slug_to_expenses_total.get(row["slug"], 0.0)
+                    break
+
+        # Recalculate client payout and net profit.
+        # New model for klient/z_klient: net_profit (= "Výplata Rentero")
+        # is provize + výdaje, since clients reimburse expenses through
+        # Rentero. Rentero-owned objects keep the legacy cena_ubyt model.
         client_payout_total = 0.0
         net_profit = 0.0
         for row in dashboard_rows:
@@ -330,15 +355,13 @@ def register(app, state) -> None:
                     cena_ubyt = cell.get("cena_ubytovani_sum_czk", 0) or 0
                     client_payout = cell.get("client_payout_sum_czk", 0) or 0
                     rentero_fee = cell.get("rentero_fee_sum_czk", 0) or 0
+                    expenses_sum = cell.get("expenses_sum_czk", 0) or 0
                     ct = row["client_type"]
                     if ct == "rentero":
                         net_profit += cena_ubyt
-                    elif ct == "z_klient":
-                        client_payout_total += client_payout
-                        net_profit += rentero_fee
                     else:
                         client_payout_total += client_payout
-                        net_profit += rentero_fee
+                        net_profit += rentero_fee + expenses_sum
                     break
         dashboard_summary["total_client_payout_czk"] = client_payout_total
         dashboard_summary["total_net_profit_czk"] = round(net_profit, 2)

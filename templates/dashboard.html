@@ -180,6 +180,7 @@
      data-provize="{{ provize }}"
      data-client-payout="{{ client_payout }}"
      data-rentero-fee="{{ cur_cell.rentero_fee_sum_czk|default(0) if cur_cell else 0 }}"
+     data-expenses="{{ cur_cell.expenses_sum_czk|default(0) if cur_cell else 0 }}"
      data-rez="{{ rez_count }}"
      data-rez-prev="{{ rez_prev }}"
      data-has-data="{{ has_data }}"
@@ -333,7 +334,9 @@ function _applyFilters() {
     }
   }
 
-  // Net profit: rentero=cena_ubyt, klient/z_klient=rentero_fee
+  // Net profit: rentero=cena_ubyt, klient/z_klient=rentero_fee + expenses
+  // (clients reimburse property expenses through Rentero, so the cash
+  // flowing to Rentero on those objects is provize + výdaje).
   var totalProfit = 0;
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
     if (row.style.getPropertyValue('display') === 'none') return;
@@ -341,7 +344,8 @@ function _applyFilters() {
     if (ct === 'rentero') {
       totalProfit += parseFloat(row.dataset.cenaUbyt) || 0;
     } else {
-      totalProfit += parseFloat(row.dataset.renteroFee) || 0;
+      totalProfit += (parseFloat(row.dataset.renteroFee) || 0)
+                   + (parseFloat(row.dataset.expenses)   || 0);
     }
   });
   var kpiProfit = document.getElementById('kpi-profit');
