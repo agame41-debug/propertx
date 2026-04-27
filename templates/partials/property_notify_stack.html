@@ -22,14 +22,6 @@
   </div>
 {% endif %}
 
-{# 2. Locked-month warning #}
-{% if month_state.status == 'LOCKED' %}
-  <div class="notify notify-warn" style="margin-top:12px">
-    <strong>Měsíc je uzamčen.</strong>
-    Změny v rezervacích a výdajích nejsou možné, dokud nebude odemčen.
-  </div>
-{% endif %}
-
 {# 3. New data available #}
 {% if month_state.has_new_data_since_generation %}
   <div class="notify notify-warn" style="margin-top:12px">
