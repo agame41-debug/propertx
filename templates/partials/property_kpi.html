@@ -1,7 +1,7 @@
 {# 4 KPI cards. Layout is identical for all client_types; first card's content varies:
-   - rentero  → "Zisk" with vat_balance sub-row (only if platce_dph)
-   - klient   → "Zisk" = client_payout_after_expenses_czk, sub: "Před výdaji"
-   - z_klient → "Zisk" = client_payout_after_expenses_czk, sub: "Před výdaji"
+   - rentero  → "Zisk", sub: "Hrubý zisk" + DPH (always — Rentero is VAT payer)
+   - klient   → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if platce_dph) + bank
+   - z_klient → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if platce_dph) + bank
    The KPI label is unified ("Zisk") for all roles; meaning shifts with role. #}
 
 <div class="kpi-row">
@@ -24,13 +24,13 @@
           <span>Hrubý zisk</span>
           <span class="v">{{ fmt_czk((summary.gross_payout_czk or 0) - (summary.expenses_total_czk or 0)) }}</span>
         </span>
-        {% if client and client.platce_dph %}
-          <span class="sep">·</span>
-          <span class="pair" style="color:var(--dph-text)">
-            <span>DPH&nbsp;=</span>
-            <span class="v">{% if (summary.vat_balance_czk or 0) < 0 %}+{% else %}−{% endif %}{{ fmt_czk((summary.vat_balance_czk or 0)|abs) }}</span>
-          </span>
-        {% endif %}
+        {# Rentero is itself a VAT payer, so DPH balance is always relevant on
+           rentero-owned objects regardless of whether a client row exists. #}
+        <span class="sep">·</span>
+        <span class="pair" style="color:var(--dph-text)">
+          <span>DPH&nbsp;=</span>
+          <span class="v">{% if (summary.vat_balance_czk or 0) < 0 %}+{% else %}−{% endif %}{{ fmt_czk((summary.vat_balance_czk or 0)|abs) }}</span>
+        </span>
       </div>
     {% else %}
       <div class="kpi-value ok" data-copy="{{ '%.2f'|format(summary.client_payout_after_expenses_czk or 0) }}">
@@ -41,6 +41,13 @@
           <span>Před výdaji</span>
           <span class="v">{{ fmt_czk(summary.client_payout_before_expenses_czk or 0) }}</span>
         </span>
+        {% if client and client.platce_dph %}
+          <span class="sep">·</span>
+          <span class="pair" style="color:var(--dph-text)">
+            <span>DPH&nbsp;=</span>
+            <span class="v">{% if (summary.vat_balance_czk or 0) < 0 %}+{% else %}−{% endif %}{{ fmt_czk((summary.vat_balance_czk or 0)|abs) }}</span>
+          </span>
+        {% endif %}
         {% if client and client.bank_account %}
           <span class="sep">·</span>
           <span class="pair" title="{{ client.bank_account }}">

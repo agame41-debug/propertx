@@ -108,7 +108,7 @@
 .month-nav {
   display: inline-flex; align-items: center;
   background: var(--bg-2); border: 1px solid var(--line-1);
-  border-radius: var(--radius-full); padding: 2px;
+  border-radius: 9999px; padding: 2px;
   font-family: var(--font-mono);
 }
 .month-nav button {
@@ -312,15 +312,11 @@
    ═══════════════════════════════════════════════════ */
 .card {
   background: var(--bg-2); border: 1px solid var(--line-1);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm), var(--glass-hi);
   overflow: hidden;
   margin-top: 16px;
 }
-/* Softer corners for cards that wrap a table (reservations, breakdown,
-   expenses, override-history). Other cards (DPH summary, etc.) keep the
-   default --radius-lg. */
-.card:has(.t) { border-radius: var(--radius-xl); }
 .card-h {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 14px 18px;
@@ -404,13 +400,13 @@
   display: inline-flex; gap: 2px; padding: 3px;
   background: oklch(0 0 0 / .22);
   border: 1px solid var(--line-1);
-  border-radius: var(--radius-full);
+  border-radius: 9999px;
 }
 [data-theme="light"] .rs-filters { background: oklch(0 0 0 / .035); }
 .rs-filter {
   background: transparent; border: 0; cursor: pointer;
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 5px 12px; border-radius: var(--radius-full);
+  padding: 5px 12px; border-radius: 9999px;
   font-family: var(--font-mono); font-size: 10px; font-weight: 600;
   letter-spacing: .08em; text-transform: uppercase;
   color: var(--text-300);

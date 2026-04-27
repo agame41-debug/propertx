@@ -1,5 +1,5 @@
 {# DPH summary card — only included by property.html when client.platce_dph == 1.
-   Three-column box: vat_output | − | vat_input | = | vat_balance.
+   Three-column box: vat_output, vat_input, vat_balance.
    Saldo color and label flip based on sign (refund vs owed). #}
 
 {% set vat_balance = summary.vat_balance_czk or 0 %}
@@ -26,8 +26,6 @@
       </div>
     </div>
 
-    <div class="dph-op">−</div>
-
     <div class="dph-col">
       <div class="dph-k">DPH na vstupu (odpočet)</div>
       <div class="dph-v teal">−&nbsp;{{ fmt_czk(summary.vat_input_czk or 0) }}</div>
@@ -36,8 +34,6 @@
         {{ summary.vat_input_count or 0 }} {% if (summary.vat_input_count or 0) == 1 %}položka{% elif (summary.vat_input_count or 0) < 5 %}položky{% else %}položek{% endif %} s&nbsp;DPH
       </div>
     </div>
-
-    <div class="dph-op">=</div>
 
     <div class="dph-col dph-col-result">
       <div class="dph-k">{% if is_refund %}Nadměrný odpočet{% else %}K odvedení státu{% endif %}</div>
