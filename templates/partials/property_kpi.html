@@ -6,9 +6,9 @@
 
 <div class="kpi-row">
 
-  {# ── KPI 1: Zisk ────────────────────────────────────────── #}
-  <div class="kpi kpi-ok kpi-zisk">
-    <div class="kpi-label">Zisk</div>
+  {# ── KPI 1: Zisk (rentero) / Klientovi bude vyplaceno (klient, z_klient) ─ #}
+  <div class="kpi kpi-ok{% if prop.client_type == 'rentero' %} kpi-zisk{% endif %}">
+    <div class="kpi-label">{% if prop.client_type == 'rentero' %}Zisk{% else %}Klientovi bude vyplaceno{% endif %}</div>
     {% if prop.client_type == 'rentero' %}
       <div class="kpi-value ok" data-copy="{{ '%.2f'|format(summary.zisk_czk or 0) }}">
         {{ fmt_czk(summary.zisk_czk or 0) }}
