@@ -18,8 +18,18 @@
   <div class="kpi kpi-ok{% if _is_rentero_owned %} kpi-zisk{% endif %}">
     <div class="kpi-label">{% if _is_rentero_owned %}Zisk{% else %}Klientovi bude vyplaceno{% endif %}</div>
     {% if _is_rentero_owned %}
-      <div class="kpi-value ok" data-copy="{{ '%.2f'|format(summary.zisk_czk or 0) }}">
-        {{ fmt_czk(summary.zisk_czk or 0) }}
+      {# Fallback: summary.zisk_czk is only set when client_type='rentero'
+         in the report_objects table. Some Rentero-owned properties are
+         tagged as z_klient there (e.g. Opletalova_10 → Rentero
+         Investments) for fee-calculation reasons but should still show
+         zisk in the UI. The formula is identical and well-defined for
+         any Rentero-owned object. #}
+      {% set _zisk = summary.zisk_czk if summary.zisk_czk is not none
+                     else ((summary.gross_payout_czk or 0)
+                           - (summary.expenses_total_czk or 0)
+                           - (summary.vat_balance_czk or 0)) %}
+      <div class="kpi-value ok" data-copy="{{ '%.2f'|format(_zisk) }}">
+        {{ fmt_czk(_zisk) }}
       </div>
       <div class="kpi-sub">
         <span class="pair">
