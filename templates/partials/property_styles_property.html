@@ -1185,40 +1185,41 @@
   .ph-title { font-size: 22px; }
   .ph-title-row { flex-direction: column; }
 
-  /* ── Action row: 2-column grid for secondary actions (Změny, Checkin
-     report). Primary action (Odemknout/Uzamknout) stretches full-width
-     on its own row with a slightly raised treatment. ── */
+  /* ── Action row: compact horizontal strip. These actions (Změny,
+     Checkin report, Odemknout/Uzamknout) are used rarely — they should
+     read as quiet utility, not as primary CTAs. Equal-width segments,
+     all same ghost styling, no primary highlight. Horizontal scroll as
+     fallback for narrower viewports. ── */
   .ph-actions {
     width: 100%;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    padding-top: 4px;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding-top: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
+  .ph-actions::-webkit-scrollbar { display: none; }
+  .ph-actions > .btn,
+  .ph-actions > form { flex: 1 1 0; min-width: 0; }
+  .ph-actions > form { display: block; }
   .ph-actions > .btn,
   .ph-actions > form > .btn {
     width: 100%;
     justify-content: center;
-    padding: 9px 12px;
-    font-size: 12.5px;
-    min-height: 38px;
-  }
-  .ph-actions > form { grid-column: 1 / -1; display: block; }
-  .ph-actions .is-primary {
-    background: var(--bg-3);
-    border-color: var(--line-2);
-    color: var(--text-100);
-    font-weight: 600;
-    padding: 11px 14px;
-    min-height: 42px;
+    padding: 7px 10px;
+    font-size: 12px;
+    min-height: 34px;
   }
 
-  /* ── KPI cards: 2×2 grid. Bumped value size (22px) and tightened
-     padding to match the dashboard's mobile rhythm. Sub-line wraps with
-     each label/value pair on its own row to avoid the old truncation
-     of "Před výdaji 18 474,23 K›". ── */
-  .kpi-row { grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
-  .kpi { padding: 14px 14px 12px; border-radius: 14px; }
+  /* ── KPI cards: 2×2 grid. Density matched to the dashboard's mobile
+     rhythm (gap 8, radius 12, ~20px value), slightly looser than the
+     dashboard's 16px so the property page — which carries denser
+     numerical context per card — stays scannable. Sub-line wraps with
+     each label/value pair on its own row. ── */
+  .kpi-row { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .kpi { padding: 12px 12px 10px; border-radius: 12px; }
   .kpi-label {
     font-size: 9.5px;
     letter-spacing: 0.06em;
@@ -1226,24 +1227,24 @@
     color: var(--text-300);
   }
   .kpi-value {
-    font-size: 22px;
-    margin-top: 8px;
+    font-size: 20px;
+    margin-top: 6px;
     line-height: 1.05;
     letter-spacing: -0.025em;
   }
   /* Empty Výdaje (.kpi-mute with "—") shouldn't punch a hole in the grid;
      dim the dash so the card reads "intentionally quiet", not broken. */
   .kpi-mute .kpi-value {
-    font-size: 18px;
+    font-size: 17px;
     color: var(--text-300);
   }
   .kpi-sub {
-    margin-top: 8px;
+    margin-top: 6px;
     font-size: 10.5px;
     flex-wrap: wrap;
     overflow: visible;
-    gap: 3px 0;
-    line-height: 1.4;
+    gap: 2px 0;
+    line-height: 1.35;
   }
   /* Each "label · value" pair becomes its own row across the card */
   .kpi-sub .pair {
@@ -1257,8 +1258,8 @@
   .kpi-sub .pair > span:first-child { opacity: 0.85; }
   /* Visual "·" separators are meaningless once pairs are on separate rows */
   .kpi-sub .sep { display: none; }
-  /* Compact the green zisk glow so it ambient-tints rather than dominates */
-  .kpi-zisk::before { width: 80px; height: 80px; top: -20px; right: -20px; }
+  /* Compact the green zisk glow further so it stays ambient at this density */
+  .kpi-zisk::before { width: 60px; height: 60px; top: -16px; right: -16px; }
 
   /* ── Card header: stack title-meta on top, segmented filter strip
      below. The previous flex-row layout caused "7 aktivních · 23 nocí"
@@ -1332,9 +1333,15 @@
   /* Reservation table → card-list. Structure preserved (data-mobile-label
      pseudo-elements still drive POBYT/VÝPLATA/STAV labels), but typo and
      spacing tightened so each card reads with clear hierarchy: guest name
-     (heaviest), payout figure (loud), labels (whisper). */
+     (heaviest), payout figure (loud), labels (whisper).
+
+     IMPORTANT: the broad selector excludes tr.rs-ex on purpose. Selecting
+     all `.rs-table tr` would lift specificity to (0,1,1) and force
+     `display: block` even when the rs-ex detail row carries the [hidden]
+     attribute (UA `[hidden] { display: none }` has only (0,1,0)). The
+     dedicated rules below set rs-ex display only when not hidden. */
   .rs-table thead { display: none; }
-  .rs-table, .rs-table tbody, .rs-table tr, .rs-table td {
+  .rs-table, .rs-table tbody, .rs-table tr.rs-row, .rs-table td {
     display: block;
     width: 100%;
     box-sizing: border-box;
