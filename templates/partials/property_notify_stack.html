@@ -3,7 +3,16 @@
    The .notify, .notify-error, .notify-info, .notify-success, .notify-warn classes
    come from base_styles_components.html and are reused as-is. #}
 
-{# 1. Generation FAILED #}
+{# 1. Integrity warnings (duplicate reservations across reports) — highest severity #}
+{% if summary and summary.integrity_warnings %}
+  <div class="notify notify-error" style="margin-top:12px">
+    <strong>Pozor: nalezeny duplicitní rezervace v reportu ({{ summary.integrity_warnings|length }})</strong>
+    <div style="font-size:12px;margin-top:4px">{{ summary.integrity_warnings|join(', ') }}</div>
+    <a href="/admin/integrity" style="display:inline-block;margin-top:6px;font-size:13px;text-decoration:underline">Detail</a>
+  </div>
+{% endif %}
+
+{# 2. Generation FAILED #}
 {% if generation_job and generation_job.status == 'FAILED' %}
   <div class="notify notify-error" style="margin-top:16px">
     <strong>Generace selhala.</strong>
