@@ -2,12 +2,21 @@
 {% block title %}{{ prop.display_name or prop.listing_nickname }} {{ "%02d/%d"|format(month, year) }} — Rentero{% endblock %}
 
 {% block content %}
-{# ── Macros ──────────────────────────────────────────────────────────────── #}
-{% macro money(value) -%}{{ fmt_czk(value) }}{%- endmacro %}
-{% include "partials/property_intro.html" %}
-{% include "partials/property_reservations.html" %}
-{% include "partials/property_expenses.html" %}
-{% include "partials/property_override_history.html" %}
+{% include "partials/property_styles_property.html" %}
+<div class="page">
+  {% include "partials/property_intro.html" %}
+  {% include "partials/property_notify_stack.html" %}
+  {% include "partials/property_generation_progress.html" %}
+  {% include "partials/property_kpi.html" %}
+  {% include "partials/property_reservations.html" %}
+  {% include "partials/property_breakdown.html" %}
+  {% if client and client.platce_dph %}
+    {% include "partials/property_dph_summary.html" %}
+  {% endif %}
+  {% include "partials/property_expenses.html" %}
+  {% if override_events %}
+    {% include "partials/property_override_history.html" %}
+  {% endif %}
+</div>
 {% include "partials/property_scripts.html" %}
-
 {% endblock %}
