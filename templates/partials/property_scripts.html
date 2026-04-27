@@ -364,6 +364,90 @@
   }
 
   // ─────────────────────────────────────────────────────────────
+  // Reservation mutating actions: exclude / reinstate / move / move-revert
+  // Reuse the CSRF token already rendered in any other form on the page,
+  // build a transient <form>, and submit. After redirect-back the page
+  // re-renders with the new state (handler does its own regen + flash).
+  // ─────────────────────────────────────────────────────────────
+  function _csrfToken() {
+    var input = document.querySelector('input[name="csrf_token"]');
+    return input ? input.value : '';
+  }
+
+  function _submitAction(url, fields) {
+    var f = document.createElement('form');
+    f.method = 'post';
+    f.action = url;
+    f.style.display = 'none';
+    var token = _csrfToken();
+    if (token) {
+      var csrf = document.createElement('input');
+      csrf.type = 'hidden';
+      csrf.name = 'csrf_token';
+      csrf.value = token;
+      f.appendChild(csrf);
+    }
+    Object.keys(fields || {}).forEach(function(k) {
+      var i = document.createElement('input');
+      i.type = 'hidden';
+      i.name = k;
+      i.value = fields[k];
+      f.appendChild(i);
+    });
+    document.body.appendChild(f);
+    f.submit();
+  }
+
+  function _resBaseUrl(code) {
+    return '/property/' + encodeURIComponent(SLUG) + '/' + YEAR + '/' + MONTH +
+           '/reservation/' + encodeURIComponent(code);
+  }
+
+  document.querySelectorAll('[data-action="exclude"]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var code = btn.getAttribute('data-code');
+      if (!confirm('Vyřadit rezervaci ' + code + ' z výpočtu?')) return;
+      _submitAction(_resBaseUrl(code) + '/exclude', { reason: 'Vyloučeno přes UI' });
+    });
+  });
+
+  document.querySelectorAll('[data-action="reinstate"]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var code = btn.getAttribute('data-code');
+      if (!confirm('Vrátit rezervaci ' + code + ' do výpočtu?')) return;
+      _submitAction(_resBaseUrl(code) + '/reinstate', {});
+    });
+  });
+
+  document.querySelectorAll('[data-action="move"]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var code = btn.getAttribute('data-code');
+      var ty = btn.getAttribute('data-target-year');
+      var tm = btn.getAttribute('data-target-month');
+      if (!ty || !tm) return;
+      var label = String(tm).padStart(2, '0') + '/' + ty;
+      if (!confirm('Přesunout rezervaci ' + code + ' do ' + label + '?')) return;
+      _submitAction(_resBaseUrl(code) + '/move', {
+        target_year: ty,
+        target_month: tm,
+        reason: 'Přesun do ' + label + ' přes UI',
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-action="move-revert"]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var code = btn.getAttribute('data-code');
+      if (!confirm('Vrátit přesun rezervace ' + code + ' zpět?')) return;
+      _submitAction(_resBaseUrl(code) + '/move-revert', {});
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   // Generation auto-reload (PENDING/RUNNING)
   // ─────────────────────────────────────────────────────────────
   var genStatus = document.querySelector('[data-generation-status]');

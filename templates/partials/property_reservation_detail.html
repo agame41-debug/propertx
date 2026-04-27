@@ -84,23 +84,59 @@
     </div>
   </div>
 
-  {# ── Action row: 5 buttons (Move-prev, Move-next, Vyloučit, Úprava | Otevřít panel) ── #}
+  {# ── Action row: Move/Exclude/Override/Open panel ── #}
+  {# Visibility rules:
+       - Mutating actions hidden if month is LOCKED or current user is `client`.
+       - is_payout_adjustment child rows can't be moved or excluded individually
+         (they follow the parent ADJ row).
+       - MOVED_IN rows (came in from another month) show a "Vrátit zpět" button
+         instead of prev/next move — the user is on the target month, the
+         /move-revert endpoint reads original_year/original_month from the
+         existing reservation_month_assignments record.
+       - is_excluded rows show "Vrátit do výpočtu" instead of "Vyloučit".
+  #}
   <div class="rs-ex-actions">
     {% set prev_label = '%02d/%d'|format(prev_month_target.month, prev_month_target.year) %}
     {% set next_label = '%02d/%d'|format(next_month_target.month, next_month_target.year) %}
+    {% set _can_mutate = month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
+    {% set _is_moved_in = r._mock_status == 'MOVED_IN' %}
 
-    <button type="button" class="rex-btn" disabled
-            data-action="move" data-direction="prev"
-            title="Připravujeme">← {{ prev_label }}</button>
-    <button type="button" class="rex-btn" disabled
-            data-action="move" data-direction="next"
-            title="Připravujeme">{{ next_label }} →</button>
+    {% if _can_mutate and not r.is_payout_adjustment %}
+      {% if _is_moved_in %}
+        {% set _orig_label = '%02d/%d'|format(r.adjustment_original_month, r.adjustment_original_year) %}
+        <button type="button" class="rex-btn"
+                data-action="move-revert"
+                data-code="{{ r.confirmation_code }}"
+                title="Vrátit rezervaci zpět do {{ _orig_label }}">↩ Vrátit do {{ _orig_label }}</button>
+      {% elif not r.is_excluded %}
+        <button type="button" class="rex-btn"
+                data-action="move" data-direction="prev"
+                data-code="{{ r.confirmation_code }}"
+                data-target-year="{{ prev_month_target.year }}"
+                data-target-month="{{ prev_month_target.month }}"
+                title="Přesunout do {{ prev_label }}">← {{ prev_label }}</button>
+        <button type="button" class="rex-btn"
+                data-action="move" data-direction="next"
+                data-code="{{ r.confirmation_code }}"
+                data-target-year="{{ next_month_target.year }}"
+                data-target-month="{{ next_month_target.month }}"
+                title="Přesunout do {{ next_label }}">{{ next_label }} →</button>
+      {% endif %}
 
-    <button type="button" class="rex-btn" disabled
-            data-action="exclude"
-            title="Připravujeme">Vyloučit</button>
+      {% if r.is_excluded %}
+        <button type="button" class="rex-btn"
+                data-action="reinstate"
+                data-code="{{ r.confirmation_code }}"
+                title="Vrátit rezervaci do výpočtu">↺ Vrátit do výpočtu</button>
+      {% else %}
+        <button type="button" class="rex-btn"
+                data-action="exclude"
+                data-code="{{ r.confirmation_code }}"
+                title="Vyřadit rezervaci z výpočtu">Vyloučit</button>
+      {% endif %}
+    {% endif %}
 
-    {% if month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
+    {% if _can_mutate %}
       <button type="button" class="rex-btn" data-action="override-toggle">Úprava</button>
     {% endif %}
 
