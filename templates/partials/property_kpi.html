@@ -2,17 +2,19 @@
    - rentero  → "Zisk", sub: "Hrubý zisk" + DPH (always — Rentero is VAT payer)
    - klient   → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if platce_dph) + bank
    - z_klient → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if platce_dph) + bank
-   The KPI label is unified ("Zisk") for all roles; meaning shifts with role. #}
+   The KPI label is unified ("Zisk") for all roles; meaning shifts with role.
+
+   Rentero-owned heuristic (shared across cards): no client record, no
+   client.name, OR client.name starts with "Rentero" (e.g. "Rentero
+   Investments", "Rentero Home A"). This bypasses the stale
+   report_objects.client_type which defaults to 'rentero' for every
+   property without explicit configuration AND can be set to 'klient'
+   for Rentero-entity clients. #}
+{% set _is_rentero_owned = (not client) or (not client.name) or (client.name|lower).startswith('rentero') %}
 
 <div class="kpi-row">
 
-  {# ── KPI 1: Zisk (rentero) / Klientovi bude vyplaceno (klient, z_klient) ─
-     Rentero-owned heuristic: no client record, no client.name, OR client.name
-     starts with "Rentero" (e.g. "Rentero Investments", "Rentero Home"). Otherwise
-     external client = show "Klientovi bude vyplaceno".
-     This bypasses the stale report_objects.client_type which defaults to 'rentero'
-     for every property without explicit configuration. #}
-  {% set _is_rentero_owned = (not client) or (not client.name) or (client.name|lower).startswith('rentero') %}
+  {# ── KPI 1: Zisk (rentero) / Klientovi bude vyplaceno (external client) ─ #}
   <div class="kpi kpi-ok{% if _is_rentero_owned %} kpi-zisk{% endif %}">
     <div class="kpi-label">{% if _is_rentero_owned %}Zisk{% else %}Klientovi bude vyplaceno{% endif %}</div>
     {% if _is_rentero_owned %}
@@ -72,14 +74,15 @@
     </div>
   </div>
 
-  {# ── KPI 3: Výplata Rentero (klient/z_klient) / Rentero fee (rentero) ──
+  {# ── KPI 3: Výplata Rentero (external client) / Rentero fee (rentero) ──
      For external clients the cash flowing to Rentero on this object is
      odměna + výdaje (client reimburses expenses through Rentero), so the
      headline number is rentero_vyplata_czk. The sub-row breaks it down
      into Odměna (commission with DPH) and Výdaje (expenses passed
      through). For Rentero-owned objects there's no commission to charge,
-     so we keep the legacy display. #}
-  {% if prop.client_type in ('klient', 'z_klient') %}
+     so we keep the legacy display. Uses _is_rentero_owned heuristic
+     (defined at top) to stay consistent with KPI 1. #}
+  {% if not _is_rentero_owned %}
     {% set _rentero_pct = '3' if prop.client_type == 'z_klient' else '%.0f'|format((summary.rentero_commission_rate or 0) * 100) %}
     <div class="kpi kpi-err">
       <div class="kpi-label">Výplata Rentero ({{ _rentero_pct }} % + výdaje)</div>
