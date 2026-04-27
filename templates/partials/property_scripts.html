@@ -1,126 +1,370 @@
 <script>
-var _SECTION_KEY = 'rentero_sec_' + location.pathname;
-function _saveSectionState(bodyId, collapsed) {
-  try {
-    var s = JSON.parse(sessionStorage.getItem(_SECTION_KEY) || '{}');
-    s[bodyId] = collapsed;
-    sessionStorage.setItem(_SECTION_KEY, JSON.stringify(s));
-  } catch(e) {}
-}
-function _restoreSectionStates() {
-  try {
-    var s = JSON.parse(sessionStorage.getItem(_SECTION_KEY) || '{}');
-    Object.keys(s).forEach(function(bodyId) {
-      var body  = document.getElementById(bodyId);
-      if (!body) return;
-      var collapsed = s[bodyId];
-      if (collapsed) {
-        body.classList.add('collapsed');
-        // Find associated caret via card-header onclick
-        var card = body.closest('.card');
-        if (card) {
-          var caretMatch = (card.querySelector('.caret-icon') || null);
-          if (caretMatch) caretMatch.classList.add('rotated');
+(function() {
+  'use strict';
+
+  // ─────────────────────────────────────────────────────────────
+  // Section toggles — collapse/expand cards via [data-section-toggle]
+  // State persisted in sessionStorage keyed per (slug,year,month,section).
+  // ─────────────────────────────────────────────────────────────
+  var SLUG = {{ slug|tojson }};
+  var YEAR = {{ year }};
+  var MONTH = {{ month }};
+  var SEC_KEY_PREFIX = 'rentero_sec_' + SLUG + '_' + YEAR + '_' + MONTH + '_';
+
+  function _getSecState(name) {
+    try { return sessionStorage.getItem(SEC_KEY_PREFIX + name); } catch (e) { return null; }
+  }
+  function _setSecState(name, collapsed) {
+    try { sessionStorage.setItem(SEC_KEY_PREFIX + name, collapsed ? '1' : '0'); } catch (e) {}
+  }
+
+  document.querySelectorAll('[data-section-toggle]').forEach(function(header) {
+    var name = header.getAttribute('data-section-toggle');
+    var body = document.querySelector('[data-section-body="' + name + '"]');
+    var caret = header.querySelector('.card-caret');
+    if (!body) return;
+
+    // Restore state
+    if (_getSecState(name) === '1') {
+      body.hidden = true;
+      if (caret) caret.classList.add('closed');
+    }
+
+    header.addEventListener('click', function(e) {
+      // Don't toggle if click was on a button/link inside the header
+      if (e.target.closest('button,a,input,select')) return;
+      var collapsed = !body.hidden;
+      body.hidden = collapsed;
+      if (caret) caret.classList.toggle('closed', collapsed);
+      _setSecState(name, collapsed);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Reservation filter pills
+  // ─────────────────────────────────────────────────────────────
+  var FILTER_KEY = 'rentero_rs_filter_' + SLUG + '_' + YEAR + '_' + MONTH;
+  var filterGroup = document.querySelector('[data-filter-group="rs"]');
+  var rsRows = Array.prototype.slice.call(document.querySelectorAll('tr.rs-row'));
+  var rsExRows = Array.prototype.slice.call(document.querySelectorAll('tr.rs-ex'));
+
+  var FILTER_BUCKETS = {
+    all: function(s) { return true; },
+    problems: function(s) { return s === 'ROZDIL' || s === 'CHYBI_V_CSV' || s === 'CHYBI_V_HOSTIFY'; },
+    moved: function(s) { return s === 'MOVED_IN' || s === 'MOVED_OUT'; },
+    excluded: function(s) { return s === 'EXCLUDED' || s === 'ZRUSENO'; },
+  };
+
+  function _formatCzk(n) {
+    var sign = n < 0 ? '−' : '';
+    var s = Math.abs(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return sign + s + ' Kč';
+  }
+
+  function _applyFilter(name) {
+    var match = FILTER_BUCKETS[name] || FILTER_BUCKETS.all;
+    var totals = { active: 0, nights: 0, payout: 0, ubyt: 0 };
+
+    rsRows.forEach(function(row) {
+      var status = row.getAttribute('data-status') || '';
+      var visible = match(status);
+      row.hidden = !visible;
+      // Hide the corresponding rs-ex row too if its parent row is filtered out.
+      var code = row.getAttribute('data-code');
+      var ex = document.querySelector('tr.rs-ex[data-for="' + code + '"]');
+      if (ex && !visible) ex.hidden = true;
+
+      // Recompute totals for visible non-EXCLUDED, non-ADJUSTMENT rows
+      if (visible && status !== 'EXCLUDED' && status !== 'ZRUSENO' && status !== 'ADJUSTMENT') {
+        totals.active += 1;
+        totals.nights += parseFloat(row.getAttribute('data-nights') || 0);
+        totals.payout += parseFloat(row.getAttribute('data-payout') || 0);
+        totals.ubyt += parseFloat(row.getAttribute('data-ubyt') || 0);
+      }
+    });
+
+    // Update <tfoot> data-totals cells
+    var setTot = function(key, val) {
+      var el = document.querySelector('[data-totals="' + key + '"]');
+      if (el) el.textContent = val;
+    };
+    setTot('active', totals.active);
+    setTot('nights', totals.nights);
+    setTot('payout', _formatCzk(Math.round(totals.payout)));
+    setTot('ubyt', _formatCzk(Math.round(totals.ubyt)));
+
+    try { sessionStorage.setItem(FILTER_KEY, name); } catch (e) {}
+  }
+
+  if (filterGroup) {
+    filterGroup.querySelectorAll('[data-filter]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (btn.disabled) return;
+        filterGroup.querySelectorAll('[data-filter]').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        _applyFilter(btn.getAttribute('data-filter'));
+      });
+    });
+    // Restore filter from sessionStorage
+    try {
+      var saved = sessionStorage.getItem(FILTER_KEY) || 'all';
+      var savedBtn = filterGroup.querySelector('[data-filter="' + saved + '"]:not(:disabled)');
+      if (savedBtn) {
+        filterGroup.querySelectorAll('[data-filter]').forEach(function(b) { b.classList.remove('active'); });
+        savedBtn.classList.add('active');
+        _applyFilter(saved);
+      }
+    } catch (e) {}
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Click-to-expand reservation row (one open at a time)
+  // ─────────────────────────────────────────────────────────────
+  var openedCode = null;
+
+  function _toggleRow(code) {
+    rsRows.forEach(function(r) { r.classList.remove('rs-row-open'); });
+    rsExRows.forEach(function(ex) { ex.hidden = true; });
+
+    if (openedCode === code) {
+      openedCode = null;
+      return;
+    }
+    var row = document.querySelector('tr.rs-row[data-code="' + code + '"]');
+    var ex = document.querySelector('tr.rs-ex[data-for="' + code + '"]');
+    if (row && ex) {
+      row.classList.add('rs-row-open');
+      ex.hidden = false;
+      openedCode = code;
+    }
+  }
+
+  rsRows.forEach(function(row) {
+    if (row.classList.contains('rs-row-child')) return;  // child rows don't expand
+    row.addEventListener('click', function(e) {
+      if (e.target.closest('button,a,input,select,form,[data-action]')) return;
+      var code = row.getAttribute('data-code');
+      _toggleRow(code);
+    });
+    row.style.cursor = 'pointer';
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Override-form toggle inside expanded row
+  // ─────────────────────────────────────────────────────────────
+  document.querySelectorAll('[data-action="override-toggle"]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var ex = btn.closest('.rs-ex-inner');
+      if (!ex) return;
+      var form = ex.querySelector('[data-ov-form]');
+      if (form) form.hidden = !form.hidden;
+    });
+  });
+
+  document.querySelectorAll('[data-ov-cancel]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var form = btn.closest('[data-ov-form]');
+      if (form) form.hidden = true;
+    });
+  });
+
+  // Field selector — clear original-value display + datalist on change.
+  // Datalist for verification_status uses static options (server-side passed
+  // via verification_status_options if available; we hardcode a sensible default).
+  document.querySelectorAll('[data-ov-field-select]').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+      var form = sel.closest('[data-ov-form]');
+      if (!form) return;
+      var origCell = form.querySelector('[data-ov-original]');
+      if (origCell) origCell.textContent = '—';
+      var dl = form.querySelector('[data-ov-datalist]');
+      if (dl) {
+        dl.innerHTML = '';
+        if (sel.value === 'verification_status') {
+          ['MATCHED', 'ROZDÍL', 'CHYBÍ_V_CSV', 'CHYBÍ_V_HOSTIFY', 'KE KONTROLE'].forEach(function(o) {
+            var opt = document.createElement('option');
+            opt.value = o;
+            dl.appendChild(opt);
+          });
         }
       }
     });
-  } catch(e) {}
-}
-function toggleSection(bodyId, caretId) {
-  var body  = document.getElementById(bodyId);
-  var caret = document.getElementById(caretId);
-  if (!body) return;
-  var isCollapsed = body.classList.toggle('collapsed');
-  if (caret) {
-    if (isCollapsed) caret.classList.add('rotated');
-    else caret.classList.remove('rotated');
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Open-panel (FloatingPanel from base_scripts.html)
+  // ─────────────────────────────────────────────────────────────
+  document.querySelectorAll('[data-action="open-panel"]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      if (typeof FloatingPanel === 'undefined' || !FloatingPanel.open) {
+        console.warn('[property] FloatingPanel not available');
+        return;
+      }
+      FloatingPanel.open(
+        btn.getAttribute('data-code'),
+        btn.getAttribute('data-slug'),
+        parseInt(btn.getAttribute('data-year'), 10),
+        parseInt(btn.getAttribute('data-month'), 10),
+        btn.getAttribute('data-guest') || '',
+        btn.getAttribute('data-channel') || ''
+      );
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Expense form — calculator binding (add + edit modes)
+  // vat_rate is a PERCENT INTEGER ("0" / "12" / "21"); JS keeps the hidden
+  // input synced with the active segment-control button. The route divides
+  // by 100 before validation.
+  // ─────────────────────────────────────────────────────────────
+  var expForm = document.querySelector('[data-expense-form]');
+  var expToggleBtn = document.querySelector('[data-action="expense-form-toggle"]');
+
+  function _parseNum(s) {
+    var n = parseFloat(String(s || '').replace(/\s/g, '').replace(',', '.'));
+    return isNaN(n) ? 0 : n;
   }
-  _saveSectionState(bodyId, isCollapsed);
-}
-document.addEventListener('DOMContentLoaded', _restoreSectionStates);
-
-function toggleEditExpense(id) {
-  var row = document.getElementById('edit-expense-' + id);
-  if (!row) return;
-  var isHidden = row.style.display === 'none' || row.style.display === '';
-  row.style.display = isHidden ? 'table-row' : 'none';
-}
-
-function toggleOverrideForm(idx) {
-  var row = document.getElementById('override-form-' + idx);
-  if (!row) return;
-  var isHidden = row.style.display === 'none' || row.style.display === '';
-  row.style.display = isHidden ? 'table-row' : 'none';
-}
-
-function updateOverrideCurrentVal(idx, select) {
-  var opt = select.options[select.selectedIndex];
-  var current = opt.dataset.current || '—';
-  var origEl = document.getElementById('override-orig-' + idx);
-  var newEl  = document.getElementById('override-newval-' + idx);
-  if (origEl) origEl.textContent = current;
-  if (newEl)  newEl.value = opt.dataset.current || '';
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('tr').forEach(function(tr) {
-    var actions = tr.querySelector('.expense-actions');
-    if (!actions) return;
-    tr.addEventListener('mouseenter', function(){ actions.style.opacity = '1'; });
-    tr.addEventListener('mouseleave', function(){ actions.style.opacity = '0'; });
-  });
-});
-
-function _clearRowSelected() {
-  document.querySelectorAll('tr.row-selected').forEach(function(r) { r.classList.remove('row-selected'); });
-}
-
-function openDrawerFromRow(el) {
-  // Backward-compat shim — delegates to FloatingPanel
-  var code    = el.dataset.code;
-  var slug    = el.dataset.slug;
-  var year    = el.dataset.year;
-  var month   = el.dataset.month;
-  var guest   = el.dataset.guest   || '—';
-  var channel = el.dataset.channel || '';
-  _clearRowSelected();
-  el.classList.add('row-selected');
-  FloatingPanel.open(code, slug, year, month, guest, channel);
-}
-
-// ── Inline row expand ─────────────────────────────────────────────────────
-function toggleResExpand(el, idx) {
-  var expandRow = document.getElementById('res-expand-' + idx);
-  if (!expandRow) return;
-
-  var isOpen = expandRow.style.display !== 'none';
-  if (isOpen) {
-    expandRow.style.display = 'none';
-    el.classList.remove('row-expand-active');
-  } else {
-    expandRow.style.display = 'table-row';
-    el.classList.add('row-expand-active');
+  function _fmtNum(n) {
+    if (!n || n <= 0) return '';
+    return n.toLocaleString('cs-CZ', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   }
-}
 
-function toggleAllResExpand() {
-  var btn = document.getElementById('res-expand-all-btn');
-  var expandRows = document.querySelectorAll('tr.res-expand-row');
-  if (!expandRows.length) return;
+  if (expForm) {
+    var fNet = expForm.querySelector('[data-calc-net]');
+    var fDph = expForm.querySelector('[data-calc-dph]');
+    var fGross = expForm.querySelector('[data-calc-gross]');
+    var fRate = expForm.querySelector('[data-calc-rate-input]');
+    var rateTabs = expForm.querySelector('[data-calc-rate-tabs]');
 
-  // determine current state: if any are closed → open all; if all open → close all
-  var anyHidden = Array.prototype.some.call(expandRows, function(tr) {
-    return tr.style.display === 'none' || tr.style.display === '';
-  });
+    function _currentRateDecimal() {
+      // hidden input value is percent integer; return as decimal
+      return parseFloat(fRate.value || '21') / 100;
+    }
+    function _recomputeFromGross() {
+      var g = _parseNum(fGross.value);
+      if (g <= 0) return;
+      var r = _currentRateDecimal();
+      var net = r > 0 ? g / (1 + r) : g;
+      var dph = g - net;
+      fNet.value = _fmtNum(net);
+      fDph.value = _fmtNum(dph);
+      fGross.value = _fmtNum(g);
+    }
+    function _recomputeFromNet() {
+      var n = _parseNum(fNet.value);
+      if (n <= 0) return;
+      var r = _currentRateDecimal();
+      var dph = n * r;
+      fNet.value = _fmtNum(n);
+      fDph.value = _fmtNum(dph);
+      fGross.value = _fmtNum(n + dph);
+    }
+    function _recomputeFromDph() {
+      var d = _parseNum(fDph.value);
+      var g = _parseNum(fGross.value);
+      var n = _parseNum(fNet.value);
+      if (g > 0) {
+        fDph.value = _fmtNum(d);
+        fNet.value = _fmtNum(g - d);
+      } else if (n > 0) {
+        fDph.value = _fmtNum(d);
+        fGross.value = _fmtNum(n + d);
+      } else {
+        fDph.value = _fmtNum(d);
+      }
+    }
 
-  expandRows.forEach(function(tr) {
-    tr.style.display = anyHidden ? 'table-row' : 'none';
-  });
-  document.querySelectorAll('tr[onclick^="toggleResExpand"]').forEach(function(tr) {
-    if (anyHidden) tr.classList.add('row-expand-active');
-    else tr.classList.remove('row-expand-active');
-  });
+    fNet.addEventListener('blur', _recomputeFromNet);
+    fDph.addEventListener('blur', _recomputeFromDph);
+    fGross.addEventListener('blur', _recomputeFromGross);
 
-  if (btn) btn.textContent = anyHidden ? 'Sbalit vše' : 'Rozbalit vše';
-}
+    if (rateTabs) {
+      rateTabs.querySelectorAll('button').forEach(function(b) {
+        b.addEventListener('click', function() {
+          rateTabs.querySelectorAll('button').forEach(function(x) { x.classList.remove('active'); });
+          b.classList.add('active');
+          fRate.value = b.getAttribute('data-rate'); // percent integer
+          // Recompute from gross if available, else from net
+          if (_parseNum(fGross.value) > 0) _recomputeFromGross();
+          else if (_parseNum(fNet.value) > 0) _recomputeFromNet();
+        });
+      });
+    }
+
+    // Toggle (add mode)
+    if (expToggleBtn) {
+      expToggleBtn.addEventListener('click', function() {
+        if (expForm.hidden) {
+          // Open in add mode: reset, switch action
+          expForm.action = '/expenses/add';
+          expForm.querySelector('[data-form-title]').textContent = 'Nový výdaj';
+          expForm.querySelector('[data-form-submit-label]').textContent = 'Uložit výdaj';
+          expForm.querySelector('input[name="date_str"]').value = new Date().toISOString().slice(0, 10);
+          expForm.querySelector('input[name="description"]').value = '';
+          fNet.value = ''; fDph.value = ''; fGross.value = '';
+          fRate.value = '21';
+          if (rateTabs) {
+            rateTabs.querySelectorAll('button').forEach(function(b) {
+              b.classList.toggle('active', b.getAttribute('data-rate') === '21');
+            });
+          }
+          expForm.hidden = false;
+          expToggleBtn.setAttribute('aria-expanded', 'true');
+          expForm.querySelector('input[name="description"]').focus();
+        } else {
+          expForm.hidden = true;
+          expToggleBtn.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+
+    // Cancel button
+    var cancelBtn = expForm.querySelector('[data-form-cancel]');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function() {
+        expForm.hidden = true;
+        if (expToggleBtn) expToggleBtn.setAttribute('aria-expanded', 'false');
+      });
+    }
+
+    // Edit mode — invoked from pencil button on each expense row.
+    document.querySelectorAll('[data-action="expense-edit"]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = btn.getAttribute('data-expense-id');
+        expForm.action = '/expenses/' + id + '/edit';
+        expForm.querySelector('[data-form-title]').textContent = 'Upravit výdaj #' + id;
+        expForm.querySelector('[data-form-submit-label]').textContent = 'Uložit změny';
+        expForm.querySelector('input[name="date_str"]').value = btn.getAttribute('data-expense-date') || '';
+        var catSel = expForm.querySelector('select[name="category_id"]');
+        if (catSel) {
+          var catId = btn.getAttribute('data-expense-cat-id');
+          if (catId) catSel.value = catId;
+        }
+        expForm.querySelector('input[name="description"]').value = btn.getAttribute('data-expense-desc') || '';
+        fNet.value = btn.getAttribute('data-expense-net') || '';
+        fDph.value = btn.getAttribute('data-expense-dph') || '';
+        fGross.value = btn.getAttribute('data-expense-gross') || '';
+        var ratePct = btn.getAttribute('data-expense-rate') || '21';
+        fRate.value = ratePct;
+        if (rateTabs) {
+          rateTabs.querySelectorAll('button').forEach(function(b) {
+            b.classList.toggle('active', b.getAttribute('data-rate') === String(ratePct));
+          });
+        }
+        expForm.hidden = false;
+        if (expToggleBtn) expToggleBtn.setAttribute('aria-expanded', 'true');
+        expForm.scrollIntoView({behavior: 'smooth', block: 'center'});
+      });
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Generation auto-reload (PENDING/RUNNING)
+  // ─────────────────────────────────────────────────────────────
+  var genStatus = document.querySelector('[data-generation-status]');
+  if (genStatus) {
+    setTimeout(function() { window.location.reload(); }, 4000);
+  }
+
+})();
 </script>
