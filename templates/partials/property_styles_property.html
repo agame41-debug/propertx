@@ -1084,4 +1084,100 @@
 }
 .dim { color: var(--text-300); }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ═══════════════════════════════════════════════════
+   MOBILE — tablet ≤1100px
+   ═══════════════════════════════════════════════════ */
+@media (max-width: 1100px) {
+  .page { padding: 20px 16px 80px; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .ph-actions { padding-top: 0; }
+  .rs-ex-groups {
+    grid-template-columns: 1fr;
+    gap: 14px 0;
+  }
+  .rs-ex-group { padding: 0 0 14px 0; }
+  .rs-ex-group + .rs-ex-group {
+    border-left: 0;
+    border-top: 1px solid var(--line-hair);
+    padding-top: 14px;
+  }
+  .dph-box {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 18px;
+  }
+  .dph-col-result {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--dph-line);
+    padding-top: 14px;
+  }
+  .dph-op { display: none; }
+  .ae-row { grid-template-columns: 1fr 1fr; }
+  .ae-row .ae-field:nth-child(3) { grid-column: span 2; }
+  .ae-calc { flex-wrap: wrap; }
+  .ae-calc-op { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════
+   MOBILE — phone ≤640px
+   ═══════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .ph-title { font-size: 22px; }
+  .ph-title-row { flex-direction: column; }
+  .ph-actions { width: 100%; }
+
+  .kpi-row { grid-template-columns: 1fr 1fr; }  /* 2×2 */
+  .kpi { padding: 14px 14px 12px; }
+  .kpi-value { font-size: 22px; }
+
+  /* Reservation table → card-list */
+  .rs-table thead { display: none; }
+  .rs-table, .rs-table tbody, .rs-table tr, .rs-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .rs-table tr.rs-row {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line-hair);
+    position: relative;
+  }
+  .rs-table tr.rs-row td { padding: 0; border: 0; }
+  .rs-table .rs-idx {
+    position: absolute; top: 12px; right: 14px;
+    font-size: 10px; opacity: .5;
+  }
+  .rs-table .rs-row td:nth-child(2) {  /* channel */
+    display: inline-block; width: auto; vertical-align: middle;
+  }
+  .rs-table .rs-row td:nth-child(3) {  /* host */
+    display: inline-block; width: auto; margin-left: 8px;
+  }
+  .rs-table .rs-row td.rs-date,
+  .rs-table .rs-row td.rs-payout,
+  .rs-table .rs-row td.rs-stav {
+    display: flex; justify-content: space-between; padding: 4px 0;
+  }
+  .rs-table .rs-row td.rs-date::before,
+  .rs-table .rs-row td.rs-payout::before,
+  .rs-table .rs-row td.rs-stav::before {
+    content: attr(data-mobile-label);
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--text-400); text-transform: uppercase; letter-spacing: .1em;
+  }
+  .rs-table .rs-caret { display: none; }
+  .rs-table tfoot { display: none; }
+  .rs-table tr.rs-ex { display: block; }
+  .rs-table tr.rs-ex td { padding: 0; border: 0; }
+
+  /* Expenses table — hide net/dph columns on phone */
+  .exp-table thead th:nth-child(4),
+  .exp-table thead th:nth-child(5),
+  .exp-table tbody td:nth-child(4),
+  .exp-table tbody td:nth-child(5),
+  .exp-table tfoot td:nth-child(4),
+  .exp-table tfoot td:nth-child(5) { display: none; }
+}
 </style>
