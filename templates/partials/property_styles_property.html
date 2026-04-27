@@ -1185,9 +1185,62 @@
   .ph-title-row { flex-direction: column; }
   .ph-actions { width: 100%; }
 
-  .kpi-row { grid-template-columns: 1fr 1fr; }  /* 2×2 */
-  .kpi { padding: 14px 14px 12px; }
-  .kpi-value { font-size: 22px; }
+  /* ── KPI cards: 2×2 grid, compact paddings, sub-line wraps with each
+     metric on its own row (label-left, value-right). Avoids the previous
+     overflow:hidden truncation of "Před výdaji 18 474,23 K›". ── */
+  .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .kpi { padding: 12px 12px 10px; border-radius: 16px; }
+  .kpi-label { font-size: 9.5px; letter-spacing: 0.08em; line-height: 1.2; }
+  .kpi-value { font-size: 19px; margin-top: 6px; line-height: 1.05; }
+  .kpi-sub {
+    margin-top: 6px;
+    font-size: 10px;
+    flex-wrap: wrap;
+    overflow: visible;
+    gap: 2px 0;
+    line-height: 1.35;
+  }
+  /* Each "label · value" pair becomes its own row across the card */
+  .kpi-sub .pair {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+  /* Visual "·" separators are meaningless once pairs are on separate rows */
+  .kpi-sub .sep { display: none; }
+  .kpi-zisk::before { width: 110px; height: 110px; top: -30px; right: -30px; }
+
+  /* ── Card header: stack title-meta on top, filter pills below as a
+     horizontal-scroll strip. The previous flex-row layout caused the meta
+     line ("7 aktivních · 23 nocí") to wrap into 3 ragged lines and the
+     last filter pill ("VYLOUČENÉ") to be truncated. ── */
+  .card-h {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .card-h-left { width: 100%; flex-wrap: nowrap; gap: 8px; }
+  .card-h .card-meta {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1; min-width: 0;
+  }
+  .rs-filters {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    scrollbar-width: none;          /* Firefox */
+    -webkit-overflow-scrolling: touch;
+    padding: 3px 4px;
+  }
+  .rs-filters::-webkit-scrollbar { display: none; }
+  .rs-filter { flex-shrink: 0; }
 
   /* Reservation table → card-list */
   .rs-table thead { display: none; }
@@ -1232,13 +1285,12 @@
   .rs-table tr.rs-ex:not([hidden]) { display: block; }
   .rs-table tr.rs-ex td { padding: 0; border: 0; }
 
-  /* ── Expanded reservation row — vertical stack on phone ──
+  /* ── Expanded reservation row — compact metric list on phone ──
      Desktop renders three .rs-ex-group columns separated by border-left;
-     on phone we collapse into a single column with a thin top divider
-     between groups, hide the bank/status group (collapsed .rs-stav already
-     conveys it), and turn action buttons into a symmetric 2-col grid with
-     44px tap-targets per Apple HIG. */
-  .rs-ex-inner { padding: 12px 14px 10px; }
+     on phone each metric becomes a single space-between row (label-left,
+     value-right) so an open detail card reads like a vertical key/value
+     list, not three stacked sub-cards. */
+  .rs-ex-inner { padding: 10px 14px; }
 
   .rs-ex-groups {
     display: flex;
@@ -1249,15 +1301,44 @@
   .rs-ex-group.cols-2 {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 10px 0;
+    gap: 0;
+    padding: 6px 0;
     border-left: 0;
     border-top: 1px solid var(--line-hair);
     grid-template-columns: 1fr;
   }
   .rs-ex-group:first-child {
     border-top: 0;
-    padding-top: 4px;
+    padding-top: 2px;
+  }
+  /* Each metric div: label left, value right, single line — no more
+     stacked label-above-value rendering that made the row feel sprawling. */
+  .rs-ex-group > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 0;
+  }
+  /* Comment cell spans full width on desktop via grid-column:span 2;
+     on phone we let it stack (label above multi-line value). */
+  .rs-ex-group > div[style*="grid-column"] {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .rs-ex-group .rex-k { margin-bottom: 0; flex-shrink: 0; }
+  .rs-ex-group .rex-v {
+    text-align: right;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rs-ex-group > div[style*="grid-column"] .rex-v {
+    text-align: left;
+    white-space: normal;
   }
   /* Hide bank-status duplicate — the collapsed .rs-stav cell already
      shows MATCHED/CHYBÍ/DORAZILO; the expanded version is desktop-only. */
