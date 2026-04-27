@@ -317,6 +317,10 @@
   overflow: hidden;
   margin-top: 16px;
 }
+/* Softer corners for cards that wrap a table (reservations, breakdown,
+   expenses, override-history). Other cards (DPH summary, etc.) keep the
+   default --radius-lg. */
+.card:has(.t) { border-radius: var(--radius-xl); }
 .card-h {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; padding: 14px 18px;
