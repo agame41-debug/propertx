@@ -64,13 +64,15 @@
            data-copy="{{ '%.2f'|format(_vat_balance|abs) }}">
         {% if _vat_is_refund %}+{% else %}−{% endif %}&nbsp;{{ "{:,.2f}".format(_vat_balance|abs).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
       </div>
-      <div class="kpi-sub" id="kpi-vat-sub" style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;">
-        <span style="font-family:var(--font-mono);font-size:11px;color:var(--color-green);" title="DPH na výstupu — z provizí a přípravy pokoje">
-          +{{ "{:,.2f}".format(dashboard_summary.rentero_vat_output_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}
+      <div class="kpi-sub" id="kpi-vat-sub" style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;">
+        <span style="font-family:var(--font-mono);font-size:11px;" title="DPH na výstupu — z provizí a přípravy pokoje">
+          <span style="color:var(--text-300);">Výstup</span>
+          <span style="color:var(--color-green);">+{{ "{:,.2f}".format(dashboard_summary.rentero_vat_output_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}</span>
         </span>
-        <span style="color:var(--text-300);">·</span>
-        <span style="font-family:var(--font-mono);font-size:11px;color:var(--color-red);" title="DPH na vstupu (odpočet) — z výdajů s DPH">
-          −{{ "{:,.2f}".format(dashboard_summary.rentero_vat_input_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}
+        <span style="color:var(--text-300);opacity:.4">·</span>
+        <span style="font-family:var(--font-mono);font-size:11px;" title="DPH na vstupu (odpočet) — z výdajů s DPH">
+          <span style="color:var(--text-300);">Vstup</span>
+          <span style="color:var(--color-red);">−{{ "{:,.2f}".format(dashboard_summary.rentero_vat_input_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}</span>
         </span>
       </div>
     </div>
