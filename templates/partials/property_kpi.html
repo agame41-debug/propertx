@@ -32,9 +32,10 @@
           <span class="v">{{ fmt_czk((summary.gross_payout_czk or 0) - (summary.expenses_total_czk or 0)) }}</span>
         </span>
         {# Rentero is itself a VAT payer, so DPH balance is always relevant on
-           rentero-owned objects regardless of whether a client row exists. #}
+           rentero-owned objects regardless of whether a client row exists.
+           Color follows sign: refund → green, owed → red. #}
         <span class="sep">·</span>
-        <span class="pair" style="color:var(--dph-text)">
+        <span class="pair" style="color:{% if (summary.vat_balance_czk or 0) < 0 %}var(--ok){% else %}var(--err){% endif %}">
           <span>DPH&nbsp;=</span>
           <span class="v">{% if (summary.vat_balance_czk or 0) < 0 %}+{% else %}−{% endif %}{{ fmt_czk((summary.vat_balance_czk or 0)|abs) }}</span>
         </span>
@@ -50,7 +51,8 @@
         </span>
         {% if _is_dph_applicable %}
           <span class="sep">·</span>
-          <span class="pair" style="color:var(--dph-text)">
+          {# Color follows sign: refund (state owes us) → green, owed → red. #}
+          <span class="pair" style="color:{% if (summary.vat_balance_czk or 0) < 0 %}var(--ok){% else %}var(--err){% endif %}">
             <span>DPH&nbsp;=</span>
             <span class="v">{% if (summary.vat_balance_czk or 0) < 0 %}+{% else %}−{% endif %}{{ fmt_czk((summary.vat_balance_czk or 0)|abs) }}</span>
           </span>

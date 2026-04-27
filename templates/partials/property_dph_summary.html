@@ -16,7 +16,7 @@
   <div class="card-h">
     <div class="card-h-left">
       <span class="card-title">Vyúčtování DPH</span>
-      <span class="badge {% if is_refund %}badge-ok{% else %}badge-dph{% endif %}">
+      <span class="badge {% if is_refund %}badge-ok{% else %}badge-err{% endif %}">
         {% if is_refund %}Nadměrný odpočet{% else %}K odvedení{% endif %}
         &nbsp;·&nbsp;{{ fmt_czk(vat_balance|abs) }}
       </span>
