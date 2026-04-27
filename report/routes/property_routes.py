@@ -6,38 +6,6 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from report.engine import generate_report_in_process
 
 
-def _parse_optional_float(raw_value) -> float | None:
-    text = str(raw_value or "").strip()
-    if not text:
-        return None
-    try:
-        return float(text.replace(",", "."))
-    except ValueError:
-        raise HTTPException(status_code=422, detail=f"Neplatná číselná hodnota: {text}")
-
-
-def _resolve_expense_amount_czk(
-    *,
-    amount_czk_raw,
-    amount_net_czk_raw="",
-    vat_rate_raw="",
-) -> float:
-    amount_czk = _parse_optional_float(amount_czk_raw)
-    if amount_czk is not None:
-        if amount_czk <= 0:
-            raise HTTPException(status_code=422, detail="Částka musí být větší než 0.")
-        return round(amount_czk, 2)
-
-    amount_net_czk = _parse_optional_float(amount_net_czk_raw)
-    vat_rate = _parse_optional_float(vat_rate_raw)
-    if amount_net_czk is None:
-        raise HTTPException(status_code=422, detail="Vyplňte buď Částku celkem, nebo Cena bez DPH + DPH %.")
-    if amount_net_czk <= 0:
-        raise HTTPException(status_code=422, detail="Cena bez DPH musí být větší než 0.")
-    vat_rate = vat_rate or 0.0
-    return round(amount_net_czk * (1 + (vat_rate / 100.0)), 2)
-
-
 def register(app, state) -> None:
     require_auth = state["require_auth"]
     require_csrf = state["require_csrf"]
