@@ -343,6 +343,36 @@ def register(app, state) -> None:
         dashboard_summary["total_client_payout_czk"] = client_payout_total
         dashboard_summary["total_net_profit_czk"] = round(net_profit, 2)
 
+        # ── DPH aggregates for rentero filter ──────────────────────────────
+        # When the user filters the dashboard by Rentero, the "Výplata
+        # klientům" card is meaningless (Rentero doesn't pay clients for its
+        # own objects), so we replace its content with the DPH balance for
+        # all rentero properties in the current month.
+        slug_to_prop = {p["slug"]: p for p in properties}
+        rentero_vat_output = 0.0
+        rentero_vat_input = 0.0
+        rentero_vat_balance = 0.0
+        for slug, ct in client_type_map.items():
+            if ct != "rentero":
+                continue
+            prop = slug_to_prop.get(slug)
+            if not prop:
+                continue
+            raw_rows = state["get_report_rows"](conn, slug, cur_y, cur_m)
+            rows_for_summary = state["_prepare_rows_for_display"](
+                state["apply_overrides_to_rows"](conn, raw_rows, slug, cur_y, cur_m)
+            )
+            expenses = state["get_expenses"](conn, slug, cur_y, cur_m)
+            s = state["build_report_summary"](
+                rows_for_summary, prop, expenses=expenses
+            )
+            rentero_vat_output += s.get("vat_output_czk", 0) or 0
+            rentero_vat_input += s.get("vat_input_czk", 0) or 0
+            rentero_vat_balance += s.get("vat_balance_czk", 0) or 0
+        dashboard_summary["rentero_vat_output_czk"] = round(rentero_vat_output, 2)
+        dashboard_summary["rentero_vat_input_czk"] = round(rentero_vat_input, 2)
+        dashboard_summary["rentero_vat_balance_czk"] = round(rentero_vat_balance, 2)
+
         return state["templates"].TemplateResponse(
             request,
             "dashboard.html",
