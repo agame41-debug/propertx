@@ -355,11 +355,19 @@ def register(app, state) -> None:
                     break
 
         # ── Per-property DPH + zisk for current month ──────────────────────
-        # We need per-Rentero-owned-property zisk and DPH balance for both
-        # the DPH KPI 2 aggregate (rentero filter) AND the per-row "rentero
-        # ZISK" indicator that replaces "klient X" on the prop-row. Compute
-        # both in a single sweep over Rentero-owned properties so we don't
-        # build report summaries twice.
+        # Single sweep over ALL properties. For each, build_report_summary
+        # gives:
+        #  - vat_output_czk (DPH Rentero collects on this object — fee + room prep)
+        #  - vat_input_czk  (DPH Rentero deducts from rated expenses)
+        # Both are Rentero's DPH responsibility regardless of property type
+        # (Rentero invoices the client with DPH on commissions, and Rentero
+        # claims input DPH on the expenses it handles), so we aggregate
+        # ACROSS ALL properties to get Rentero's total DPH position. The
+        # KPI 2 "Bilance DPH" shown under the Rentero filter is exactly
+        # that — what Rentero owes / will get back from the state across
+        # everything it manages.
+        # zisk_czk is collected only for Rentero-owned objects (used by
+        # the per-row "rentero ZISK" indicator and the KPI 4 aggregate).
         slug_to_prop = {p["slug"]: p for p in properties}
         slug_to_zisk: dict[str, float] = {}
         rentero_vat_output = 0.0
@@ -367,8 +375,6 @@ def register(app, state) -> None:
         rentero_vat_balance = 0.0
         for row in dashboard_rows:
             slug = row["slug"]
-            if not _is_rentero_owned_slug(slug):
-                continue
             prop = slug_to_prop.get(slug)
             if not prop:
                 continue
@@ -380,17 +386,20 @@ def register(app, state) -> None:
             s = state["build_report_summary"](
                 rows_for_summary, prop, expenses=expenses_for_slug
             )
+            # DPH from every property — Rentero collects/deducts on all of them
             rentero_vat_output  += s.get("vat_output_czk", 0)  or 0
             rentero_vat_input   += s.get("vat_input_czk", 0)   or 0
             rentero_vat_balance += s.get("vat_balance_czk", 0) or 0
-            # zisk: use summary.zisk_czk when present (client_type='rentero'),
-            # otherwise apply the same fallback formula the property page uses.
-            zisk = s.get("zisk_czk")
-            if zisk is None:
-                zisk = (s.get("gross_payout_czk") or 0) \
-                     - (s.get("expenses_total_czk") or 0) \
-                     - (s.get("vat_balance_czk") or 0)
-            slug_to_zisk[slug] = round(float(zisk), 2)
+            # Zisk only for Rentero-owned objects (per-row indicator). Use
+            # summary.zisk_czk when set; otherwise the property-page
+            # fallback formula (covers Rentero-as-z_klient).
+            if _is_rentero_owned_slug(slug):
+                zisk = s.get("zisk_czk")
+                if zisk is None:
+                    zisk = (s.get("gross_payout_czk") or 0) \
+                         - (s.get("expenses_total_czk") or 0) \
+                         - (s.get("vat_balance_czk") or 0)
+                slug_to_zisk[slug] = round(float(zisk), 2)
 
         # Attach zisk_czk to current-month cell so the template can emit it
         # as a data attribute for JS aggregation on filter changes.

@@ -52,8 +52,12 @@
       </div>
       <div class="kpi-sub">rentero → klienti · {{ dashboard_summary.current_month_label }}</div>
     </div>
-    {# DPH content (rentero filter) — hidden by default #}
-    <div id="kpi-card-2-dph" hidden>
+    {# DPH content (rentero filter) — hidden by default.
+       Aggregate is across ALL properties because Rentero's DPH liability
+       touches every object: vat_rentero_fee + vat_room_prep on all
+       managed properties (output) minus deductible vat_input on all
+       expenses Rentero handles. #}
+    <div id="kpi-card-2-dph" hidden title="Souhrn DPH ze všech objektů — DPH, která se týká Rentero">
       <div class="kpi-label">Bilance DPH</div>
       <div class="kpi-value" id="kpi-vat-balance"
            style="font-size:24px;color:{% if _vat_is_refund %}var(--color-green){% else %}var(--color-red){% endif %};"
