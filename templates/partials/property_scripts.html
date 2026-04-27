@@ -24,10 +24,15 @@
     var caret = header.querySelector('.card-caret');
     if (!body) return;
 
-    // Restore state
-    if (_getSecState(name) === '1') {
+    // Restore state — handle both 'collapsed' (1) and 'open' (0) explicitly,
+    // because some sections default to closed in markup (override history).
+    var saved = _getSecState(name);
+    if (saved === '1') {
       body.hidden = true;
       if (caret) caret.classList.add('closed');
+    } else if (saved === '0') {
+      body.hidden = false;
+      if (caret) caret.classList.remove('closed');
     }
 
     header.addEventListener('click', function(e) {

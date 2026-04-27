@@ -292,7 +292,8 @@ def get_expenses(
     month: int | None = None,
 ) -> list[dict]:
     sql = """SELECT e.id, e.property_slug, e.year, e.month, e.date,
-                    e.description, e.amount_czk, e.created_at,
+                    e.description, e.amount_czk, e.amount_net_czk, e.amount_dph_czk,
+                    e.vat_rate, e.created_at,
                     c.name AS category_name, e.category_id
              FROM expenses e
              LEFT JOIN expense_categories c ON c.id = e.category_id"""
