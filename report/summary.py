@@ -141,15 +141,17 @@ def build_report_summary(
     ))
 
     # Rentero's payout model on klient/z_klient objects:
-    #   odměna  = commission charged to the client (gross, including its DPH)
-    #   výplata = odměna + expenses; the client reimburses property expenses
-    #             through Rentero, so the cash actually flowing to Rentero's
-    #             account on these objects is provize + výdaje.
-    result["rentero_odmena_czk"] = _r(
-        result["rentero_fee_czk"] + result["vat_rentero_fee_czk"]
-    )
+    #   odměna  = the commission itself (NET — without its DPH portion). The
+    #             DPH is separately visible as vat_rentero_fee_czk.
+    #   výplata = odměna + DPH on commission + expenses. The client
+    #             reimburses property expenses through Rentero, so the cash
+    #             flowing to Rentero's account on this object is the full
+    #             commission (with DPH) plus the pass-through expenses.
+    result["rentero_odmena_czk"] = _r(result["rentero_fee_czk"])
     result["rentero_vyplata_czk"] = _r(
-        result["rentero_odmena_czk"] + result["expenses_total_czk"]
+        result["rentero_odmena_czk"]
+        + result["vat_rentero_fee_czk"]
+        + result["expenses_total_czk"]
     )
 
     # Zisk — Rentero's residual margin. Only meaningful when the property is

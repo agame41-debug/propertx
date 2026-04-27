@@ -52,8 +52,8 @@
         {% endif %}
         {% if client and client.bank_account %}
           <span class="sep">·</span>
-          <span class="pair" title="{{ client.bank_account }}">
-            <span class="v" style="overflow:hidden;text-overflow:ellipsis;max-width:160px;display:inline-block;vertical-align:bottom;">{{ client.bank_account }}</span>
+          <span class="pair pair-shrink" title="{{ client.bank_account }}">
+            <span class="v">{{ client.bank_account }}</span>
           </span>
         {% endif %}
       </div>
@@ -94,6 +94,13 @@
           <span>Odměna</span>
           <span class="v">−{{ fmt_czk(summary.rentero_odmena_czk or 0) }}</span>
         </span>
+        {% if (summary.vat_rentero_fee_czk or 0) > 0 %}
+          <span class="sep">·</span>
+          <span class="pair" style="color:var(--dph-text)">
+            <span>DPH</span>
+            <span class="v">−{{ fmt_czk(summary.vat_rentero_fee_czk) }}</span>
+          </span>
+        {% endif %}
         {% if (summary.expenses_total_czk or 0) > 0 %}
           <span class="sep">·</span>
           <span class="pair">
