@@ -1,7 +1,7 @@
 {# 4 KPI cards. Layout is identical for all client_types; first card's content varies:
    - rentero  → "Zisk", sub: "Hrubý zisk" + DPH (always — Rentero is VAT payer)
-   - klient   → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if platce_dph) + bank
-   - z_klient → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if platce_dph) + bank
+   - klient   → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if platce_dph)
+   - z_klient → "Klientovi bude vyplaceno", sub: "Před výdaji" + DPH (if platce_dph)
    The KPI label is unified ("Zisk") for all roles; meaning shifts with role.
 
    Rentero-owned heuristic (shared across cards): no client record, no
@@ -48,12 +48,6 @@
           <span class="pair" style="color:var(--dph-text)">
             <span>DPH&nbsp;=</span>
             <span class="v">{% if (summary.vat_balance_czk or 0) < 0 %}+{% else %}−{% endif %}{{ fmt_czk((summary.vat_balance_czk or 0)|abs) }}</span>
-          </span>
-        {% endif %}
-        {% if client and client.bank_account %}
-          <span class="sep">·</span>
-          <span class="pair pair-shrink" title="{{ client.bank_account }}">
-            <span class="v">{{ client.bank_account }}</span>
           </span>
         {% endif %}
       </div>
