@@ -181,6 +181,7 @@
      data-client-payout="{{ client_payout }}"
      data-rentero-fee="{{ cur_cell.rentero_fee_sum_czk|default(0) if cur_cell else 0 }}"
      data-expenses="{{ cur_cell.expenses_sum_czk|default(0) if cur_cell else 0 }}"
+     data-zisk="{{ cur_cell.zisk_czk|default(0) if cur_cell else 0 }}"
      data-rez="{{ rez_count }}"
      data-rez-prev="{{ rez_prev }}"
      data-has-data="{{ has_data }}"
@@ -224,12 +225,18 @@
       </div>
     </div>
 
-    {# Col 3: Financial — green: from platforms, blue: client payout #}
+    {# Col 3: Financial.
+       Top line (green): gross payout from platforms.
+       Bottom line: for Rentero-owned objects = "rentero ZISK" (brand color),
+                    for external clients = "klient PAYOUT" (blue, legacy). #}
+    {% set zisk = cur_cell.zisk_czk|default(0) if cur_cell else 0 %}
     <div class="pr-financial" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
       {% if cur_cell and cur_cell.kind == 'report' %}
         <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(payout) }}">{{ "{:,.2f}".format(payout).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč</div>
-        {% if client_payout > 0 %}
-        <div style="font-size:10px;color:var(--color-blue);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(client_payout) }}">klient {{ "{:,.2f}".format(client_payout).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
+        {% if row.is_rentero %}
+          <div style="font-size:10px;color:var(--brand);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(zisk) }}">rentero {{ "{:,.2f}".format(zisk).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
+        {% elif client_payout > 0 %}
+          <div style="font-size:10px;color:var(--color-blue);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(client_payout) }}">klient {{ "{:,.2f}".format(client_payout).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
         {% endif %}
       {% else %}
       <span style="color:var(--text-300);font-size:var(--text-xs);">—</span>
@@ -280,10 +287,13 @@ function _applyFilters() {
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
     var show = true;
     var ct = row.dataset.clientType || 'rentero';
-    var isRent = ct === 'rentero';
+    // is_rentero uses the owner-name heuristic (matches the backend),
+    // so Rentero-as-z_klient objects (Opletalova_10, Ostrovni_4) appear
+    // under the Rentero tab and not under Z Klienti.
+    var isRent = row.dataset.isRentero === '1';
     if (_activeTab === 'rentero') show = isRent;
-    else if (_activeTab === 'clients') show = ct === 'klient';
-    else if (_activeTab === 'z_clients') show = ct === 'z_klient';
+    else if (_activeTab === 'clients') show = !isRent && ct === 'klient';
+    else if (_activeTab === 'z_clients') show = !isRent && ct === 'z_klient';
     if (show && _searchQuery) show = row.textContent.toLowerCase().includes(_searchQuery);
     if (show) { row.removeAttribute('hidden'); row.style.cssText = row.style.cssText.replace(/display\s*:\s*none\s*!important;?/g, ''); }
     else { row.style.setProperty('display', 'none', 'important'); }
@@ -334,15 +344,15 @@ function _applyFilters() {
     }
   }
 
-  // Net profit: rentero=cena_ubyt, klient/z_klient=rentero_fee + expenses
-  // (clients reimburse property expenses through Rentero, so the cash
-  // flowing to Rentero on those objects is provize + výdaje).
+  // Net profit per row: Rentero-owned = zisk; external = provize + výdaje
+  // (clients reimburse property expenses through Rentero). The is-rentero
+  // flag uses the heuristic from the backend (owner name starts with
+  // "Rentero" OR no client row), not the raw client_type column.
   var totalProfit = 0;
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
     if (row.style.getPropertyValue('display') === 'none') return;
-    var ct = row.dataset.clientType || 'rentero';
-    if (ct === 'rentero') {
-      totalProfit += parseFloat(row.dataset.cenaUbyt) || 0;
+    if (row.dataset.isRentero === '1') {
+      totalProfit += parseFloat(row.dataset.zisk) || 0;
     } else {
       totalProfit += (parseFloat(row.dataset.renteroFee) || 0)
                    + (parseFloat(row.dataset.expenses)   || 0);

@@ -314,11 +314,22 @@ def register(app, state) -> None:
         for obj in conn.execute("SELECT slug, client_type FROM report_objects").fetchall():
             client_type_map[obj["slug"]] = obj["client_type"] or "rentero"
 
+        # Rentero-owned heuristic — same definition the property page uses
+        # in property_kpi.html / property_intro.html. Some properties are
+        # owned by a Rentero entity (Rentero Investments, Rentero Home A)
+        # but tagged as 'z_klient' in report_objects for fee-calculation
+        # reasons; those still belong on Rentero's side of the ledger.
+        def _is_rentero_owned_slug(slug: str) -> bool:
+            owner = client_map.get(slug, RENTERO_LABEL)
+            if not owner:
+                return True
+            return owner.lower().startswith("rentero")
+
         # Attach owner_name, client_type and is_rentero flag to each dashboard row
         for row in dashboard_rows:
             row["owner_name"] = client_map.get(row["slug"], RENTERO_LABEL)
             row["client_type"] = client_type_map.get(row["slug"], "rentero")
-            row["is_rentero"] = row["client_type"] == "rentero"
+            row["is_rentero"] = _is_rentero_owned_slug(row["slug"])
 
         # Per-property expense totals for the current month, fetched in a
         # single SQL aggregation so we don't pay per-row queries.
@@ -343,40 +354,20 @@ def register(app, state) -> None:
                     cell["expenses_sum_czk"] = slug_to_expenses_total.get(row["slug"], 0.0)
                     break
 
-        # Recalculate client payout and net profit.
-        # New model for klient/z_klient: net_profit (= "Výplata Rentero")
-        # is provize + výdaje, since clients reimburse expenses through
-        # Rentero. Rentero-owned objects keep the legacy cena_ubyt model.
-        client_payout_total = 0.0
-        net_profit = 0.0
-        for row in dashboard_rows:
-            for cell in row.get("cells", []):
-                if cell.get("year") == cur_y and cell.get("month") == cur_m:
-                    cena_ubyt = cell.get("cena_ubytovani_sum_czk", 0) or 0
-                    client_payout = cell.get("client_payout_sum_czk", 0) or 0
-                    rentero_fee = cell.get("rentero_fee_sum_czk", 0) or 0
-                    expenses_sum = cell.get("expenses_sum_czk", 0) or 0
-                    ct = row["client_type"]
-                    if ct == "rentero":
-                        net_profit += cena_ubyt
-                    else:
-                        client_payout_total += client_payout
-                        net_profit += rentero_fee + expenses_sum
-                    break
-        dashboard_summary["total_client_payout_czk"] = client_payout_total
-        dashboard_summary["total_net_profit_czk"] = round(net_profit, 2)
-
-        # ── DPH aggregates for rentero filter ──────────────────────────────
-        # When the user filters the dashboard by Rentero, the "Výplata
-        # klientům" card is meaningless (Rentero doesn't pay clients for its
-        # own objects), so we replace its content with the DPH balance for
-        # all rentero properties in the current month.
+        # ── Per-property DPH + zisk for current month ──────────────────────
+        # We need per-Rentero-owned-property zisk and DPH balance for both
+        # the DPH KPI 2 aggregate (rentero filter) AND the per-row "rentero
+        # ZISK" indicator that replaces "klient X" on the prop-row. Compute
+        # both in a single sweep over Rentero-owned properties so we don't
+        # build report summaries twice.
         slug_to_prop = {p["slug"]: p for p in properties}
+        slug_to_zisk: dict[str, float] = {}
         rentero_vat_output = 0.0
         rentero_vat_input = 0.0
         rentero_vat_balance = 0.0
-        for slug, ct in client_type_map.items():
-            if ct != "rentero":
+        for row in dashboard_rows:
+            slug = row["slug"]
+            if not _is_rentero_owned_slug(slug):
                 continue
             prop = slug_to_prop.get(slug)
             if not prop:
@@ -385,16 +376,54 @@ def register(app, state) -> None:
             rows_for_summary = state["_prepare_rows_for_display"](
                 state["apply_overrides_to_rows"](conn, raw_rows, slug, cur_y, cur_m)
             )
-            expenses = state["get_expenses"](conn, slug, cur_y, cur_m)
+            expenses_for_slug = state["get_expenses"](conn, slug, cur_y, cur_m)
             s = state["build_report_summary"](
-                rows_for_summary, prop, expenses=expenses
+                rows_for_summary, prop, expenses=expenses_for_slug
             )
-            rentero_vat_output += s.get("vat_output_czk", 0) or 0
-            rentero_vat_input += s.get("vat_input_czk", 0) or 0
+            rentero_vat_output  += s.get("vat_output_czk", 0)  or 0
+            rentero_vat_input   += s.get("vat_input_czk", 0)   or 0
             rentero_vat_balance += s.get("vat_balance_czk", 0) or 0
-        dashboard_summary["rentero_vat_output_czk"] = round(rentero_vat_output, 2)
-        dashboard_summary["rentero_vat_input_czk"] = round(rentero_vat_input, 2)
+            # zisk: use summary.zisk_czk when present (client_type='rentero'),
+            # otherwise apply the same fallback formula the property page uses.
+            zisk = s.get("zisk_czk")
+            if zisk is None:
+                zisk = (s.get("gross_payout_czk") or 0) \
+                     - (s.get("expenses_total_czk") or 0) \
+                     - (s.get("vat_balance_czk") or 0)
+            slug_to_zisk[slug] = round(float(zisk), 2)
+
+        # Attach zisk_czk to current-month cell so the template can emit it
+        # as a data attribute for JS aggregation on filter changes.
+        for row in dashboard_rows:
+            for cell in row.get("cells", []):
+                if cell.get("year") == cur_y and cell.get("month") == cur_m:
+                    cell["zisk_czk"] = slug_to_zisk.get(row["slug"], 0.0)
+                    break
+
+        dashboard_summary["rentero_vat_output_czk"]  = round(rentero_vat_output, 2)
+        dashboard_summary["rentero_vat_input_czk"]   = round(rentero_vat_input, 2)
         dashboard_summary["rentero_vat_balance_czk"] = round(rentero_vat_balance, 2)
+
+        # ── KPI 4 net profit + KPI 2 client payout aggregates ──────────────
+        # Rentero-owned (heuristic, includes Rentero-as-z_klient): the row
+        # contributes its zisk_czk to "Zisk Rentero".
+        # External klient/z_klient: contributes provize + výdaje (clients
+        # reimburse expenses through Rentero, so cash-flow to Rentero on
+        # those objects is fee + expenses).
+        client_payout_total = 0.0
+        net_profit = 0.0
+        for row in dashboard_rows:
+            for cell in row.get("cells", []):
+                if cell.get("year") == cur_y and cell.get("month") == cur_m:
+                    if row["is_rentero"]:
+                        net_profit += cell.get("zisk_czk", 0) or 0
+                    else:
+                        client_payout_total += cell.get("client_payout_sum_czk", 0) or 0
+                        net_profit += (cell.get("rentero_fee_sum_czk", 0) or 0) \
+                                    + (cell.get("expenses_sum_czk", 0) or 0)
+                    break
+        dashboard_summary["total_client_payout_czk"] = client_payout_total
+        dashboard_summary["total_net_profit_czk"] = round(net_profit, 2)
 
         return state["templates"].TemplateResponse(
             request,
