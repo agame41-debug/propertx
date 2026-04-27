@@ -1226,7 +1226,10 @@
   }
   .rs-table .rs-caret { display: none; }
   .rs-table tfoot { display: none; }
-  .rs-table tr.rs-ex { display: block; }
+  /* Detail row: respect the [hidden] attribute on mobile.
+     Without :not([hidden]), `display: block` would override the UA
+     `hidden { display: none }` rule and force every detail row open. */
+  .rs-table tr.rs-ex:not([hidden]) { display: block; }
   .rs-table tr.rs-ex td { padding: 0; border: 0; }
 
   /* ── Expanded reservation row — vertical stack on phone ──
@@ -1295,6 +1298,64 @@
       color: var(--brand-text);
       border-color: var(--brand-line);
     }
+  }
+
+  /* ── Finanční přehled (.bd-table) — card-list on phone ──
+     7 numeric columns won't fit at 390px. Each <tr> becomes a card
+     with the channel name as a header and metric rows below, each
+     showing its label via the data-bd-label attribute. */
+  .bd-table { display: block; }
+  .bd-table thead { display: none; }
+  .bd-table tbody, .bd-table tfoot { display: block; }
+  .bd-table tr {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line-hair);
+  }
+  .bd-table tbody tr:last-child { border-bottom: 0; }
+  .bd-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4px 0;
+    border: 0;
+  }
+  /* "Channel" cell: full-width header above the metric rows */
+  .bd-table td:first-child {
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--line-hair);
+    justify-content: flex-start;
+  }
+  /* Per-cell label rendered from the template attribute */
+  .bd-table td:not(:first-child)::before {
+    content: attr(data-bd-label);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-400);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    flex-shrink: 0;
+  }
+  /* Výplata: kill desktop's left-border accent on mobile cells */
+  .bd-table td.bd-payout {
+    background: transparent;
+    border-left: 0;
+  }
+  /* Footer ("Celkem") — slightly emphasised card */
+  .bd-table tfoot tr {
+    border-top: 1px solid var(--line-2);
+    border-bottom: 0;
+    background: var(--bg-hover);
+  }
+  .bd-table tfoot td:first-child {
+    color: var(--text-100);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 12px;
   }
 
   /* Expenses table — hide net/dph columns on phone */

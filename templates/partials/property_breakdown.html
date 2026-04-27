@@ -31,26 +31,26 @@
       ] %}
         {% if b.count > 0 %}
           <tr>
-            <td><span class="ch ch-{{ key }}">{{ label }}</span></td>
-            <td class="c num">{{ b.count }}</td>
-            <td class="r num income">{{ fmt_czk(b.cena_ubytovani_czk or 0) }}</td>
-            <td class="r num deduction">−{{ fmt_czk(b.provize_czk or 0) }}</td>
-            <td class="r num neutral">{{ fmt_czk(b.priprava_pokoje_czk or 0) }}</td>
-            <td class="r num neutral">{{ fmt_czk(b.city_tax_czk or 0) }}</td>
-            <td class="r num bd-payout">{{ fmt_czk(b.payout_czk or 0) }}</td>
+            <td data-bd-label="Kanál"><span class="ch ch-{{ key }}">{{ label }}</span></td>
+            <td class="c num"             data-bd-label="Rezervací">{{ b.count }}</td>
+            <td class="r num income"      data-bd-label="Ubytování">{{ fmt_czk(b.cena_ubytovani_czk or 0) }}</td>
+            <td class="r num deduction"   data-bd-label="Provize">−{{ fmt_czk(b.provize_czk or 0) }}</td>
+            <td class="r num neutral"     data-bd-label="Příprava pokoje">{{ fmt_czk(b.priprava_pokoje_czk or 0) }}</td>
+            <td class="r num neutral"     data-bd-label="City tax">{{ fmt_czk(b.city_tax_czk or 0) }}</td>
+            <td class="r num bd-payout"   data-bd-label="Výplata">{{ fmt_czk(b.payout_czk or 0) }}</td>
           </tr>
         {% endif %}
       {% endfor %}
     </tbody>
     <tfoot>
       <tr>
-        <td class="bd-total-lbl">Celkem</td>
-        <td class="c num strong">{{ row_breakdown.total.count }}</td>
-        <td class="r num income strong">{{ fmt_czk(row_breakdown.total.cena_ubytovani_czk or 0) }}</td>
-        <td class="r num deduction strong">−{{ fmt_czk(row_breakdown.total.provize_czk or 0) }}</td>
-        <td class="r num neutral strong">{{ fmt_czk(row_breakdown.total.priprava_pokoje_czk or 0) }}</td>
-        <td class="r num neutral strong">{{ fmt_czk(row_breakdown.total.city_tax_czk or 0) }}</td>
-        <td class="r num bd-payout strong">{{ fmt_czk(row_breakdown.total.payout_czk or 0) }}</td>
+        <td class="bd-total-lbl"                   data-bd-label="Celkem">Celkem</td>
+        <td class="c num strong"                   data-bd-label="Rezervací">{{ row_breakdown.total.count }}</td>
+        <td class="r num income strong"            data-bd-label="Ubytování">{{ fmt_czk(row_breakdown.total.cena_ubytovani_czk or 0) }}</td>
+        <td class="r num deduction strong"         data-bd-label="Provize">−{{ fmt_czk(row_breakdown.total.provize_czk or 0) }}</td>
+        <td class="r num neutral strong"           data-bd-label="Příprava pokoje">{{ fmt_czk(row_breakdown.total.priprava_pokoje_czk or 0) }}</td>
+        <td class="r num neutral strong"           data-bd-label="City tax">{{ fmt_czk(row_breakdown.total.city_tax_czk or 0) }}</td>
+        <td class="r num bd-payout strong"         data-bd-label="Výplata">{{ fmt_czk(row_breakdown.total.payout_czk or 0) }}</td>
       </tr>
     </tfoot>
   </table>
