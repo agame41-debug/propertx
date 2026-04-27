@@ -27,6 +27,23 @@ def _extract_csrf_token(html: str) -> str:
     return match.group(1)
 
 
+def _admin_request(**overrides) -> SimpleNamespace:
+    """Build a minimal Request stub that satisfies RBAC + Jinja `request.*` access.
+
+    Tests that bypass FastAPI's DI and call route functions directly need
+    `request.state.user` (read by `check_property_access` /
+    `get_accessible_properties`) and `request.headers` (read by some
+    base.html partials). Default to admin role + empty headers.
+    """
+    base = {
+        "session": {},
+        "state": SimpleNamespace(user={"id": 1, "username": "admin", "role": "admin"}),
+        "headers": {},
+    }
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
 def test_validate_web_runtime_config_requires_explicit_secure_settings(monkeypatch):
     monkeypatch.delenv("RENTERO_ALLOW_INSECURE_DEFAULTS", raising=False)
     monkeypatch.delenv("RENTERO_USERNAME", raising=False)
@@ -73,6 +90,7 @@ def test_start_bulk_generation_runner_invokes_background_process(monkeypatch):
 
     assert seen["cmd"] == [
         web_module.sys.executable,
+        "-u",
         "-m",
         "report.bulk_generation_runner",
         "--run-id",
@@ -249,26 +267,6 @@ def test_show_recent_generation_success_only_for_fresh_success_jobs():
     assert web_module._show_recent_generation_success(failed) is False
 
 
-def test_property_preview_redirects_with_info_flash():
-    request = SimpleNamespace(session={})
-
-    response = asyncio.run(
-        web_module.property_preview_month(
-            request=request,
-            slug="28_Pluku_58",
-            year=2026,
-            month=4,
-            conn=object(),
-            config={"properties": {"28_Pluku_58": {"display_name": "28. Pluku 58", "listing_nickname": "28. Pluku 58"}}},
-        )
-    )
-
-    assert response.status_code == 303
-    assert response.headers["location"] == "/property/28_Pluku_58/2026/4"
-    assert request.session["_flash"]["level"] == "info"
-    assert "Náhled je vypnutý" in request.session["_flash"]["message"]
-
-
 def test_dashboard_uses_requested_month_from_query(monkeypatch):
     captured = {}
     monkeypatch.setattr(web_module, "_get_active_properties", lambda config: [{"slug": "28_Pluku_58", "display_name": "28. Pluku 58"}])
@@ -281,16 +279,21 @@ def test_dashboard_uses_requested_month_from_query(monkeypatch):
     monkeypatch.setattr(web_module, "_build_dashboard_view_model", lambda *args, **kwargs: ({"current_month_label": "02/2025", "property_count": 1, "property_suffix": "", "total_payout_czk": 0, "total_client_payout_czk": 0, "total_reservations": 0, "reservations_delta": 0, "sparkline_points": [0, 0, 0, 0, 0, 0], "issues": 0, "new_data": 0, "locked": 0, "total_with_data": 0, "needs_report": 0}, [], []))
     monkeypatch.setattr(web_module.templates, "TemplateResponse", lambda request, template, context: captured.update({"template": template, "context": context}) or SimpleNamespace(status_code=200))
     monkeypatch.setattr(web_module, "_pop_flash", lambda request: None)
+    monkeypatch.setattr(web_module, "get_all_clients", lambda conn: [])
 
-    response = asyncio.run(
-        web_module.dashboard(
-            request=SimpleNamespace(session={}),
-            year=2025,
-            month=2,
-            conn=object(),
-            config={"properties": {}},
+    conn = get_connection(":memory:")
+    try:
+        response = asyncio.run(
+            web_module.dashboard(
+                request=_admin_request(),
+                year=2025,
+                month=2,
+                conn=conn,
+                config={"properties": {}},
+            )
         )
-    )
+    finally:
+        conn.close()
 
     assert response.status_code == 200
     assert captured["template"] == "dashboard.html"
@@ -325,8 +328,7 @@ def test_bank_page_renders_successfully():
 
 
 def test_guest_evidence_template_renders_group_audits():
-    request = SimpleNamespace(
-        session={},
+    request = _admin_request(
         url=SimpleNamespace(path="/property/28_Pluku_58/2026/4/evidence-hostu"),
     )
     html = web_module.templates.get_template("guest_evidence.html").render(
@@ -397,7 +399,7 @@ def test_inventory_page_filters_draft_objects(monkeypatch):
 
     response = asyncio.run(
         web_module.inventory_page(
-            request=SimpleNamespace(session={}),
+            request=_admin_request(),
             status="draft",
             conn=object(),
             config=config,
@@ -484,7 +486,7 @@ def test_client_save_accepts_address_alias_and_sets_flash():
     try:
         sync_json_config_to_db(conn, BASE_CONFIG)
         config = load_runtime_config("/tmp/does-not-exist-properties.json", db_conn=conn)
-        request = SimpleNamespace(session={})
+        request = _admin_request()
 
         response = asyncio.run(
             web_module.client_save(
@@ -506,6 +508,7 @@ def test_client_save_accepts_address_alias_and_sets_flash():
                 balicky_per_person="",
                 city_tax_rate="",
                 vat_rate="",
+                hostify_listing_names="",
                 airbnb_listing_names="",
                 booking_listing_nickname="",
                 booking_property_id="",
@@ -644,7 +647,7 @@ def test_property_detail_includes_transferred_rows_in_summary(monkeypatch):
 
     response = asyncio.run(
         web_module.property_detail(
-            request=SimpleNamespace(session={}),
+            request=_admin_request(),
             slug="28_Pluku_58",
             year=2026,
             month=4,
@@ -655,47 +658,6 @@ def test_property_detail_includes_transferred_rows_in_summary(monkeypatch):
 
     assert response.status_code == 200
     assert captured["summary_args"]["transferred_rows"] == [{"confirmation_code": "XFER-1"}]
-
-
-def test_property_download_redirects_when_report_is_missing():
-    request = SimpleNamespace(session={})
-
-    response = asyncio.run(
-        web_module.property_download_month(
-            request=request,
-            slug="28_Pluku_58",
-            year=2026,
-            month=4,
-            conn=get_connection(":memory:"),
-        )
-    )
-
-    assert response.status_code == 303
-    assert response.headers["location"] == "/property/28_Pluku_58/2026/4"
-    assert request.session["_flash"]["level"] == "error"
-
-
-def test_property_download_returns_file_response(monkeypatch, tmp_path):
-    report_path = tmp_path / "report.xlsx"
-    report_path.write_bytes(b"excel")
-    monkeypatch.setattr(
-        web_module,
-        "_latest_report_for_month",
-        lambda *args, **kwargs: {"file_path": str(report_path)},
-    )
-
-    response = asyncio.run(
-        web_module.property_download_month(
-            request=SimpleNamespace(session={}),
-            slug="28_Pluku_58",
-            year=2026,
-            month=4,
-            conn=object(),
-        )
-    )
-
-    assert isinstance(response, web_module.FileResponse)
-    assert Path(response.path) == report_path
 
 
 def test_engine_is_called_on_override_save(monkeypatch):
@@ -717,39 +679,3 @@ def test_engine_is_called_on_override_save(monkeypatch):
     assert ("test", 2026, 3) in generated
 
 
-def test_import_csv_enqueues_durable_generation_job(monkeypatch):
-    """CSV import uses durable generation jobs for affected months."""
-    import report.web as web_module
-
-    queued = []
-
-    summary = {
-        "source_type": "airbnb",
-        "affected_month_keys": [("test_prop", 2026, 3)],
-        "import_run_id": 1,
-        "is_duplicate": False,
-    }
-    monkeypatch.setattr(web_module, "get_report_month_state", lambda *a: {"status": "OPEN"})
-    monkeypatch.setattr(web_module, "mark_report_month_stale", lambda *a: None)
-    monkeypatch.setattr(web_module, "_create_import_impact_notification", lambda *a, **kw: None)
-    monkeypatch.setattr(
-        web_module,
-        "_enqueue_report_generation",
-        lambda _conn, *, slug, year, month, requested_by: queued.append((slug, year, month, requested_by)) or ("started", {}),
-    )
-
-    from report.db import get_connection
-    conn = get_connection(":memory:")
-    try:
-        result = web_module._apply_import_impacts(
-            conn, summary,
-            requested_by="test",
-            background_tasks=None,
-            config={},
-        )
-    finally:
-        conn.close()
-
-    assert len(queued) == 1
-    assert queued[0][:3] == ("test_prop", 2026, 3)
-    assert result["auto_started"] == [("test_prop", 2026, 3)]

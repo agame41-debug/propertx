@@ -356,11 +356,11 @@ def test_apply_import_impacts_autostarts_open_months_and_notifies_locked(monkeyp
             lambda _conn, slug, year, month: {"status": "LOCKED"} if slug == "Locked_Slug" else {"status": "OPEN"},
         )
         monkeypatch.setattr(web_module, "mark_report_month_stale", lambda *a, **kw: None)
-        monkeypatch.setattr(
-            web_module,
-            "_enqueue_report_generation",
-            lambda _conn, *, slug, year, month, requested_by: ("started", {"slug": slug, "year": year, "month": month}),
-        )
+        # Background regeneration now runs on a daemon thread spawned by
+        # _apply_import_impacts itself; suppress it so the test stays in-process.
+        import threading as _threading
+        monkeypatch.setattr(_threading, "Thread", lambda *a, **kw: SimpleNamespace(start=lambda: None))
+        monkeypatch.setattr(web_module, "_db_path_for_connection", lambda _conn: ":memory:")
 
         result = web_module._apply_import_impacts(
             conn,

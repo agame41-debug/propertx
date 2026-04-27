@@ -29,23 +29,14 @@ python -m report.sources import --type bank --path source/bank/transakce\ CS\ 20
 # 2. Inspect active archived sources
 python -m report.sources list --active-only
 
-# 3. Generate reports from DB-backed active sources
-python -m report.main --year 2026 --month 3
+# 3. Regenerate a single (slug, year, month) via the engine
+python bin/regen.py --slug Francouzska_50 --year 2026 --month 3
 
-# Optional: direct file override
-python -m report.main --year 2026 --month 3 \
-  --airbnb-csv source/airbnb/airbnb_03_2026-04_2026.csv \
-  --booking-csv source/booking/Payout_from_2024-01-01_until_2026-03-26.csv \
-  --bank-csv source/bank/transakce\ CS\ 2024-2026.csv
-
-# Legacy fallback: scan source/* when registry is empty or incomplete
-python -m report.main --year 2026 --month 3 --legacy-autodiscover
-
-# Run web UI
+# 4. Run web UI (generation runs automatically on every mutation)
 python run_web.py
 ```
 
-Výstupní Excel reporty se ukládají do `output/reports/`.
+Reporty se serializují do SQLite (`report_rows`, `report_history`) a renderují přímo ve webovém UI.
 
 Na Windows je preferovaný launcher:
 
@@ -123,17 +114,17 @@ raw source files / Hostify API
         ▼
 calculator.py
         ▼
-summary.py + excel.py
+summary.py
         ▼
 SQLite persisted state + web UI
 ```
 
 ### Kódové vrstvy
 
-- `report/main.py`
-  CLI entrypoint pro generování reportů (píše Excel, čte z API i souborů).
 - `report/engine.py`
-  In-process generovací engine: čte Hostify snapshot z DB, nepíše Excel. Volán webem při každé mutaci.
+  Jediný in-process generovací engine: čte Hostify snapshot z DB, persistuje `report_rows` + bank matches. Volán webem při každé mutaci, daily Hostify syncem, bulk runnerem i CLI.
+- `bin/regen.py`
+  Tenký CLI wrapper nad enginem pro ad-hoc regeneraci jednoho `(slug, year, month)` z terminálu.
 - `report/hostify_sync.py`
   Denní asyncio background task: fetchuje 5 měsíců z Hostify API, ukládá snapshoty, regeneruje otevřené měsíce.
 - `report/web.py`
@@ -163,9 +154,7 @@ SQLite persisted state + web UI
 - `report/bank.py`
   Bank reconciliation a payout-batch matching.
 - `report/summary.py`
-  Canonical property/month summary pro web i Excel.
-- `report/excel.py`
-  Export finálního `.xlsx`.
+  Canonical property/month summary pro web (Excel export už není používán).
 
 ### Web vrstva
 
