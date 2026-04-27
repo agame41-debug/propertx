@@ -19,17 +19,20 @@
   --err:          var(--color-red);
   --info:         var(--color-blue);
 
-  --ok-soft:      oklch(0.72 0.17 155 / 0.10);
-  --ok-line:      oklch(0.72 0.17 155 / 0.35);
-  --warn-soft:    oklch(0.78 0.14 75 / 0.10);
-  --warn-line:    oklch(0.78 0.14 75 / 0.35);
-  --err-soft:     oklch(0.70 0.19 25 / 0.10);
-  --err-line:     oklch(0.70 0.19 25 / 0.35);
-  --info-soft:    oklch(0.72 0.14 250 / 0.10);
-  --info-line:    oklch(0.72 0.14 250 / 0.35);
+  /* soft/line tints derive from the same global semantic tokens via color-mix —
+     so light-theme palette refresh propagates here automatically (no need to
+     duplicate values in [data-theme="light"] .page). */
+  --ok-soft:      color-mix(in oklch, var(--color-green) 12%, transparent);
+  --ok-line:      color-mix(in oklch, var(--color-green) 35%, transparent);
+  --warn-soft:    color-mix(in oklch, var(--color-amber) 12%, transparent);
+  --warn-line:    color-mix(in oklch, var(--color-amber) 35%, transparent);
+  --err-soft:     color-mix(in oklch, var(--color-red)   12%, transparent);
+  --err-line:     color-mix(in oklch, var(--color-red)   35%, transparent);
+  --info-soft:    color-mix(in oklch, var(--color-blue)  12%, transparent);
+  --info-line:    color-mix(in oklch, var(--color-blue)  35%, transparent);
 
-  --ch-airbnb:    oklch(0.72 0.18 25);
-  --ch-booking:   oklch(0.70 0.14 250);
+  --ch-airbnb:    var(--color-red);
+  --ch-booking:   var(--color-blue);
 
   /* Mock used --t-fast / --t-med / --ease — alias to existing names */
   --t-fast:       var(--duration-fast, 150ms);
@@ -56,23 +59,16 @@
 }
 
 [data-theme="light"] .page {
-  --ok:           oklch(0.52 0.16 155);
-  --warn:         oklch(0.60 0.15 60);
-  --err:          oklch(0.55 0.20 25);
-  --info:         oklch(0.50 0.16 250);
-
-  --ch-airbnb:    oklch(0.58 0.20 25);
-  --ch-booking:   oklch(0.50 0.16 250);
-
+  /* --ok/--warn/--err/--info, --ch-airbnb/-booking and --shadow-* now
+     inherit from the global [data-theme="light"] light palette via color-mix
+     (see .page block above). Only the truly property-specific overrides
+     remain here: line-hair tints, text-400/500, hover surface. */
   --line-1:       oklch(0 0 0 / 0.08);
   --line-2:       oklch(0 0 0 / 0.12);
   --line-hair:    oklch(0 0 0 / 0.04);
 
-  --shadow-sm:    0 1px 2px oklch(0 0 0 / .05);
-  --shadow-md:    0 8px 24px oklch(0 0 0 / .08);
-
-  --text-400:    oklch(0.68 0.008 260);
-  --text-500:    oklch(0.78 0.006 260);
+  --text-400:    oklch(0.50 0.012 285);
+  --text-500:    oklch(0.62 0.010 285);
   --bg-hover:    oklch(0 0 0 / 0.025);
 }
 
@@ -199,10 +195,8 @@
 .page .badge-dph   { color: var(--dph-text); }
 .page .badge-mute  { color: var(--text-300); }
 
-[data-theme="light"] .page .badge-ok    { color: oklch(0.42 0.16 155); }
-[data-theme="light"] .page .badge-warn  { color: oklch(0.48 0.14 60); }
-[data-theme="light"] .page .badge-err   { color: oklch(0.46 0.19 25); }
-[data-theme="light"] .page .badge-info  { color: oklch(0.45 0.13 245); }
+/* Light-theme badge colors removed — now inherit from --color-* via --ok/--warn/...
+   which are themselves derived from light-tuned globals (L≈0.55, chroma 0.16-0.18). */
 
 .page .badge:hover { opacity: .75; }
 
@@ -665,12 +659,17 @@
   font-family: var(--font-mono); font-size: 10px; font-weight: 600;
   letter-spacing: .05em;
   cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+  transition: background var(--t-fast) var(--ease),
+              color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease),
+              transform 160ms var(--ease);
 }
 .rex-btn:hover {
   background: var(--bg-hover); color: var(--text-100);
   border-color: var(--line-2);
 }
+/* Emil: buttons must feel responsive to press — instant scale feedback */
+.rex-btn:active { transform: scale(0.97); }
 .rex-btn.primary {
   margin-left: auto;
   color: var(--brand-text); border-color: var(--brand-line);
@@ -1229,6 +1228,74 @@
   .rs-table tfoot { display: none; }
   .rs-table tr.rs-ex { display: block; }
   .rs-table tr.rs-ex td { padding: 0; border: 0; }
+
+  /* ── Expanded reservation row — vertical stack on phone ──
+     Desktop renders three .rs-ex-group columns separated by border-left;
+     on phone we collapse into a single column with a thin top divider
+     between groups, hide the bank/status group (collapsed .rs-stav already
+     conveys it), and turn action buttons into a symmetric 2-col grid with
+     44px tap-targets per Apple HIG. */
+  .rs-ex-inner { padding: 12px 14px 10px; }
+
+  .rs-ex-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .rs-ex-group,
+  .rs-ex-group.cols-2 {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 0;
+    border-left: 0;
+    border-top: 1px solid var(--line-hair);
+    grid-template-columns: 1fr;
+  }
+  .rs-ex-group:first-child {
+    border-top: 0;
+    padding-top: 4px;
+  }
+  /* Hide bank-status duplicate — the collapsed .rs-stav cell already
+     shows MATCHED/CHYBÍ/DORAZILO; the expanded version is desktop-only. */
+  .rs-ex-group[data-ex-section="bank"] { display: none; }
+
+  /* Action buttons — symmetric 2-column grid, 44px tap-target */
+  .rs-ex-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line-hair);
+  }
+  /* "Otevřít panel →" primary CTA — full-width at bottom */
+  .rs-ex-actions .rex-btn.primary {
+    grid-column: 1 / -1;
+    margin-left: 0;       /* override desktop margin-left:auto */
+  }
+  .rex-btn {
+    min-height: 44px;
+    padding: 12px 14px;
+    font-size: 13px;
+    border-radius: 10px;
+    justify-content: center;
+  }
+
+  /* Hover only on real pointers — touch devices fire :hover on tap and
+     leave a sticky background on the last-pressed button otherwise. */
+  @media (hover: none) {
+    .rex-btn:hover {
+      background: transparent;
+      color: var(--text-300);
+      border-color: var(--line-1);
+    }
+    .rex-btn.primary:hover {
+      background: transparent;
+      color: var(--brand-text);
+      border-color: var(--brand-line);
+    }
+  }
 
   /* Expenses table — hide net/dph columns on phone */
   .exp-table thead th:nth-child(4),

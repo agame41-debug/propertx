@@ -158,49 +158,78 @@
   --glass-hi:     inset 0 1px 0 oklch(1 0 0 / 0.04);
   }
 
-  /* ── Light theme overrides ── */
+  /* ── Light theme overrides ──
+     Design principles applied:
+     - Neutrals tinted toward brand hue 285° (not 260°). Subtle chroma 0.004-0.008
+       creates subconscious cohesion with the purple accent.
+     - --bg-3 is NOT pure white (0.995 0.002 285) — pure black/white never
+       appears in nature.
+     - Semantic --color-* re-derived for light context: L≈0.55, restrained
+       chroma 0.16-0.18 (not 0.20+) so they read crisp instead of garish.
+     - Shadows hue 285° — single plum-tinted personality across the app.
+     - Ambient uses brand purple ≤10% intensity (60-30-10 rule). */
   [data-theme="light"] {
-    --bg-0:   oklch(0.95 0.004 260);
-    --bg-1:   oklch(0.97 0.003 260);
-    --bg-2:   oklch(0.94 0.005 260);
-    --bg-3:   oklch(1.00 0 0);
-    --bg-4:   oklch(0.96 0.004 260);
+    --bg-0:   oklch(0.93 0.005 285);   /* page void / outside cards */
+    --bg-1:   oklch(0.985 0.004 285);  /* canvas — body */
+    --bg-2:   oklch(0.965 0.006 285);  /* recessed — table headers, sidebars */
+    --bg-3:   oklch(0.995 0.002 285);  /* surface — cards (near-white, micro-violet) */
+    --bg-4:   oklch(0.985 0.008 285);  /* raised — hovered cards, dropdowns */
 
-    --text-100: oklch(0.13 0.015 260);
-    --text-200: oklch(0.42 0.012 260);
-    --text-300: oklch(0.62 0.008 260);
+    --text-100: oklch(0.18 0.018 285);
+    --text-200: oklch(0.40 0.014 285);
+    --text-300: oklch(0.55 0.010 285);
 
-    --border-base: oklch(0 0 0 / 0.08);
-    --border-top:  oklch(0 0 0 / 0.12);
+    --border-base:   oklch(0 0 0 / 0.08);
+    --border-top:    oklch(0 0 0 / 0.12);
+    --border-active: oklch(0.50 0.20 285 / 0.40);
 
     --fg: 0 0 0;
 
-    --glass-highlight: inset 0 1px 0 oklch(1 0 0 / 0.5);
-    --glass-highlight-strong: inset 0 1px 0 oklch(1 0 0 / 0.7);
+    --glass-highlight:        inset 0 1px 0 oklch(1 0 0 / 0.6);
+    --glass-highlight-strong: inset 0 1px 0 oklch(1 0 0 / 0.8);
 
-    --shadow-sm:  0 1px 3px oklch(0 0 0 / 0.06);
-    --shadow-md:  0 4px 12px oklch(0 0 0 / 0.08);
-    --shadow-lg:  0 12px 40px oklch(0 0 0 / 0.12);
+    --shadow-sm: 0 1px 2px  oklch(0.20 0.04 285 / 0.06);
+    --shadow-md: 0 4px 14px oklch(0.20 0.04 285 / 0.08);
+    --shadow-lg: 0 16px 48px oklch(0.20 0.04 285 / 0.14);
+    --shadow-xl: 0 24px 60px oklch(0.20 0.04 285 / 0.18);
+
+    /* Semantic — re-saturated for light context */
+    --color-green:   oklch(0.55 0.16 150);
+    --color-red:     oklch(0.55 0.18 25);
+    --color-amber:   oklch(0.62 0.14 75);
+    --color-blue:    oklch(0.52 0.16 250);
+    --color-teal:    oklch(0.55 0.10 195);
+    --color-orange:  oklch(0.60 0.16 50);
+
+    /* Accent — same brand hue, darkened for white-bg contrast */
+    --accent:       oklch(0.50 0.20 285);
+    --accent-dim:   oklch(0.50 0.20 285 / 0.10);
+    --accent-glow:  oklch(0.50 0.20 285 / 0.20);
+    --accent-text:  oklch(0.40 0.20 285);
 
     --ambient-primary: radial-gradient(
       ellipse 70% 50% at 85% 0%,
-      rgba(180, 90, 40, 0.13) 0%,
-      rgba(140, 60, 30, 0.06) 40%,
-      transparent 70%
+      oklch(0.62 0.20 285 / 0.10) 0%,
+      oklch(0.62 0.20 285 / 0.04) 40%,
+      transparent 72%
     );
     --ambient-secondary: radial-gradient(
       ellipse 60% 50% at 10% 100%,
-      rgba(110, 50, 150, 0.11) 0%,
-      rgba(90, 40, 120, 0.05) 45%,
-      transparent 68%
+      oklch(0.68 0.18 35 / 0.08) 0%,
+      oklch(0.68 0.18 35 / 0.03) 45%,
+      transparent 70%
     );
     --ambient-tertiary: none;
 
-  --brand:        oklch(0.55 0.18 285);
-  --brand-text:   oklch(0.45 0.18 285);
-  --dph:          oklch(0.55 0.12 185);
-  --dph-text:     oklch(0.42 0.13 185);
-  --glass-hi:     inset 0 1px 0 oklch(1 0 0 / 0.6);
+    --brand:       oklch(0.50 0.20 285);
+    --brand-soft:  oklch(0.50 0.20 285 / 0.10);
+    --brand-line:  oklch(0.50 0.20 285 / 0.30);
+    --brand-text:  oklch(0.40 0.20 285);
+    --dph:         oklch(0.52 0.13 195);
+    --dph-soft:    oklch(0.52 0.13 195 / 0.10);
+    --dph-line:    oklch(0.52 0.13 195 / 0.30);
+    --dph-text:    oklch(0.42 0.13 195);
+    --glass-hi:    inset 0 1px 0 oklch(1 0 0 / 0.7);
   }
 
   /* ── Reset ── */
@@ -241,13 +270,19 @@
   details > summary { list-style: none; }
   details > summary::-webkit-details-marker { display: none; }
 
-  /* ── Smooth theme switching ── */
+  /* ── Smooth theme switching ──
+     Emil principle: UI animations < 300ms. Custom ease-out curve
+     (already defined in :root --ease-out) feels crisper than generic `ease`. */
   html.theme-switching,
   html.theme-switching *,
   html.theme-switching *::before,
   html.theme-switching *::after {
-    transition: background-color 500ms ease, color 500ms ease,
-                border-color 500ms ease, box-shadow 500ms ease,
-                fill 500ms ease, stroke 500ms ease !important;
+    transition: background-color 250ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+                color           250ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+                border-color    250ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+                box-shadow      250ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+                fill            250ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+                stroke          250ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1))
+                !important;
   }
 </style>

@@ -37,8 +37,11 @@
       </div>
     </div>
 
-    {# ── Group 3 — Stav ── #}
-    <div class="rs-ex-group cols-2">
+    {# ── Group 3 — Stav ──
+       data-ex-section="bank" lets mobile CSS hide this group: collapsed
+       .rs-stav cell already conveys bank/match status, so the duplicate
+       on phone-width is just clutter. Desktop keeps the group visible. #}
+    <div class="rs-ex-group cols-2" data-ex-section="bank">
       {% if r.bank_status == 'DORAZILO' and r.bank_datum %}
         <div>
           <div class="rex-k ok">Dorazilo na účet</div>

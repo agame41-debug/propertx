@@ -1,3 +1,13 @@
+# Triage 2026-04-27
+
+## AI-tells / design-quality follow-ups
+
+Found by `impeccable` BAN 1 audit (`grep border-(left|right): [2-9]px`):
+
+- **[templates/audit.html:18](templates/audit.html:18)** — `<div class="card" style="margin-bottom:24px;border-left:3px solid var(--color-red);">` — classic "left-stripe alert card" AI-tell. Replace with full border + soft tinted background, or with leading icon + bolder typography. Not blocking — fix in a separate UI-polish session.
+
+---
+
 # Test triage 2026-04-27
 
 Snapshot of pytest baseline after hygiene round (engine-unification + bank-match-ownership fix shipped).
