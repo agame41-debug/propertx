@@ -44,18 +44,21 @@
   --line-2:       oklch(1 0 0 / 0.10);
   --line-hair:    oklch(1 0 0 / 0.04);
 
-  --shadow-sm:    var(--shadow-sm, 0 1px 2px oklch(0 0 0 / .35));
-  --shadow-md:    var(--shadow-md, 0 8px 28px oklch(0 0 0 / .45));
+  /* --shadow-sm / --shadow-md were previously self-referencing aliases
+     (var(--shadow-sm, ...)) which created a cyclic dependency. Per the
+     CSS Variables spec a self-reference makes the property invalid, so
+     anything inside .page resolved them to the guaranteed-invalid value
+     and lost shadows. The :root tokens cascade through fine — no alias
+     needed. Same story for --radius-md / --radius-lg / --radius-full. */
 
   --text-400:    oklch(0.38 0.010 260);
   --text-500:    oklch(0.30 0.008 260);
   --bg-hover:    oklch(1 0 0 / 0.025);
   --gap-3:       12px;
 
+  /* --radius-sm intentionally aliases to --radius-xs (6px), differing
+     from the :root --radius-sm (8px). All other radii inherit from :root. */
   --radius-sm:    var(--radius-xs, 6px);
-  --radius-md:    var(--radius-md, 12px);
-  --radius-lg:    var(--radius-lg, 16px);
-  --radius-full:  var(--radius-full, 9999px);
 }
 
 [data-theme="light"] .page {
