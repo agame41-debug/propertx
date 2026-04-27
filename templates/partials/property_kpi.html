@@ -6,10 +6,16 @@
 
 <div class="kpi-row">
 
-  {# ── KPI 1: Zisk (rentero) / Klientovi bude vyplaceno (klient, z_klient) ─ #}
-  <div class="kpi kpi-ok{% if prop.client_type == 'rentero' %} kpi-zisk{% endif %}">
-    <div class="kpi-label">{% if prop.client_type == 'rentero' %}Zisk{% else %}Klientovi bude vyplaceno{% endif %}</div>
-    {% if prop.client_type == 'rentero' %}
+  {# ── KPI 1: Zisk (rentero) / Klientovi bude vyplaceno (klient, z_klient) ─
+     Rentero-owned heuristic: no client record, no client.name, OR client.name
+     starts with "Rentero" (e.g. "Rentero Investments", "Rentero Home"). Otherwise
+     external client = show "Klientovi bude vyplaceno".
+     This bypasses the stale report_objects.client_type which defaults to 'rentero'
+     for every property without explicit configuration. #}
+  {% set _is_rentero_owned = (not client) or (not client.name) or (client.name|lower).startswith('rentero') %}
+  <div class="kpi kpi-ok{% if _is_rentero_owned %} kpi-zisk{% endif %}">
+    <div class="kpi-label">{% if _is_rentero_owned %}Zisk{% else %}Klientovi bude vyplaceno{% endif %}</div>
+    {% if _is_rentero_owned %}
       <div class="kpi-value ok" data-copy="{{ '%.2f'|format(summary.zisk_czk or 0) }}">
         {{ fmt_czk(summary.zisk_czk or 0) }}
       </div>
