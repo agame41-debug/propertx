@@ -217,6 +217,8 @@ _OBJEKT_315_ALIASES = {
     # "rumunska 32 2"; 315 keeps the slash form "rumunska 32/N".
     "rumunska 32 1": "rumunska 32/1",
     "rumunska 32 2": "rumunska 32/2",
+    # Slug "Na_Spojce_628_10" normalizes to "na spojce 628 10"; 315 keeps the slash.
+    "na spojce 628 10": "na spojce 628/10",
     "vinohr 14": "vinohradska 208/14",
     "vinohradska208/14": "vinohradska 208/14",
     "vaclavske namesti 58": "vaclavske namesti 48",
