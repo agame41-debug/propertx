@@ -884,6 +884,22 @@ def generate_report_in_process(
             )
             row["batch_amount_czk"] = pinfo.get("payout_czk")
             row["batch_rate"] = pinfo.get("booking_batch_rate")
+            # When load_booking_csv could not match this reservation by
+            # Referenční číslo (typical for cancelled-but-paid bookings —
+            # Booking still transfers a partial amount, but the CSV row
+            # appears under a different "Typ"), the verifier fell back to
+            # Hostify's gross payout_price_eur. That gross is wrong: the
+            # platform actually transferred net (after Booking commission).
+            # The payout-export item carries the real amounts. Override.
+            item_eur = pinfo.get("item_amount_eur")
+            item_czk = pinfo.get("item_amount_czk")
+            if (
+                row.get("csv_payout_eur") is None
+                and item_eur is not None
+                and item_czk is not None
+            ):
+                row["effective_payout_eur"] = item_eur
+                row["czk_booked"] = item_czk
 
     # ── Split payout: limit effective_payout_eur to batches within window ──
     for row in all_verified:

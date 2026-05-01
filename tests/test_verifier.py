@@ -14,6 +14,7 @@ from datetime import date
 from report.verifier import (
     CsvFormatError,
     build_airbnb_payout_data,
+    build_booking_payout_data,
     load_airbnb_csv,
     load_booking_csv,
     verify_reservation,
@@ -587,6 +588,52 @@ class TestAirbnbBatchRateSanityCheck:
         for code in ("HMA", "HMB", "HMC"):
             entry = result["reservation_map"][code]
             assert entry["airbnb_rate"] == 0.0
+
+
+class TestBuildBookingPayoutDataItemAmounts:
+    """build_booking_payout_data must surface per-item EUR/CZK in the
+    reservation_map so engine.py can override the Hostify-gross fallback
+    for cancelled-but-paid reservations (Booking still pays out a partial
+    amount, but load_booking_csv does not return cancelled rows)."""
+
+    BOOKING_HEADER = (
+        "Typ / typ transakce,Referenční číslo,Datum příjezdu,Datum odjezdu,"
+        "Název ubytování,ID ubytování,Datum vyplacení částky,"
+        "Hrubá částka,Provize,Hodnota transakce,Směnný kurz,Splatná částka,"
+        "Poplatek za\xa0platební služby,Vyplacená částka,Deskriptor výpisu\n"
+    )
+
+    def _payout_row(self, descriptor: str, vyplaceno_czk: float) -> str:
+        return (
+            f"(Payout),,,,,,2025-12-08,,,,,,,{vyplaceno_czk},{descriptor}\n"
+        )
+
+    def _reservation_row(self, ref: str, gross_eur: float, net_eur: float, czk: float) -> str:
+        commission = round(gross_eur - net_eur, 2)
+        return (
+            f"Rezervace,{ref},2025-12-05,2025-12-07,Test Property,123456,2025-12-08,"
+            f"{gross_eur},-{commission},{net_eur},24.19,{czk},0,,\n"
+        )
+
+    def _source(self, csv_text: str) -> dict:
+        return {
+            "original_name": "booking_payout_test.csv",
+            "content": csv_text.encode("utf-8-sig"),
+            "id": 200,
+        }
+
+    def test_reservation_map_carries_item_amount_eur_and_czk(self):
+        # Single batch with one reservation: gross=516, net=415.38, czk=10049.10
+        csv_text = (
+            self.BOOKING_HEADER
+            + self._payout_row("BATCH001", 10049.10)
+            + self._reservation_row("REF-CXL", 516.0, 415.38, 10049.10)
+        )
+        result = build_booking_payout_data([self._source(csv_text)])
+        entry = result["reservation_map"]["REF-CXL"]
+        assert entry["item_amount_eur"] == 415.38
+        assert entry["item_amount_czk"] == 10049.10
+        assert entry["batch_ref"] == "BATCH001"
 
 
 def test_find_csv_only_rows_skips_codes_hidden_by_manual_month_move():

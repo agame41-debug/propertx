@@ -759,12 +759,23 @@ def build_booking_payout_data(csv_paths: list) -> dict:
             })
             if item_type == "Rezervace" and code and code not in reservation_map:
                 batch = batches[cur_ref]
+                # item amounts: what Booking actually transferred for this
+                # specific reservation (after Booking commission). For
+                # cancelled-but-paid bookings these are the authoritative
+                # numbers — the Hostify gross is misleading, and load_booking_csv
+                # does not return cancelled rows at all.
+                fallback_item_czk = (
+                    round(amount_eur * batch["implied_rate"], 2)
+                    if batch["implied_rate"] else None
+                )
                 reservation_map[code] = {
                     "batch_ref": cur_ref,
                     "payout_date": batch["payout_date"],
                     "payout_czk": batch["amount_czk"],
                     "booking_batch_rate": batch["implied_rate"],
                     "property_id": (row.get("ID ubytování") or "").strip(),
+                    "item_amount_eur": amount_eur,
+                    "item_amount_czk": amount_czk or fallback_item_czk,
                 }
 
     return {
