@@ -184,8 +184,15 @@ BOOKING_ID_TO_OBJEKT = {
     "10289700": "Opletalova 8",
 }
 
-_BOOKING_FOLD_PATTERNS = [
+# Universal fold patterns — applied to both Airbnb and Booking sides.
+# Use when the underlying property has sub-units sold separately on platforms
+# but tracked as a single object in the 315 ledger.
+_OBJEKT_FOLD_PATTERNS = [
     (re.compile(r'^lublanska 13[, ]'), "lublanska 13"),
+]
+
+# Booking-only fold patterns (rooms in a building treated as one only for Booking).
+_BOOKING_FOLD_PATTERNS = [
     (re.compile(r'^malostranska \d'), "malostranska"),
 ]
 
@@ -197,6 +204,7 @@ _OBJEKT_315_ALIASES = {
     "jecn43": "jecna 43",
     "deln2": "delnicka 2",
     "delnicka44": "delnicka 44",
+    "delnicka 44 nova": "delnicka 44",
     "delnicka 49 orphan": "delnicka 49",
     "u pujcovny": "u pujcovny 5",
     "reznicka 21 - 3.patro": "reznicka 21/3p",
@@ -212,7 +220,30 @@ _OBJEKT_315_ALIASES = {
     "soho511": "tusarova 57",
     "soho 406 nove": "v haji 10",
     "soho406": "v haji 10",
+    # 315 entries use the Czech short form "Lublaň 13" (decomposes to "lublan 13").
+    "lublan 13": "lublanska 13",
+    # Slug "Stranokicka_21_NOVA" is a misspelling of Strakonická.
+    "stranokicka 21 nova": "strakonicka 21 / nova",
+    "stranokicka 21 / nova": "strakonicka 21 / nova",
+    # 315 ledger drops the "NOVÁ" suffix used in our slugs.
+    "zitna 208 nova": "zitna 208",
+    "zitna 308 nova": "zitna 308",
+    # Slug "Svornosti_1497_1" yields "svornosti 1497 1"; 315 alternates between
+    # "Svornosti 1" (Jan 2026) and "Svornosti 1497/1" (Feb–Mar 2026).
+    "svornosti 1": "svornosti 1497/1",
+    "svornosti 1497 1": "svornosti 1497/1",
 }
+
+
+def _apply_fold(norm_obj: str, channel) -> str:
+    for pattern, group_key in _OBJEKT_FOLD_PATTERNS:
+        if pattern.match(norm_obj):
+            return group_key
+    if str(channel or "").lower() == "booking":
+        for pattern, group_key in _BOOKING_FOLD_PATTERNS:
+            if pattern.match(norm_obj):
+                return group_key
+    return norm_obj
 
 
 # ---------------------------------------------------------------------------
@@ -713,11 +744,7 @@ def objekt_similarity(a, b):
 def _normalize_source_match_obj(obj, channel):
     norm = normalize_objekt(expand_objekt_315(obj or "") or "")
     norm = _OBJEKT_315_ALIASES.get(norm, norm)
-    if str(channel or "").lower() == "booking":
-        for pattern, group_key in _BOOKING_FOLD_PATTERNS:
-            if pattern.match(norm):
-                return group_key
-    return norm
+    return _apply_fold(norm, channel)
 
 
 def _fold_booking_315(fkv_agg, fkv_detail, group_map):
@@ -786,12 +813,7 @@ def build_payout_aggregate(conn, channel: str, year: int, month: int) -> dict:
             continue
         amount = d.get("payout_czk") or 0.0
         norm_obj = slug_to_norm.get(r["slug"], normalize_objekt(r["slug"].replace("_", " ")))
-        # Apply Booking fold patterns (MyMozart rooms → group, VN units → group, etc.)
-        if channel_lower == "booking":
-            for pattern, group_key in _BOOKING_FOLD_PATTERNS:
-                if pattern.match(norm_obj):
-                    norm_obj = group_key
-                    break
+        norm_obj = _apply_fold(norm_obj, channel_lower)
         key = (norm_obj, mesic)
         agg[key] = agg.get(key, 0.0) + amount
 
@@ -829,16 +851,15 @@ def compute_l3_reconciliation(payout_agg, accounting_entries, channel, tolerance
         fkv_agg[key] = fkv_agg.get(key, 0.0) + (row.get("castka") or 0.0)
         fkv_detail.setdefault(key, []).append(row)
 
-    # Fold multi-room groups for Booking
-    if channel_kw == "booking":
-        group_map = {}
-        for (obj_norm, _) in fkv_agg:
-            for pattern, group_key in _BOOKING_FOLD_PATTERNS:
-                if pattern.match(obj_norm):
-                    group_map[obj_norm] = group_key
-                    break
-        if group_map:
-            fkv_agg, fkv_detail = _fold_booking_315(fkv_agg, fkv_detail, group_map)
+    # Apply fold patterns (universal + channel-specific) to 315 side as well,
+    # so payout-side and 315-side keys collapse onto the same group.
+    group_map = {}
+    for (obj_norm, _) in fkv_agg:
+        folded = _apply_fold(obj_norm, channel_kw)
+        if folded != obj_norm:
+            group_map[obj_norm] = folded
+    if group_map:
+        fkv_agg, fkv_detail = _fold_booking_315(fkv_agg, fkv_detail, group_map)
 
     results = []
     used_fkv = set()
