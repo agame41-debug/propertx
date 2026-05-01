@@ -213,6 +213,10 @@ _OBJEKT_315_ALIASES = {
     "moskevska": "moskevska 58",
     "navratilova": "navratilova 14",
     "rumunska32/1": "rumunska 32/1",
+    # Slugs Rumunska_32_1 / Rumunska_32_2 normalize to "rumunska 32 1" /
+    # "rumunska 32 2"; 315 keeps the slash form "rumunska 32/N".
+    "rumunska 32 1": "rumunska 32/1",
+    "rumunska 32 2": "rumunska 32/2",
     "vinohr 14": "vinohradska 208/14",
     "vinohradska208/14": "vinohradska 208/14",
     "vaclavske namesti 58": "vaclavske namesti 48",
