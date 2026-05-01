@@ -1,8 +1,12 @@
 import json
+import logging
+import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from report.db_months import _assert_report_month_mutable
+
+logger = logging.getLogger(__name__)
 
 
 def _now() -> str:
@@ -437,8 +441,27 @@ VERIFICATION_STATUS_OPTIONS = [
 ]
 
 
+_NUMERIC_OVERRIDE_FIELDS = {"payout_czk"}
+# Whitespace characters used in Czech number formatting: regular space, NBSP,
+# narrow NBSP, thin space, figure space.
+_NUMERIC_WHITESPACE_RE = re.compile(r"[\s    ]+")
+
+
 def normalize_override_value(field: str, value) -> str:
     text = str(value or "").strip()
+    if field in _NUMERIC_OVERRIDE_FIELDS:
+        cleaned = _NUMERIC_WHITESPACE_RE.sub("", text).replace(",", ".")
+        if not cleaned:
+            raise ValueError(f"{field} musí být číslo, např. 8662.79.")
+        try:
+            parsed = float(cleaned)
+        except ValueError as exc:
+            raise ValueError(
+                f"{field} musí být číslo, např. 8662.79 (zadáno: {text!r})."
+            ) from exc
+        if parsed == int(parsed):
+            return str(int(parsed))
+        return f"{parsed:.2f}"
     if field != "verification_status":
         return text
     normalized = _VERIFICATION_STATUS_ALIASES.get(text, text)
@@ -575,11 +598,19 @@ def apply_overrides_to_rows(
             old = modified.get(field)
             overridden[field] = old
             if field == "payout_czk":
+                # Re-normalise from storage in case a legacy event still
+                # holds the raw user input (e.g. "8 662,79" from before
+                # normalize_override_value handled numeric fields).
                 try:
-                    modified[field] = float(new_val)
+                    canonical = normalize_override_value(field, new_val)
+                    modified[field] = float(canonical)
                     overridden_fields.add(field)
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as exc:
+                    logger.error(
+                        "Skipping unparseable payout_czk override for slug=%s code=%s value=%r: %s",
+                        slug, code, new_val, exc,
+                    )
+                    continue
             elif field == "verification_status":
                 modified[field] = normalize_override_value(field, new_val)
                 overridden_fields.add(field)

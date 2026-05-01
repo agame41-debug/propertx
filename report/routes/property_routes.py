@@ -1,9 +1,12 @@
+import logging
 import re as _re
 
 from fastapi import Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from report.engine import generate_report_in_process
+
+logger = logging.getLogger(__name__)
 
 
 def register(app, state) -> None:
@@ -481,7 +484,11 @@ def register(app, state) -> None:
         try:
             state["generate_report_in_process"](conn, slug, year, month, config)
         except Exception:
-            pass  # unlock succeeded even if regen fails
+            # Unlock has already succeeded; surface the regen failure in
+            # logs so the operator can chase it manually.
+            logger.exception(
+                "Post-unlock regen failed for %s/%d/%d", slug, year, month,
+            )
         return RedirectResponse(f"/property/{slug}/{year}/{month}", status_code=303)
 
     @app.post("/property/{slug}/{year}/{month}/reservation/{confirmation_code}/override")
@@ -533,9 +540,19 @@ def register(app, state) -> None:
         )
         try:
             state["generate_report_in_process"](conn, slug, year, month, config)
+            state["_set_flash"](request, "success", "Úprava byla uložena.")
         except Exception:
+            logger.exception(
+                "Override regen failed for %s/%d/%d code=%s field=%s",
+                slug, year, month, confirmation_code, field,
+            )
             state["mark_report_month_stale"](conn, slug, year, month)
-        state["_set_flash"](request, "success", "Úprava byla uložena.")
+            state["_set_flash"](
+                request,
+                "error",
+                "Úprava byla uložena, ale přepočet selhal — měsíc označen jako zastaralý. "
+                "Zkuste znovu vygenerovat report.",
+            )
         return RedirectResponse(f"/property/{slug}/{year}/{month}", status_code=303)
 
     @app.post("/property/{slug}/{year}/{month}/override/{event_id}/revert")
@@ -555,9 +572,19 @@ def register(app, state) -> None:
         state["revert_override_event"](conn, event_id, reverted_by=state["_get_actor_username"](request))
         try:
             state["generate_report_in_process"](conn, slug, year, month, config)
+            state["_set_flash"](request, "success", "Hodnota byla obnovena na původní.")
         except Exception:
+            logger.exception(
+                "Revert regen failed for %s/%d/%d event_id=%s",
+                slug, year, month, event_id,
+            )
             state["mark_report_month_stale"](conn, slug, year, month)
-        state["_set_flash"](request, "success", "Hodnota byla obnovena na původní.")
+            state["_set_flash"](
+                request,
+                "error",
+                "Vrácení bylo uloženo, ale přepočet selhal — měsíc označen jako zastaralý. "
+                "Zkuste znovu vygenerovat report.",
+            )
         return RedirectResponse(f"/property/{slug}/{year}/{month}", status_code=303)
 
     @app.post("/property/{slug}/{year}/{month}/reservation/{code}/move")

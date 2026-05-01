@@ -591,6 +591,7 @@ def import_uploaded_source(
                 airbnb_payout_data=airbnb_payout,
                 booking_payout_data={"batches": [], "items": []},
                 booking_index={},
+                airbnb_index=airbnb_index,
                 bank_rows_all=[],
                 booking_bank_idx_all={},
             )

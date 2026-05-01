@@ -23,6 +23,14 @@ logger = logging.getLogger(__name__)
 
 TOLERANCE_EUR = 1.00
 
+# Sanity bounds for Airbnb-batch implied rate (CZK per EUR). CNB historical
+# range is roughly 23–27; values outside [15, 35] indicate that the batch's
+# eur_sum was polluted by an item whose "Částka" came in CZK rather than EUR
+# (or other CSV corruption). We refuse to trust such rates and let the
+# calculator fall back to CNB rate by reservation date.
+_AIRBNB_RATE_MIN = 15.0
+_AIRBNB_RATE_MAX = 35.0
+
 # Required columns for each CSV type — used to detect format changes early.
 _AIRBNB_REQUIRED_COLS = {
     "Typ", "Potvrzující kód", "Datum rezervace", "Datum zahájení",
@@ -461,14 +469,50 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
                     "amount_czk": _safe_float(row.get("Vyplaceno", 0)),
                     "amount_eur": 0.0,
                     "implied_rate": 0.0,
+                    "rate_anomaly": False,
                     "source_name": label,
+                    "_eur_contribs": [],
                 }
             elif cur_gref in batches:
-                batches[cur_gref]["amount_eur"] += _safe_float(row.get("Částka", 0))
+                eur_amt = _safe_float(row.get("Částka", 0))
+                batches[cur_gref]["amount_eur"] += eur_amt
+                batches[cur_gref]["_eur_contribs"].append({
+                    "amount_eur": eur_amt,
+                    "confirmation_code": (row.get("Potvrzující kód") or "").strip(),
+                    "guest_name": (row.get("Host") or "").strip(),
+                    "item_type": typ,
+                })
 
         for batch in batches.values():
             eur_sum = batch["amount_eur"]
-            batch["implied_rate"] = round(batch["amount_czk"] / eur_sum, 6) if eur_sum > 0 else 0.0
+            raw_rate = (batch["amount_czk"] / eur_sum) if eur_sum > 0 else 0.0
+            if raw_rate > 0 and not (_AIRBNB_RATE_MIN <= raw_rate <= _AIRBNB_RATE_MAX):
+                # Anomalous rate — most likely caused by a single item whose
+                # "Částka" was recorded in CZK instead of EUR. Refuse the rate
+                # so the calculator falls back to CNB by reservation date,
+                # then log the top contributors so the operator can spot the
+                # bad CSV row.
+                top = sorted(
+                    batch.get("_eur_contribs", []),
+                    key=lambda it: abs(it.get("amount_eur") or 0.0),
+                    reverse=True,
+                )[:3]
+                top_summary = ", ".join(
+                    f"{it['confirmation_code'] or '?'}/{(it['guest_name'] or '?')[:20]}={it['amount_eur']:.2f}"
+                    for it in top
+                )
+                logger.warning(
+                    "Airbnb batch %s rate anomaly: implied_rate=%.4f CZK/EUR is outside [%.1f, %.1f] "
+                    "(amount_czk=%.2f, eur_sum=%.2f). Falling back to CNB rate per reservation. "
+                    "Top contributors: %s",
+                    batch["batch_ref"], raw_rate, _AIRBNB_RATE_MIN, _AIRBNB_RATE_MAX,
+                    batch["amount_czk"], eur_sum, top_summary or "(none)",
+                )
+                batch["implied_rate"] = 0.0
+                batch["rate_anomaly"] = True
+            else:
+                batch["implied_rate"] = round(raw_rate, 6)
+            batch.pop("_eur_contribs", None)
 
         cur_gref = ""
         accepted_batches: set[str] = set()

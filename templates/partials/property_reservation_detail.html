@@ -174,7 +174,10 @@
           <div class="ae-field">
             <label class="ae-k">Nová hodnota</label>
             <input class="ae-in" name="new_value" data-ov-new-input
-                   list="ov-options-{{ r.confirmation_code }}" required>
+                   list="ov-options-{{ r.confirmation_code }}"
+                   inputmode="decimal" autocomplete="off"
+                   title="Pro číselné pole zadejte částku, např. 8662.79 nebo 8 662,79 (mezery a desetinná čárka jsou povolené)."
+                   required>
             <datalist id="ov-options-{{ r.confirmation_code }}" data-ov-datalist></datalist>
           </div>
           <div class="ae-field">

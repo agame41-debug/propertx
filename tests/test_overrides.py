@@ -222,12 +222,46 @@ class TestApplyOverridesToRows:
         assert result[1]["payout_czk"] == 5000.0
         assert "_overridden" not in result[1]
 
-    def test_invalid_payout_value_leaves_original(self, conn):
-        _make_event(conn, code="RES1", field="payout_czk", new="not_a_number")
+    def test_invalid_payout_value_rejected_at_creation(self, conn):
+        # normalize_override_value now validates payout_czk at write time, so
+        # garbage input never reaches the override_events table.
+        with pytest.raises(ValueError, match="payout_czk"):
+            _make_event(conn, code="RES1", field="payout_czk", new="not_a_number")
+
+    def test_legacy_invalid_payout_value_is_skipped_at_apply(self, conn):
+        # Older events created before normalize_override_value validated
+        # numeric fields may still hold garbage. apply_overrides_to_rows must
+        # skip them (logged) instead of crashing the whole regen.
+        from datetime import datetime, timezone
+        conn.execute(
+            """INSERT INTO override_events
+               (scope_type, scope_id, slug, year, month, field,
+                old_value, new_value, reason, actor, is_active, created_at)
+               VALUES ('reservation', 'RES1', 'test_prop', 2025, 3,
+                       'payout_czk', '10000', 'not_a_number', '', 'admin', 1, ?)""",
+            (datetime.now(timezone.utc).isoformat(),),
+        )
+        conn.commit()
         rows = [self._row(code="RES1", payout=10000.0)]
         result = apply_overrides_to_rows(conn, rows, "test_prop", 2025, 3)
-        # invalid conversion: original value unchanged
         assert result[0]["payout_czk"] == 10000.0
+
+    def test_legacy_czech_format_payout_value_is_normalized_at_apply(self, conn):
+        # Legacy events with NBSP/comma values must still apply correctly
+        # after the parser was hardened.
+        from datetime import datetime, timezone
+        conn.execute(
+            """INSERT INTO override_events
+               (scope_type, scope_id, slug, year, month, field,
+                old_value, new_value, reason, actor, is_active, created_at)
+               VALUES ('reservation', 'RES1', 'test_prop', 2025, 3,
+                       'payout_czk', '10000', '8 662,79', '', 'admin', 1, ?)""",
+            (datetime.now(timezone.utc).isoformat(),),
+        )
+        conn.commit()
+        rows = [self._row(code="RES1", payout=10000.0)]
+        result = apply_overrides_to_rows(conn, rows, "test_prop", 2025, 3)
+        assert result[0]["payout_czk"] == 8662.79
 
 
 class TestOverrideFieldLabels:
@@ -244,3 +278,37 @@ class TestOverrideFieldLabels:
 def test_normalize_override_value_accepts_only_canonical_verification_statuses():
     assert normalize_override_value("verification_status", "CHYBÍ_HOSTIFY") == "CHYBÍ_V_HOSTIFY"
     assert "CHYBÍ_V_CSV" in VERIFICATION_STATUS_OPTIONS
+
+
+class TestNormalizePayoutCzk:
+    def test_plain_dot_decimal(self):
+        assert normalize_override_value("payout_czk", "8662.79") == "8662.79"
+
+    def test_czech_format_nbsp_and_comma(self):
+        # Real value Nikita typed in production: NBSP thousands sep + comma decimal.
+        assert normalize_override_value("payout_czk", "8 662,79") == "8662.79"
+
+    def test_narrow_nbsp_thousands_separator(self):
+        assert normalize_override_value("payout_czk", "8 662.79") == "8662.79"
+
+    def test_regular_space_thousands_separator(self):
+        assert normalize_override_value("payout_czk", "8 662,79") == "8662.79"
+
+    def test_integer_drops_decimal(self):
+        assert normalize_override_value("payout_czk", "5000") == "5000"
+        assert normalize_override_value("payout_czk", "5000.0") == "5000"
+
+    def test_strips_surrounding_whitespace(self):
+        assert normalize_override_value("payout_czk", "  5 000,50  ") == "5000.50"
+
+    def test_empty_input_rejected(self):
+        with pytest.raises(ValueError, match="payout_czk"):
+            normalize_override_value("payout_czk", "")
+
+    def test_garbage_input_rejected(self):
+        with pytest.raises(ValueError, match="payout_czk"):
+            normalize_override_value("payout_czk", "abc")
+
+    def test_double_decimal_separator_rejected(self):
+        with pytest.raises(ValueError, match="payout_czk"):
+            normalize_override_value("payout_czk", "8 662,79.5")

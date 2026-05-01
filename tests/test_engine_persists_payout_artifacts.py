@@ -146,6 +146,115 @@ def test_fills_missing_booking_guest_names_from_index(conn):
     assert row["guest_name"] == "Anna Nováková"
 
 
+def test_fills_missing_booking_guest_names_from_hostify_when_index_is_empty(conn):
+    """Booking payout CSVs do not carry the guest name at all (the export
+    has no "Host" column), so the only source is hostify_reservations.
+    The helper must call fill_missing_payout_item_guest_names regardless of
+    whether the booking_index supplied any names — otherwise booking items
+    permanently render as 'Neznámý host' even when Hostify has the data."""
+    conn.execute(
+        """INSERT INTO hostify_reservations
+           (confirmation_code, guest_name, listing_nickname, check_in, check_out,
+            source, payload_json, first_seen_at, last_seen_at)
+           VALUES ('BK001', 'Margarita Grigorenko', 'Test', '2026-04-15',
+                   '2026-04-18', 'Booking.com', '{}', '2026-04-01T00:00:00',
+                   '2026-04-01T00:00:00')""",
+    )
+    conn.commit()
+    _persist_csv_payout_artifacts(
+        conn,
+        airbnb_payout_data={"batches": [], "items": []},
+        booking_payout_data=_booking_data(),
+        booking_index={},  # CSV had no host column
+        bank_rows_all=[],
+        booking_bank_idx_all={},
+    )
+
+    row = conn.execute(
+        "SELECT guest_name FROM payout_batch_items WHERE confirmation_code = 'BK001'"
+    ).fetchone()
+    assert row["guest_name"] == "Margarita Grigorenko"
+
+
+def _airbnb_data_with_blank_guest() -> dict:
+    return {
+        "batches": [
+            {
+                "batch_ref": "G-AB-002",
+                "payout_date": "2025-12-31",
+                "amount_czk": 25000.0,
+                "amount_eur": 1000.0,
+                "implied_rate": 25.0,
+                "source_name": "airbnb_12_2025.csv",
+            }
+        ],
+        "items": [
+            {
+                "batch_ref": "G-AB-002",
+                "item_index": 0,
+                "item_type": "Rezervace",
+                "confirmation_code": "HMABNB1",
+                "guest_name": "",
+                "amount_eur": 1000.0,
+            }
+        ],
+    }
+
+
+def test_fills_missing_airbnb_guest_names_from_index(conn):
+    """Airbnb payout items with empty guest_name must be filled from the
+    airbnb_index supplied by the CSV loader. This is the bank-UI fix:
+    bank-match found (DORAZILO) but UI shows 'Neznámý host' because
+    payout_batch_items.guest_name was never enriched for airbnb."""
+    _persist_csv_payout_artifacts(
+        conn,
+        airbnb_payout_data=_airbnb_data_with_blank_guest(),
+        booking_payout_data={"batches": [], "items": []},
+        booking_index={},
+        airbnb_index={"HMABNB1": {"guest_name": "Andi Zielecki"}},
+        bank_rows_all=[],
+        booking_bank_idx_all={},
+    )
+
+    row = conn.execute(
+        "SELECT guest_name FROM payout_batch_items WHERE confirmation_code = 'HMABNB1'"
+    ).fetchone()
+    assert row["guest_name"] == "Andi Zielecki"
+
+
+def test_fills_missing_airbnb_guest_names_from_hostify_when_index_lacks_guest(conn):
+    """When the airbnb CSV's "Host" column was blank but a Hostify reservation
+    with the same confirmation_code carries the guest, the JOIN inside
+    fill_missing_payout_item_guest_names must surface it."""
+    # Seed a hostify_reservations row with the guest name. The schema for
+    # this table is created via _SCHEMA in the conn fixture.
+    conn.execute(
+        """INSERT INTO hostify_reservations
+           (confirmation_code, guest_name, listing_nickname, check_in, check_out,
+            source, payload_json, first_seen_at, last_seen_at)
+           VALUES ('HMABNB2', 'Joel Santos', 'Test', '2025-12-15', '2025-12-18',
+                   'Airbnb', '{}', '2026-01-01T00:00:00', '2026-01-01T00:00:00')""",
+    )
+    conn.commit()
+
+    blank_data = _airbnb_data_with_blank_guest()
+    blank_data["items"][0]["confirmation_code"] = "HMABNB2"
+    _persist_csv_payout_artifacts(
+        conn,
+        airbnb_payout_data=blank_data,
+        booking_payout_data={"batches": [], "items": []},
+        booking_index={},
+        airbnb_index={},  # CSV had no guest_name either
+        bank_rows_all=[],
+        booking_bank_idx_all={},
+    )
+
+    row = conn.execute(
+        "SELECT guest_name FROM payout_batch_items WHERE confirmation_code = 'HMABNB2'"
+    ).fetchone()
+    assert row["guest_name"] == "Joel Santos"
+
+
 def test_persists_airbnb_bank_transactions(conn):
     bank_row = {
         "tx_key": "abnb-tx-1",

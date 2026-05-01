@@ -934,6 +934,7 @@ def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> No
     from report.verifier import (
         build_airbnb_payout_data,
         build_booking_payout_data,
+        load_airbnb_csv,
         load_booking_csv,
     )
 
@@ -973,12 +974,14 @@ def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> No
             else {"reservation_map": {}, "batches": [], "items": []}
         )
         booking_index = load_booking_csv(booking_sources) if booking_sources else {}
+        airbnb_index = load_airbnb_csv(airbnb_sources) if airbnb_sources else {}
 
         _persist_csv_payout_artifacts(
             conn,
             airbnb_payout_data=airbnb_payout,
             booking_payout_data=booking_payout,
             booking_index=booking_index,
+            airbnb_index=airbnb_index,
             bank_rows_all=[],
             booking_bank_idx_all={},
         )

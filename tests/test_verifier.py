@@ -13,6 +13,7 @@ from datetime import date
 
 from report.verifier import (
     CsvFormatError,
+    build_airbnb_payout_data,
     load_airbnb_csv,
     load_booking_csv,
     verify_reservation,
@@ -490,6 +491,102 @@ class TestMonthAssignment:
     def test_unknown_source_checkin_month(self):
         y, m = self.assign(date(2026, 3, 10), date(2026, 3, 20), nights=10, source="VRBO")
         assert (y, m) == (2026, 3)
+
+
+class TestAirbnbBatchRateSanityCheck:
+    """build_airbnb_payout_data must guard against polluted EUR sums.
+
+    When a single item's "Částka" was recorded in CZK rather than EUR (or any
+    similar CSV corruption), the implied rate `amount_czk / sum(eur)` falls
+    far below the realistic CZK/EUR range. The parser must refuse such rates
+    so the calculator falls back to CNB rate by reservation date.
+    """
+
+    PAYOUT_CSV_HEADER = (
+        "Typ,Potvrzující kód,Datum rezervace,Datum zahájení,Datum ukončení,"
+        "Počet nocí,Host,Nabídka,Částka,Hrubé výdělky,Servisní poplatek,Poplatek za úklid,"
+        "Datum,Datum připsání na účet,Referenční kód,Vyplaceno\n"
+    )
+
+    def _payout_row(self, gref: str, vyplaceno_czk: float) -> str:
+        # Order: Typ,Potvrzující kód,Datum rezervace,Datum zahájení,Datum ukončení,
+        #        Počet nocí,Host,Nabídka,Částka,Hrubé výdělky,Servisní poplatek,
+        #        Poplatek za úklid,Datum,Datum připsání na účet,Referenční kód,Vyplaceno
+        return f"Payout,,,,,,,,,,,,12/31/2025,01/02/2026,{gref},{vyplaceno_czk}\n"
+
+    def _reservation_row(self, code: str, guest: str, amount_eur: float) -> str:
+        return (
+            f"Rezervace,{code},10/01/2025,12/15/2025,12/18/2025,3,{guest},"
+            f"Apartment X,{amount_eur},{amount_eur},10.00,20.00,,,,\n"
+        )
+
+    def _build_csv(self, gref: str, payout_czk: float, items: list[tuple[str, str, float]]) -> str:
+        body = self.PAYOUT_CSV_HEADER + self._payout_row(gref, payout_czk)
+        for code, guest, eur in items:
+            body += self._reservation_row(code, guest, eur)
+        return body
+
+    def _source(self, csv_text: str) -> dict:
+        return {
+            "original_name": "airbnb_test_batch.csv",
+            "content": csv_text.encode("utf-8-sig"),
+            "id": 99,
+        }
+
+    def test_realistic_rate_passes_through(self):
+        # 4 reservations totalling ~600 EUR, batch CZK ~14_700 → rate ≈ 24.5
+        csv_text = self._build_csv(
+            "G-OK01",
+            14700.0,
+            [("HMA", "Alice", 100.0), ("HMB", "Bob", 200.0),
+             ("HMC", "Carol", 150.0), ("HMD", "Dan", 150.0)],
+        )
+        result = build_airbnb_payout_data([self._source(csv_text)])
+        batch = next(b for b in result["batches"] if b["batch_ref"] == "G-OK01")
+        assert batch["implied_rate"] > 20.0
+        assert batch["implied_rate"] < 30.0
+        assert batch.get("rate_anomaly") is False
+
+    def test_polluted_eur_resets_rate_to_zero(self, caplog):
+        # idx=2 has 13266.50 in the EUR column — that's a CZK value mis-placed
+        # into the EUR column. The implied rate would be ~8.9 CZK/EUR (clearly
+        # wrong); the parser must refuse it.
+        csv_text = self._build_csv(
+            "G-BAD01",
+            179537.65,
+            [
+                ("HMA", "David Hechtl", 1344.39),
+                ("HMB", "Reem Hani", 13266.50),  # ← polluted: CZK in EUR column
+                ("HMC", "Joel Santos", 677.69),
+            ],
+        )
+        with caplog.at_level("WARNING", logger="report.verifier"):
+            result = build_airbnb_payout_data([self._source(csv_text)])
+        batch = next(b for b in result["batches"] if b["batch_ref"] == "G-BAD01")
+        assert batch["implied_rate"] == 0.0
+        assert batch["rate_anomaly"] is True
+        warnings = [rec for rec in caplog.records if "G-BAD01" in rec.getMessage()]
+        assert warnings, "expected a WARNING for the anomalous batch"
+        # The warning should name the top contributor so the operator can
+        # find the bad row.
+        assert "Reem Hani" in warnings[0].getMessage()
+
+    def test_anomaly_propagates_zero_rate_to_reservation_map(self):
+        csv_text = self._build_csv(
+            "G-BAD02",
+            179537.65,
+            [
+                ("HMA", "Alice", 1344.39),
+                ("HMB", "Bob", 13266.50),
+                ("HMC", "Carol", 677.69),
+            ],
+        )
+        result = build_airbnb_payout_data([self._source(csv_text)])
+        # Each reservation in the polluted batch carries airbnb_rate=0 so the
+        # downstream calculator falls back to CNB.
+        for code in ("HMA", "HMB", "HMC"):
+            entry = result["reservation_map"][code]
+            assert entry["airbnb_rate"] == 0.0
 
 
 def test_find_csv_only_rows_skips_codes_hidden_by_manual_month_move():

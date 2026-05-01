@@ -153,6 +153,7 @@ def _persist_csv_payout_artifacts(
     booking_index: dict,
     bank_rows_all: list,
     booking_bank_idx_all: dict,
+    airbnb_index: dict | None = None,
 ) -> None:
     """Persist CSV-derived payout-batch and bank-transaction snapshots.
 
@@ -189,10 +190,21 @@ def _persist_csv_payout_artifacts(
         for code, row in (booking_index or {}).items()
         if str(code or "").strip() and str(row.get("guest_name") or "").strip()
     }
-    if booking_guest_names:
-        fill_missing_payout_item_guest_names(
-            conn, "booking", guest_names_by_code=booking_guest_names, commit=False
-        )
+    airbnb_guest_names = {
+        str(code): str(row.get("guest_name") or "").strip()
+        for code, row in (airbnb_index or {}).items()
+        if str(code or "").strip() and str(row.get("guest_name") or "").strip()
+    }
+    # Always call fill_missing_payout_item_guest_names for both channels: even
+    # with an empty index, the helper falls back to hostify_reservations by
+    # confirmation_code — the common case when the payout CSV's "Host" /
+    # guest column was blank but the reservation is known to Hostify.
+    fill_missing_payout_item_guest_names(
+        conn, "booking", guest_names_by_code=booking_guest_names, commit=False
+    )
+    fill_missing_payout_item_guest_names(
+        conn, "airbnb", guest_names_by_code=airbnb_guest_names, commit=False
+    )
 
     save_bank_transactions(conn, "airbnb", bank_rows_all or [], commit=False)
     booking_bank_rows_flat = [
@@ -457,6 +469,7 @@ def generate_report_in_process(
         airbnb_payout_data=airbnb_payout_data,
         booking_payout_data=booking_payout_data,
         booking_index=booking_index,
+        airbnb_index=airbnb_index,
         bank_rows_all=bank_rows_all,
         booking_bank_idx_all=booking_bank_idx_all,
     )
