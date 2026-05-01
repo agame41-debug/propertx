@@ -891,15 +891,31 @@ def generate_report_in_process(
             # Hostify's gross payout_price_eur. That gross is wrong: the
             # platform actually transferred net (after Booking commission).
             # The payout-export item carries the real amounts. Override.
+            #
+            # Same override path also covers the payout-adjustment case:
+            # the same reservation appears in a *later* batch with a
+            # negative item amount (partial refund). build_booking_payout_data
+            # aggregates all items per code into total_amount_*, so using
+            # totals here folds the refund back into the source month's row.
             item_eur = pinfo.get("item_amount_eur")
             item_czk = pinfo.get("item_amount_czk")
+            total_eur = pinfo.get("total_amount_eur", item_eur)
+            total_czk = pinfo.get("total_amount_czk", item_czk)
+            has_adjustment = (
+                item_eur is not None
+                and total_eur is not None
+                and abs(float(total_eur) - float(item_eur)) > 0.01
+            )
             if (
                 row.get("csv_payout_eur") is None
-                and item_eur is not None
-                and item_czk is not None
+                and total_eur is not None
+                and total_czk is not None
             ):
-                row["effective_payout_eur"] = item_eur
-                row["czk_booked"] = item_czk
+                row["effective_payout_eur"] = total_eur
+                row["czk_booked"] = total_czk
+            elif has_adjustment and total_czk is not None:
+                row["effective_payout_eur"] = total_eur
+                row["czk_booked"] = total_czk
 
     # ── Split payout: limit effective_payout_eur to batches within window ──
     for row in all_verified:

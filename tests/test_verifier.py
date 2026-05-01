@@ -633,7 +633,29 @@ class TestBuildBookingPayoutDataItemAmounts:
         entry = result["reservation_map"]["REF-CXL"]
         assert entry["item_amount_eur"] == 415.38
         assert entry["item_amount_czk"] == 10049.10
+        assert entry["total_amount_eur"] == 415.38
+        assert entry["total_amount_czk"] == 10049.10
         assert entry["batch_ref"] == "BATCH001"
+
+    def test_reservation_map_aggregates_across_batches_with_refund(self):
+        # Same reference appears in two batches: original payout +1846.07/+44781.96
+        # and a partial refund -41.02/-994.12 booked in a later batch. The
+        # reservation_map must surface item_* from the first batch (anchor)
+        # and total_* aggregated across both.
+        csv_text = (
+            self.BOOKING_HEADER
+            + self._payout_row("BATCH-DEC", 44781.96)
+            + self._reservation_row("REF-ADJ", 2210.86, 1846.07, 44781.96)
+            + self._payout_row("BATCH-JAN", -994.12)
+            + self._reservation_row("REF-ADJ", -50.0, -41.02, -994.12)
+        )
+        result = build_booking_payout_data([self._source(csv_text)])
+        entry = result["reservation_map"]["REF-ADJ"]
+        assert entry["batch_ref"] == "BATCH-DEC"
+        assert entry["item_amount_eur"] == 1846.07
+        assert entry["item_amount_czk"] == 44781.96
+        assert entry["total_amount_eur"] == 1805.05
+        assert entry["total_amount_czk"] == 43787.84
 
 
 def test_find_csv_only_rows_skips_codes_hidden_by_manual_month_move():
