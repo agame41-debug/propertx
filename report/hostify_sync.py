@@ -18,6 +18,7 @@ from datetime import date
 from report.db import (
     get_connection,
     get_report_month_state,
+    record_orphan_listings,
     save_hostify_reservations,
     MONTH_STATUS_LOCKED,
 )
@@ -84,6 +85,34 @@ class HostifySyncTask:
                     log.warning(
                         "Hostify sync: fetch failed for %d/%d: %s", month, year, exc
                     )
+
+            # 1.5. Detect orphan listing nicknames — Hostify reservations
+            # whose listing_nickname has no active alias never reach
+            # report_rows. We log a warning the first time each appears so
+            # the operator can add an alias via /inventory.
+            try:
+                detection = record_orphan_listings(conn)
+                for orphan in detection["newly_detected"]:
+                    log.warning(
+                        "Hostify sync: NEW orphan listing %r — %d reservations "
+                        "from %s, check-ins %s..%s, hostify listing_id=%s. "
+                        "Add a hostify alias via /inventory to include in reports.",
+                        orphan["listing_nickname"],
+                        orphan["reservation_count"],
+                        orphan["sources"] or "?",
+                        orphan["first_check_in"] or "?",
+                        orphan["last_check_in"] or "?",
+                        orphan["example_listing_id"],
+                    )
+                if detection["resolved"]:
+                    log.info(
+                        "Hostify sync: %d orphan listings resolved: %s",
+                        len(detection["resolved"]), detection["resolved"],
+                    )
+            except Exception as exc:
+                log.warning(
+                    "Hostify sync: orphan listing detection failed: %s", exc
+                )
 
             # 2. Re-generate all open months with existing data
             try:

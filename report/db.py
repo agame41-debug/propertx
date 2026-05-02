@@ -476,6 +476,22 @@ CREATE TABLE IF NOT EXISTS integrity_audit (
     detected_at       TEXT NOT NULL
 );
 
+-- Tracks Hostify listing nicknames whose reservations exist in
+-- hostify_reservations but have no active alias in report_object_aliases
+-- (channel='hostify', alias_type='listing_nickname'). Such listings are
+-- silently dropped during regen, so we surface them in /inventory and
+-- log a warning when a new orphan appears during the daily Hostify sync.
+CREATE TABLE IF NOT EXISTS hostify_orphan_listings (
+    listing_nickname    TEXT PRIMARY KEY,
+    sources             TEXT NOT NULL DEFAULT '',
+    reservation_count   INTEGER NOT NULL DEFAULT 0,
+    first_check_in      TEXT,
+    last_check_in       TEXT,
+    example_listing_id  INTEGER,
+    first_detected_at   TEXT NOT NULL,
+    last_detected_at    TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS payout_batches (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     channel         TEXT NOT NULL,
@@ -2500,6 +2516,133 @@ def run_integrity_audit(conn: sqlite3.Connection) -> list[dict]:
         )
         conn.commit()
     return findings
+
+
+def find_orphan_listing_nicknames(conn: sqlite3.Connection) -> list[dict]:
+    """Return Hostify listing nicknames present in hostify_reservations but
+    missing an active alias in report_object_aliases.
+
+    These reservations never reach report_rows during regen, so the data is
+    effectively invisible to the rest of the system. Each row in the result
+    has: listing_nickname, sources (csv), reservation_count, first_check_in,
+    last_check_in, example_listing_id (from payload_json, useful for
+    correlating with Hostify API).
+    """
+    rows = conn.execute("""
+        SELECT
+            listing_nickname,
+            GROUP_CONCAT(DISTINCT source)              AS sources,
+            COUNT(*)                                   AS reservation_count,
+            MIN(check_in)                              AS first_check_in,
+            MAX(check_in)                              AS last_check_in,
+            MIN(json_extract(payload_json, '$.listing_id')) AS example_listing_id
+        FROM hostify_reservations hr
+        WHERE hr.listing_nickname <> ''
+          AND NOT EXISTS (
+                SELECT 1
+                FROM report_object_aliases ra
+                WHERE ra.channel       = 'hostify'
+                  AND ra.alias_type    = 'listing_nickname'
+                  AND ra.is_active     = 1
+                  AND ra.alias_value   = hr.listing_nickname
+          )
+        GROUP BY listing_nickname
+        ORDER BY reservation_count DESC, listing_nickname
+    """).fetchall()
+    return [dict(r) for r in rows]
+
+
+def record_orphan_listings(conn: sqlite3.Connection) -> dict:
+    """Sync hostify_orphan_listings table with the live orphan list.
+
+    Inserts new orphans, refreshes counters/timestamps for existing ones,
+    and deletes rows whose nicknames are no longer orphan (alias added).
+
+    Returns a dict with:
+        current_count:     int — number of orphans right now
+        newly_detected:    list[dict] — orphans not previously in the table
+        resolved:          list[str]  — nicknames removed (alias added since
+                                        last call)
+    """
+    current = find_orphan_listing_nicknames(conn)
+    current_nicks = {o["listing_nickname"] for o in current}
+
+    existing_nicks = {
+        r["listing_nickname"]
+        for r in conn.execute(
+            "SELECT listing_nickname FROM hostify_orphan_listings"
+        ).fetchall()
+    }
+
+    now = _now()
+    newly_detected = [o for o in current if o["listing_nickname"] not in existing_nicks]
+
+    if current:
+        conn.executemany(
+            """INSERT INTO hostify_orphan_listings
+               (listing_nickname, sources, reservation_count, first_check_in,
+                last_check_in, example_listing_id, first_detected_at,
+                last_detected_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(listing_nickname) DO UPDATE SET
+                 sources           = excluded.sources,
+                 reservation_count = excluded.reservation_count,
+                 first_check_in    = excluded.first_check_in,
+                 last_check_in     = excluded.last_check_in,
+                 example_listing_id= excluded.example_listing_id,
+                 last_detected_at  = excluded.last_detected_at""",
+            [
+                (
+                    o["listing_nickname"],
+                    o["sources"] or "",
+                    o["reservation_count"],
+                    o["first_check_in"],
+                    o["last_check_in"],
+                    o["example_listing_id"],
+                    now,
+                    now,
+                )
+                for o in current
+            ],
+        )
+
+    resolved = sorted(existing_nicks - current_nicks)
+    if resolved:
+        placeholders = ",".join("?" for _ in resolved)
+        conn.execute(
+            f"DELETE FROM hostify_orphan_listings WHERE listing_nickname IN ({placeholders})",
+            resolved,
+        )
+
+    conn.commit()
+    return {
+        "current_count": len(current),
+        "newly_detected": newly_detected,
+        "resolved": resolved,
+    }
+
+
+def get_orphan_listings_for_display(conn: sqlite3.Connection) -> list[dict]:
+    """Return current orphans enriched with first_detected_at metadata.
+
+    Live query (so newly-resolved orphans drop out immediately even if the
+    daily sync hasn't run yet) joined with persisted detection timestamps.
+    """
+    live = find_orphan_listing_nicknames(conn)
+    if not live:
+        return []
+    metadata = {
+        r["listing_nickname"]: dict(r)
+        for r in conn.execute(
+            "SELECT listing_nickname, first_detected_at, last_detected_at "
+            "FROM hostify_orphan_listings"
+        ).fetchall()
+    }
+    for orphan in live:
+        meta = metadata.get(orphan["listing_nickname"], {})
+        orphan["first_detected_at"] = meta.get("first_detected_at")
+        orphan["last_detected_at"] = meta.get("last_detected_at")
+    return live
 
 
 def _restore_bank_status_after_ownership_fix(conn: sqlite3.Connection) -> int:

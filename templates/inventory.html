@@ -99,6 +99,50 @@
 </div>
 {% endif %}
 
+{% if orphan_listings %}
+<div class="card" style="padding:14px 18px;margin-bottom:18px;border-color:rgba(244,63,94,0.32);background:linear-gradient(180deg, rgba(244,63,94,0.05), transparent 60%);">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-red);">
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+    <div style="font-size:14px;font-weight:700;color:var(--text-100);">
+      {{ orphan_listings|length }} Hostify listing{{ "y" if orphan_listings|length > 1 and orphan_listings|length < 5 else ("ů" if orphan_listings|length >= 5 else "") }} bez napárování
+    </div>
+  </div>
+  <div style="font-size:12px;color:var(--text-300);margin-bottom:12px;line-height:1.5;">
+    Tyto Hostify nicknames nemají žádný aktivní alias v <code>report_object_aliases</code>. Jejich rezervace existují v <code>hostify_reservations</code>, ale neprocházejí do <code>report_rows</code> a tedy nejsou ani na property page, ani v Srovnání.
+    Pro každý přidej alias na detailu příslušného slug (klient → aliases) nebo vytvoř nový slug.
+  </div>
+  <div style="overflow-x:auto;">
+  <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:680px;">
+    <thead>
+      <tr style="color:var(--text-300);border-bottom:1px solid var(--border-subtle);">
+        <th style="text-align:left;padding:6px 8px;">Nickname</th>
+        <th style="text-align:left;padding:6px 8px;">Zdroj</th>
+        <th style="text-align:right;padding:6px 8px;">Rezervací</th>
+        <th style="text-align:left;padding:6px 8px;">Check-in</th>
+        <th style="text-align:right;padding:6px 8px;">Hostify ID</th>
+        <th style="text-align:left;padding:6px 8px;">Detekováno</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in orphan_listings %}
+      <tr style="border-bottom:1px solid var(--border-subtle);">
+        <td style="padding:6px 8px;font-weight:600;color:var(--text-100);">{{ o.listing_nickname }}</td>
+        <td style="padding:6px 8px;color:var(--text-200);">{{ o.sources or "—" }}</td>
+        <td style="padding:6px 8px;text-align:right;font-variant-numeric:tabular-nums;">{{ o.reservation_count }}</td>
+        <td style="padding:6px 8px;color:var(--text-200);font-variant-numeric:tabular-nums;">{{ o.first_check_in or "—" }} – {{ o.last_check_in or "—" }}</td>
+        <td style="padding:6px 8px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-300);">{{ o.example_listing_id or "—" }}</td>
+        <td style="padding:6px 8px;color:var(--text-300);font-variant-numeric:tabular-nums;">{{ (o.first_detected_at or "")[:10] or "live" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
 <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);">
   <div class="kpi-card">
     <div class="kpi-label">Celkem</div>

@@ -1,8 +1,13 @@
 import json
+import logging
 from datetime import date
 
 from fastapi import Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+
+from report.db import get_orphan_listings_for_display
+
+logger = logging.getLogger(__name__)
 
 
 def register(app, state) -> None:
@@ -22,12 +27,11 @@ def register(app, state) -> None:
         config=Depends(get_config),
     ):
         summary, rows = state["_build_inventory_view"](conn, config, status_filter=status)
-        # Filter inventory rows for client role
         user = state["get_current_user"](request)
-        if user and user["role"] == state["ROLE_CLIENT"]:
+        is_client = bool(user and user["role"] == state["ROLE_CLIENT"])
+        if is_client:
             accessible_slugs = {p["slug"] for p in state["get_accessible_properties"](request, config, conn)}
             rows = [r for r in rows if r.get("slug") in accessible_slugs]
-            # Recalculate summary counts from filtered rows
             summary = {
                 "total": len(rows),
                 "active_count": sum(1 for r in rows if r.get("active")),
@@ -36,6 +40,14 @@ def register(app, state) -> None:
                 "review_needed_count": sum(1 for r in rows if r.get("needs_review")),
             }
         bulk_run = state["_resolve_inventory_bulk_run"](conn, bulk_run_id=bulk_run_id)
+        # Orphan listings are an admin/manager concern only — they expose
+        # raw Hostify nicknames and don't belong on a client's view.
+        orphan_listings: list[dict] = []
+        if not is_client:
+            try:
+                orphan_listings = get_orphan_listings_for_display(conn)
+            except Exception:
+                logger.exception("Failed to compute orphan listings for /inventory")
         return state["templates"].TemplateResponse(
             request,
             "inventory.html",
@@ -45,6 +57,7 @@ def register(app, state) -> None:
                 "bulk_run": bulk_run,
                 "selected_status": str(status or "").strip().lower(),
                 "flash": state["_pop_flash"](request),
+                "orphan_listings": orphan_listings,
             },
         )
 
