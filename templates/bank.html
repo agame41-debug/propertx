@@ -125,9 +125,9 @@
           <td data-col="castka" data-label="Částka" data-val="{{ row.amount_czk or 0 }}" class="num" style="text-align:right;font-size:13px;font-weight:700;color:var(--color-green);white-space:nowrap;">{{ money(row.amount_czk) }}</td>
           <td data-col="stav" data-label="Stav">
             {% if row.matched_batch_ref %}
-            <span class="badge badge-green" style="font-size:10px;">
+            <span class="badge badge-green" style="font-size:10px;"{% if row.has_amount_fallback_match %} title="Některý batch byl spárován podle částky a data — výpis banky neobsahoval G-ref."{% endif %}>
               <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-              Spárováno
+              Spárováno{% if row.has_amount_fallback_match %}<span style="margin-left:3px;color:var(--color-amber);font-weight:700;">*</span>{% endif %}
             </span>
             {% else %}
             <span class="badge badge-amber" style="font-size:10px;">Nespárováno</span>
@@ -187,6 +187,11 @@
                         <span style="display:flex;align-items:center;gap:5px;">
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg>
                           Výplata {{ batch.payout_date }}
+                        </span>
+                        {% endif %}
+                        {% if batch.match_method == 'amount_date_fallback' %}
+                        <span style="display:flex;align-items:center;gap:4px;color:var(--color-amber);font-weight:600;letter-spacing:0.02em;text-transform:uppercase;font-size:10px;" title="Bankovní výpis neobsahoval G-ref. Spárováno podle částky a data v okně ±7 dní (jediný kandidát).">
+                          *&nbsp;podle&nbsp;částky
                         </span>
                         {% endif %}
                       </div>

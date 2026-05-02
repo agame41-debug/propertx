@@ -14,11 +14,14 @@ from datetime import date
 
 import report.web as web_module
 from report.bank import (
+    MATCH_METHOD_AMOUNT_FALLBACK,
     load_bank_csv,
     build_bank_index,
+    match_bank_amount_date_fallback,
     match_bank_transaction,
     match_booking_by_ref,
     enrich_booking_rows_with_bank,
+    enrich_rows_with_bank,
     _normalize_booking_ref,
 )
 from report.db import (
@@ -224,6 +227,150 @@ class TestMatchBankTransaction:
         idx, no_ref = self._idx()
         result = match_bank_transaction("", 0.0, "", idx, no_ref)
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# match_bank_amount_date_fallback — conservative no-G-ref fallback
+# ---------------------------------------------------------------------------
+
+class TestAmountDateFallback:
+    def test_unique_candidate_in_window_matches(self):
+        # Empty-gref bank tx (CSV from Česká spořitelna sometimes drops
+        # the description for Citibank payouts).
+        no_ref = [_tx_row("2026-03-12", 91498.65, gref="", tx_id="TX1")]
+        result = match_bank_amount_date_fallback(91498.65, "03/10/2026", no_ref)
+        assert result is not None
+        assert result["tx_id"] == "TX1"
+
+    def test_amount_outside_tolerance_does_not_match(self):
+        no_ref = [_tx_row("2026-03-12", 91498.66, gref="", tx_id="TX1")]
+        result = match_bank_amount_date_fallback(91498.65, "03/10/2026", no_ref)
+        assert result is None
+
+    def test_date_outside_window_does_not_match(self):
+        no_ref = [_tx_row("2026-03-25", 91498.65, gref="", tx_id="TX1")]
+        result = match_bank_amount_date_fallback(91498.65, "03/10/2026", no_ref)
+        assert result is None
+
+    def test_multiple_candidates_rejected_as_ambiguous(self):
+        no_ref = [
+            _tx_row("2026-03-11", 91498.65, gref="", tx_id="TX1"),
+            _tx_row("2026-03-13", 91498.65, gref="", tx_id="TX2"),
+        ]
+        result = match_bank_amount_date_fallback(91498.65, "03/10/2026", no_ref)
+        assert result is None  # ambiguous → reject
+
+    def test_used_tx_keys_excludes_consumed_rows(self):
+        no_ref = [
+            _tx_row("2026-03-12", 91498.65, gref="", tx_id="TX1"),
+            _tx_row("2026-03-13", 91498.65, gref="", tx_id="TX2"),
+        ]
+        used = {no_ref[0]["tx_key"]}
+        result = match_bank_amount_date_fallback(
+            91498.65, "03/10/2026", no_ref, used_tx_keys=used,
+        )
+        assert result is not None
+        assert result["tx_id"] == "TX2"
+
+    def test_invalid_amount_returns_none(self):
+        no_ref = [_tx_row("2026-03-12", 100.0, gref="", tx_id="TX1")]
+        assert match_bank_amount_date_fallback(0.0, "03/10/2026", no_ref) is None
+        assert match_bank_amount_date_fallback(-100.0, "03/10/2026", no_ref) is None
+        assert match_bank_amount_date_fallback(None, "03/10/2026", no_ref) is None
+
+    def test_invalid_date_returns_none(self):
+        no_ref = [_tx_row("2026-03-12", 100.0, gref="", tx_id="TX1")]
+        assert match_bank_amount_date_fallback(100.0, "", no_ref) is None
+        assert match_bank_amount_date_fallback(100.0, "not-a-date", no_ref) is None
+
+    def test_no_ref_pool_excludes_gref_rows(self):
+        # build_bank_index puts G-ref rows in index_by_gref (not no_ref_rows),
+        # so callers should never pass G-ref rows into the fallback pool.
+        # Verify the helper itself is just a filter — pool selection is the
+        # caller's responsibility, but a row with a gref should still match
+        # purely on amount/date if passed in. This guards against accidental
+        # leakage if a caller mis-routes rows.
+        rows = [_tx_row("2026-03-12", 100.0, gref="G-XYZ", tx_id="TX1")]
+        idx, no_ref = build_bank_index(rows)
+        assert no_ref == [], "build_bank_index must keep G-ref rows out of the pool"
+
+
+# ---------------------------------------------------------------------------
+# enrich_rows_with_bank — fallback integration on the real call path
+# ---------------------------------------------------------------------------
+
+class TestEnrichRowsAmountFallback:
+    def _calc_row(self, code: str, gref: str = "", payout_czk: float = 0.0) -> dict:
+        return {
+            "source": "Airbnb",
+            "confirmation_code": code,
+            "batch_ref": gref,
+            "batch_payout_date": "03/10/2026" if gref else "",
+            "batch_amount_czk_expected": payout_czk if gref else None,
+        }
+
+    def test_fallback_matches_when_csv_omits_gref(self):
+        # Bank tx for the payout exists but its description was empty.
+        bank_rows = [_tx_row("2026-03-12", 91498.65, gref="", tx_id="TX1")]
+        idx, no_ref = build_bank_index(bank_rows)
+        gref_map = {"R1": {"gref": "G-A1", "payout_date": "03/10/2026", "payout_czk": 91498.65}}
+
+        enriched, matches = enrich_rows_with_bank(
+            [self._calc_row("R1", gref="G-A1", payout_czk=91498.65)],
+            gref_map, idx, no_ref,
+        )
+
+        assert enriched[0]["bank_status"] == "DORAZILO"
+        assert enriched[0]["bank_match_method"] == MATCH_METHOD_AMOUNT_FALLBACK
+        assert enriched[0]["bank_tx_key"] == bank_rows[0]["tx_key"]
+        assert len(matches) == 1
+        assert matches[0]["match_method"] == MATCH_METHOD_AMOUNT_FALLBACK
+
+    def test_strict_gref_path_still_marks_method_as_gref(self):
+        bank_rows = [_tx_row("2026-03-12", 91498.65, gref="G-A1", tx_id="TX1")]
+        idx, no_ref = build_bank_index(bank_rows)
+        gref_map = {"R1": {"gref": "G-A1", "payout_date": "03/10/2026", "payout_czk": 91498.65}}
+
+        enriched, matches = enrich_rows_with_bank(
+            [self._calc_row("R1", gref="G-A1", payout_czk=91498.65)],
+            gref_map, idx, no_ref,
+        )
+
+        assert enriched[0]["bank_status"] == "DORAZILO"
+        assert enriched[0]["bank_match_method"] == "gref"
+        assert matches[0]["match_method"] == "gref"
+
+    def test_fallback_does_not_fire_when_ambiguous(self):
+        bank_rows = [
+            _tx_row("2026-03-11", 91498.65, gref="", tx_id="TX1"),
+            _tx_row("2026-03-13", 91498.65, gref="", tx_id="TX2"),
+        ]
+        idx, no_ref = build_bank_index(bank_rows)
+        gref_map = {"R1": {"gref": "G-A1", "payout_date": "03/10/2026", "payout_czk": 91498.65}}
+
+        enriched, matches = enrich_rows_with_bank(
+            [self._calc_row("R1", gref="G-A1", payout_czk=91498.65)],
+            gref_map, idx, no_ref,
+        )
+
+        assert enriched[0]["bank_status"] == "CHYBÍ"
+        assert enriched[0]["bank_match_method"] == ""
+        assert matches == []
+
+    def test_no_gref_no_fallback(self):
+        # If we don't even know which batch we're looking for (gref empty),
+        # the fallback must not fire — there is no target.
+        bank_rows = [_tx_row("2026-03-12", 91498.65, gref="", tx_id="TX1")]
+        idx, no_ref = build_bank_index(bank_rows)
+
+        enriched, matches = enrich_rows_with_bank(
+            [self._calc_row("R1", gref="", payout_czk=0.0)],
+            {}, idx, no_ref,
+        )
+
+        assert enriched[0]["bank_status"] == "CHYBÍ"
+        assert enriched[0]["bank_match_method"] == ""
+        assert matches == []
 
 
 # ---------------------------------------------------------------------------

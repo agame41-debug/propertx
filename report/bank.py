@@ -232,6 +232,66 @@ def match_bank_transaction(
     return None
 
 
+# Conservative defaults for the no-G-ref fallback. Used only when Česká
+# spořitelna omits the Citibank/Airbnb reference field and primary G-ref
+# matching has already returned None. Matching proceeds only when exactly
+# one bank tx in the no-ref pool sits in the date window with the same
+# amount — multi-candidate cases are explicitly rejected.
+_AMOUNT_FALLBACK_DATE_WINDOW_DAYS = 7
+_AMOUNT_FALLBACK_AMOUNT_TOLERANCE_CZK = 0.01
+
+# Distinct match_method value so fallback matches can be filtered/audited
+# in payout_batch_bank_matches and visually marked in the UI.
+MATCH_METHOD_AMOUNT_FALLBACK = "amount_date_fallback"
+
+
+def match_bank_amount_date_fallback(
+    target_amount_czk: float,
+    target_payout_date_str: str,
+    no_ref_rows: list[dict],
+    *,
+    used_tx_keys: set[str] | None = None,
+    date_window_days: int = _AMOUNT_FALLBACK_DATE_WINDOW_DAYS,
+    amount_tolerance_czk: float = _AMOUNT_FALLBACK_AMOUNT_TOLERANCE_CZK,
+) -> dict | None:
+    """Conservative amount + date fallback for bank tx that arrived without a G-ref.
+
+    Returns the bank row only when EXACTLY ONE candidate exists in the no-G-ref
+    pool within the date window and amount tolerance. Multi-candidate cases are
+    rejected and logged. Caller MUST have already attempted G-ref matching and
+    received None.
+    """
+    if target_amount_czk is None or target_amount_czk <= 0:
+        return None
+    target_date = _parse_date(target_payout_date_str or "")
+    if target_date is None:
+        return None
+    used_tx_keys = used_tx_keys or set()
+
+    candidates: list[dict] = []
+    for row in no_ref_rows:
+        if row.get("tx_key", "") in used_tx_keys:
+            continue
+        bank_amount = row.get("amount_czk", 0.0) or 0.0
+        if abs(bank_amount - target_amount_czk) > amount_tolerance_czk:
+            continue
+        bank_date = row.get("datum")
+        if not bank_date:
+            continue
+        if abs((bank_date - target_date).days) > date_window_days:
+            continue
+        candidates.append(row)
+
+    if len(candidates) == 1:
+        return candidates[0]
+    if len(candidates) > 1:
+        logger.warning(
+            "Bank amount-date fallback ambiguous: %.2f CZK around %s — %d candidates, skipping",
+            target_amount_czk, target_payout_date_str, len(candidates),
+        )
+    return None
+
+
 def _normalize_booking_ref(text: str) -> str:
     """
     Normalize a Booking reference for comparison.
@@ -308,7 +368,43 @@ def enrich_rows_with_bank(
     all_batches_map = all_batches_map or {}
     used_tx_keys: set[str] = set()
     batch_matches: dict[str, dict | None] = {}
+    # Parallel map: same key as batch_matches → match_method ("gref" or
+    # MATCH_METHOD_AMOUNT_FALLBACK). Lets the per-row enrichment annotate
+    # bank_match_method without re-querying the matcher.
+    batch_match_methods: dict[str, str] = {}
     match_details: list[dict] = []
+
+    def _try_match_with_fallback(target_gref, target_czk, target_payout_date_str,
+                                 primary_index, primary_no_ref):
+        """Run G-ref strict match, then conservative amount+date fallback.
+
+        Returns (bank_row, match_method) where match_method is "gref",
+        MATCH_METHOD_AMOUNT_FALLBACK, or "" (no match).
+        """
+        primary = match_bank_transaction(
+            target_gref, target_czk, target_payout_date_str,
+            primary_index, primary_no_ref,
+            used_tx_keys=used_tx_keys,
+        )
+        if primary is not None:
+            return primary, "gref"
+        # Fallback only fires when we know which batch we're looking for
+        # (target_gref non-empty) — otherwise the target is undefined.
+        if not target_gref:
+            return None, ""
+        fallback = match_bank_amount_date_fallback(
+            target_czk, target_payout_date_str, primary_no_ref,
+            used_tx_keys=used_tx_keys,
+        )
+        if fallback is not None:
+            logger.info(
+                "Bank match by amount-date fallback: batch=%s tx=%s amount=%.2f bank_date=%s",
+                target_gref, fallback.get("tx_key", ""),
+                fallback.get("amount_czk", 0.0),
+                fallback.get("datum"),
+            )
+            return fallback, MATCH_METHOD_AMOUNT_FALLBACK
+        return None, ""
 
     for row in calc_rows:
         source = (row.get("source") or "").lower()
@@ -324,26 +420,26 @@ def enrich_rows_with_bank(
         batch_key = gref or f"AIRBNB:{code}"
         if batch_key in batch_matches:
             continue
-        bank_row = match_bank_transaction(
+        bank_row, match_method_used = _try_match_with_fallback(
             gref, payout_czk, payout_date_str, index_by_gref, no_ref_rows,
-            used_tx_keys=used_tx_keys,
         )
-        # Fallback: adjustment/split/aircover rows may have bank txns beyond cutoff
+        # Cross-cutoff fallback: adjustment/split/aircover rows may have bank
+        # txns beyond the per-month cutoff.
         if bank_row is None and bank_index_full and gref and (
             row.get("is_payout_adjustment") or row.get("is_split_transaction") or row.get("is_aircover")
         ):
-            bank_row = match_bank_transaction(
+            bank_row, match_method_used = _try_match_with_fallback(
                 gref, payout_czk, payout_date_str,
                 bank_index_full, bank_no_ref_full or [],
-                used_tx_keys=used_tx_keys,
             )
         batch_matches[batch_key] = bank_row
         if bank_row:
+            batch_match_methods[batch_key] = match_method_used
             used_tx_keys.add(bank_row.get("tx_key", ""))
             match_details.append({
                 "batch_ref": gref,
                 "tx_key": bank_row.get("tx_key", ""),
-                "match_method": "gref" if gref else "amount_date",
+                "match_method": match_method_used,
                 "matched_amount_czk": bank_row.get("amount_czk"),
             })
 
@@ -358,19 +454,19 @@ def enrich_rows_with_bank(
             extra_gref = batch_info.get("gref", "")
             if not extra_gref or extra_gref in batch_matches:
                 continue
-            bank_row = match_bank_transaction(
+            bank_row, match_method_used = _try_match_with_fallback(
                 extra_gref, batch_info.get("payout_czk", 0.0),
                 batch_info.get("payout_date", ""),
                 index_by_gref, no_ref_rows,
-                used_tx_keys=used_tx_keys,
             )
             batch_matches[extra_gref] = bank_row
             if bank_row:
+                batch_match_methods[extra_gref] = match_method_used
                 used_tx_keys.add(bank_row.get("tx_key", ""))
                 match_details.append({
                     "batch_ref": extra_gref,
                     "tx_key": bank_row.get("tx_key", ""),
-                    "match_method": "gref",
+                    "match_method": match_method_used,
                     "matched_amount_czk": bank_row.get("amount_czk"),
                 })
 
@@ -420,6 +516,7 @@ def enrich_rows_with_bank(
                 "bank_datum":      datum.strftime("%d.%m.%Y") if datum else "",
                 "bank_amount_czk": bank_row["amount_czk"],
                 "bank_status":     "DORAZILO",
+                "bank_match_method": batch_match_methods.get(batch_key, "gref"),
                 "verification_comment": verification_comment,
             })
         else:
@@ -433,6 +530,7 @@ def enrich_rows_with_bank(
                 "bank_datum":      "",
                 "bank_amount_czk": None,
                 "bank_status":     "CHYBÍ",
+                "bank_match_method": "",
             })
 
     arrived = sum(1 for r in enriched if r.get("bank_status") == "DORAZILO")

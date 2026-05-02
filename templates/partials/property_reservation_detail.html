@@ -48,6 +48,9 @@
           <div class="rex-v ok">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             {{ r.bank_datum }}
+            {% if r.bank_match_method == 'amount_date_fallback' %}
+              <span style="margin-left:6px;font-size:10px;color:var(--color-amber);font-weight:600;letter-spacing:0.02em;text-transform:uppercase;" title="Bankovní výpis neobsahoval G-ref; spárováno podle částky a data v okně ±7 dní.">* podle částky</span>
+            {% endif %}
           </div>
         </div>
       {% elif not r.is_excluded and not r.is_payout_adjustment and r._mock_status not in ('MOVED_IN', 'MOVED_OUT') %}

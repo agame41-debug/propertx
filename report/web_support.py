@@ -1266,6 +1266,13 @@ def _load_bank_rows_with_drilldown(
         row["drilldown_batches"] = batches
         row["matched_batch_refs"] = [batch["batch_ref"] for batch in batches if batch.get("batch_ref")]
         row["matched_batch_ref"] = row["matched_batch_refs"][0] if row["matched_batch_refs"] else ""
+        # True when at least one batch on this bank tx was matched via the
+        # no-G-ref amount+date fallback. Used by the UI to mark rows where
+        # the link to the payout is weaker than a strict reference match.
+        row["has_amount_fallback_match"] = any(
+            (batch.get("match_method") or "") == "amount_date_fallback"
+            for batch in batches
+        )
         row["matched_reservation_count"] = sum(
             1 for batch in batches for item in batch["reservations"]
             if item.get("confirmation_code") or item.get("guest_name")

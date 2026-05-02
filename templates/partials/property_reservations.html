@@ -115,10 +115,11 @@
               <span class="badge {{ r._mock_status_class }}">{{ r._mock_status_label }}</span>
               {% if not r.is_payout_adjustment %}
                 {% if r.bank_status == 'DORAZILO' %}
-                  <span class="rs-stav-bank ok">
+                  <span class="rs-stav-bank ok"{% if r.bank_match_method == 'amount_date_fallback' %} title="Sparováno podle částky a data — bankovní výpis neobsahoval G-ref."{% endif %}>
                     <span class="rs-stav-bank-k">Banka</span>
                     <span class="rs-stav-bank-mk">
                       <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      {% if r.bank_match_method == 'amount_date_fallback' %}<span style="margin-left:1px;font-size:10px;color:var(--color-amber);font-weight:700;line-height:1;">*</span>{% endif %}
                     </span>
                   </span>
                 {% elif r.bank_status == 'N/A' or r.is_excluded or r._mock_status == 'MOVED_OUT' %}
