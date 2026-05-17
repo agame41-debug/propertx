@@ -8,7 +8,7 @@ import inspect
 import os
 from datetime import date
 
-from report.bank import load_bank_csv, load_booking_bank_transactions
+from report.bank import load_bank_csv, load_booking_bank_transactions, load_marriott_bank_transactions
 from report.checkin import (
     load_checkin_groups,
     load_checkin_guest_rows,
@@ -326,6 +326,7 @@ def _bank_delta_summary(conn, source_name: str, content: bytes) -> dict:
     airbnb_rows = load_bank_csv([source])
     booking_map = load_booking_bank_transactions([source])
     booking_rows = [row for rows in booking_map.values() for row in rows]
+    marriott_rows = load_marriott_bank_transactions([source])
     properties = _load_properties_for_matching(conn)
 
     existing_tx_keys = {
@@ -335,7 +336,7 @@ def _bank_delta_summary(conn, source_name: str, content: bytes) -> dict:
 
     all_rows = []
     seen: set[str] = set()
-    for row in airbnb_rows + booking_rows:
+    for row in airbnb_rows + booking_rows + marriott_rows:
         tx_key = row.get("tx_key") or ""
         if not tx_key or tx_key in seen:
             continue
@@ -394,7 +395,8 @@ def _bank_delta_summary(conn, source_name: str, content: bytes) -> dict:
         "affected_month_keys": _normalize_month_keys(affected_month_keys),
         "message": (
             f"+{len(new_total)} new bank transactions "
-            f"(Airbnb {len(new_airbnb)}, Booking {len(new_booking)})"
+            f"(Airbnb {len(new_airbnb)}, Booking {len(new_booking)}, "
+            f"Marriott {len(marriott_rows)})"
         ),
     }
 
@@ -618,10 +620,13 @@ def import_uploaded_source(
             airbnb_rows = load_bank_csv([source])
             booking_map = load_booking_bank_transactions([source])
             booking_rows = [row for rows in booking_map.values() for row in rows]
+            marriott_rows = load_marriott_bank_transactions([source])
             save_bank_transactions(conn, "airbnb", airbnb_rows, commit=False)
             save_bank_transactions(conn, "booking", booking_rows, commit=False)
+            save_bank_transactions(conn, "marriott", marriott_rows, commit=False)
             summary["persisted_airbnb_transactions"] = len(airbnb_rows)
             summary["persisted_booking_transactions"] = len(booking_rows)
+            summary["persisted_marriott_transactions"] = len(marriott_rows)
         elif source_type == "accounting" and not stored["is_duplicate"]:
             from report.accounting import load_hlavni_kniha_from_bytes
             from report.db import get_stredisko_map, save_accounting_entries

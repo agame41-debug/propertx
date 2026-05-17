@@ -1153,3 +1153,24 @@ def test_marriott_without_roc_token_still_collected():
     assert len(rows) == 1
     assert rows[0]["gref"] == ""
     assert rows[0]["amount_czk"] == 1000.00
+
+
+def test_marriott_persisted_via_source_registry(tmp_path):
+    from report.source_registry import import_uploaded_source
+
+    conn = get_connection(str(tmp_path / "t.db"))
+    lines = [
+        "Header;0;Banka;Celkem", "Header;1;0800;0",
+        _MS3_DETAIL_DEF,
+        _ms3_detail("38812.54", "07.04.2026",
+                    "/ROC/0000000W3O///URI//JPMPAY/M17 31.03.2026",
+                    "2000025584466205", "Global Hospitality Licensing S.a"),
+        "Footer;0;Celkem", "Footer;1;0;1",
+    ]
+    content = ("\r\n".join(lines) + "\r\n").encode("cp1250")
+    import_uploaded_source(conn, "bank", "vypis_ms3.csv", content, imported_by="test")
+
+    n = conn.execute(
+        "SELECT COUNT(*) c FROM bank_transactions WHERE channel='marriott'"
+    ).fetchone()["c"]
+    assert n == 1
