@@ -1098,3 +1098,21 @@ def test_money_s3_skips_header_footer():
                     "2000025699874206", "Build with us s.r.o."),
     )
     assert load_bank_csv([src]) == []
+
+
+def test_money_s3_booking_rows():
+    src = _ms3_file(
+        _ms3_detail("27274.23", "01.04.2026",
+                    "NO.JFM7YNCLTB8ZCFXX/13805101", "2000025514825816",
+                    "BOOKING.COM B.V."),
+        _ms3_detail("22798.84", "01.04.2026",
+                    "G-GBTYRNNO42QHF/ROC/G-GBTYRNNO42QHF", "2000025518621917",
+                    "CITIBANK EUROPE PLC"),
+    )
+    idx = load_booking_bank_transactions([src])
+    assert "13805101" in idx
+    row = idx["13805101"][0]
+    assert row["amount_czk"] == 27274.23
+    assert row["booking_ref"] == "JFM7YNCLTB8ZCFXX"
+    assert row["property_id"] == "13805101"
+    assert row["datum"] == date(2026, 4, 1)

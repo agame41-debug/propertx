@@ -708,37 +708,32 @@ def load_booking_bank_transactions(paths: list) -> dict[str, list[dict]]:
 
     for path in paths:
         label = _source_name(path)
-        if isinstance(path, str) and not os.path.exists(path):
-            continue
         try:
-            with _source_text(path, "utf-16") as f:
-                for row in csv.DictReader(f):
-                    if row.get("Typ transakce", "").strip() != "Příchozí úhrada":
-                        continue
-                    protiucet = row.get("Název protiúčtu", "").upper()
-                    if "BOOKING.COM" not in protiucet:
-                        continue
-                    amount = _safe_float(row.get("Částka", 0))
-                    if amount <= 0:
-                        continue
-                    zprava = row.get("Zpráva pro příjemce", "").strip()
-                    # Extract property_id: "NO.XXXXX/{property_id}"
-                    m = re.search(r"/(\d+)$", zprava)
-                    if not m:
-                        continue
-                    property_id = m.group(1)
-                    datum = _parse_date(row.get("Datum zaúčtování", "").strip())
-                    entry = {
-                        "datum":        datum,
-                        "amount_czk":   amount,
-                        "property_id":  property_id,
-                        "booking_ref":  _normalize_booking_ref(zprava),
-                        "zprava":       zprava,
-                        "tx_id":        row.get("ID transakce", "").strip(),
-                        "source_name":  label,
-                    }
-                    entry["tx_key"] = _bank_tx_key(entry)
-                    index.setdefault(property_id, []).append(entry)
+            for rec in _iter_bank_records(path):
+                if "BOOKING.COM" not in rec["counterparty"].upper():
+                    continue
+                ttype = rec["transaction_type"]
+                if ttype not in ("Příchozí úhrada", ""):
+                    continue
+                if rec["amount_czk"] <= 0:
+                    continue
+                zprava = rec["message"]
+                # Extract property_id: "NO.XXXXX/{property_id}"
+                m = re.search(r"/(\d+)$", zprava)
+                if not m:
+                    continue
+                property_id = m.group(1)
+                entry = {
+                    "datum":        rec["datum"],
+                    "amount_czk":   rec["amount_czk"],
+                    "property_id":  property_id,
+                    "booking_ref":  _normalize_booking_ref(zprava),
+                    "zprava":       zprava,
+                    "tx_id":        rec["tx_id"],
+                    "source_name":  label,
+                }
+                entry["tx_key"] = _bank_tx_key(entry)
+                index.setdefault(property_id, []).append(entry)
         except Exception as e:
             logger.error("Error reading bank CSV for Booking %s: %s", label, e)
 
