@@ -98,6 +98,27 @@ def _source_text(source, encoding: str):
     return io.TextIOWrapper(io.BytesIO(bytes(content)), encoding=encoding)
 
 
+def _source_bytes(source) -> bytes:
+    """Raw bytes for a path or an archived source dict."""
+    if isinstance(source, str):
+        with open(source, "rb") as fh:
+            return fh.read()
+    content = source.get("content") or b""
+    if isinstance(content, memoryview):
+        content = content.tobytes()
+    return bytes(content)
+
+
+def _detect_bank_format(raw: bytes) -> str:
+    """Return 'legacy' (UTF-16/comma), 'money_s3' (cp1250/;), or 'unknown'."""
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return "legacy"
+    head = raw[:4096].decode("cp1250", errors="replace")
+    if head.lstrip().startswith("Header;") or "Detail 1;" in head:
+        return "money_s3"
+    return "unknown"
+
+
 def _bank_tx_key(row: dict) -> str:
     """Stable transaction key even when bank export has no tx_id."""
     tx_id = (row.get("tx_id") or "").strip()

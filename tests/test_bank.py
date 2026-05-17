@@ -1008,3 +1008,64 @@ def test_cross_property_batch_no_silent_downgrade():
         assert enriched_b[0]["bank_status"] == "DORAZILO"
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Money S3 format support
+# ---------------------------------------------------------------------------
+from report.bank import (
+    _detect_bank_format,
+    _source_bytes,
+    load_booking_bank_transactions,
+)
+# load_marriott_bank_transactions imported lazily inside its tests (added in a later task).
+
+# Money S3: cp1250-encoded, ';'-separated, Header / Detail 1 / Footer sections.
+# Detail definition row (col1==0) names the columns; data rows have col1==1.
+_MS3_DETAIL_DEF = (
+    "Detail 1;0;Banka protiúčtu;Částka;Číslo bank. dokladu;"
+    "Číslo hrazeného dokladu;Číslo protiúčtu;Datum splatnosti;"
+    "Datum vstupu do banky;Datum zaúčtování;Doplňující údaj;"
+    "Identifikátor položky;Konstantní symbol;Měna;Název protiúčtu;"
+    "Příznak spárování;Specifický symbol;Typ položky;Variabilní symbol"
+)
+
+
+def _ms3_file(*detail_rows: str) -> dict:
+    """Build a Money S3 cp1250 source blob: Header, Detail def, data rows, Footer."""
+    lines = [
+        "Header;0;Banka;Celkem;Číslo strany",
+        "Header;1;0800;0;1",
+        _MS3_DETAIL_DEF,
+        *detail_rows,
+        "Footer;0;Celkem;Číslo strany",
+        "Footer;1;0;11;46148",
+    ]
+    content = ("\r\n".join(lines) + "\r\n").encode("cp1250")
+    return {"original_name": "vypis_ms3.csv", "content": content, "id": 2}
+
+
+def _ms3_detail(amount: str, datum: str, doplnujici: str, ident: str, partner: str) -> str:
+    # Columns: 0 "Detail 1";1 marker;2 bank;3 amount;4-8;9 datum;10 doplnujici;
+    #          11 ident;12-13;14 partner;15-18
+    return (
+        f"Detail 1;1;2600;{amount};;;4000230103;01.04.2026;;{datum};"
+        f"{doplnujici};{ident};;CZK;{partner};0;;1;"
+    )
+
+
+def test_detect_format_legacy_utf16():
+    raw = (BANK_HEADER + _make_bank_row()).encode("utf-16")
+    assert _detect_bank_format(raw) == "legacy"
+
+
+def test_detect_format_money_s3():
+    raw = _ms3_file(
+        _ms3_detail("100.00", "01.04.2026", "G-ABC payment", "TX9", "CITIBANK EUROPE PLC")
+    )["content"]
+    assert _detect_bank_format(raw) == "money_s3"
+
+
+def test_source_bytes_from_blob():
+    blob = {"original_name": "x.csv", "content": b"abc", "id": 7}
+    assert _source_bytes(blob) == b"abc"
