@@ -1116,3 +1116,40 @@ def test_money_s3_booking_rows():
     assert row["booking_ref"] == "JFM7YNCLTB8ZCFXX"
     assert row["property_id"] == "13805101"
     assert row["datum"] == date(2026, 4, 1)
+
+
+def test_money_s3_marriott_collected():
+    from report.bank import load_marriott_bank_transactions
+    src = _ms3_file(
+        _ms3_detail("38812.54", "07.04.2026",
+                    "/ROC/0000000W3O///URI//JPMPAY/M17 31.03.2026",
+                    "2000025584466205", "Global Hospitality Licensing S.a"),
+        _ms3_detail("8266.84", "10.04.2026",
+                    "/ROC/0000000WB5///URI//JPMPAY/",
+                    "2000025621938680", "Global Hospitality Licensing S.a"),
+        _ms3_detail("27274.23", "01.04.2026",
+                    "NO.JFM7YNCLTB8ZCFXX/13805101", "2000025514825816",
+                    "BOOKING.COM B.V."),
+    )
+    rows = load_marriott_bank_transactions([src])
+    assert len(rows) == 2
+    r0 = rows[0]
+    assert r0["amount_czk"] == 38812.54
+    assert r0["gref"] == "0000000W3O"
+    assert r0["datum"] == date(2026, 4, 7)
+    assert r0["tx_id"] == "2000025584466205"
+    assert r0["tx_key"]
+    # Token-less still collected
+    assert rows[1]["gref"] == "0000000WB5"
+
+
+def test_marriott_without_roc_token_still_collected():
+    from report.bank import load_marriott_bank_transactions
+    src = _ms3_file(
+        _ms3_detail("1000.00", "07.04.2026", "JPMPAY no token here",
+                    "TXID1", "Global Hospitality Licensing S.a"),
+    )
+    rows = load_marriott_bank_transactions([src])
+    assert len(rows) == 1
+    assert rows[0]["gref"] == ""
+    assert rows[0]["amount_czk"] == 1000.00

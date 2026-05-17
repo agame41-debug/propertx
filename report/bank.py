@@ -742,6 +742,46 @@ def load_booking_bank_transactions(paths: list) -> dict[str, list[dict]]:
     return index
 
 
+_MARRIOTT_ROC_RE = re.compile(r"/ROC/([A-Z0-9]+)")
+
+
+def load_marriott_bank_transactions(paths: list) -> list[dict]:
+    """
+    Collect Marriott (Global Hospitality Licensing) bank transactions.
+
+    Marriott has no payout CSV and no per-reservation reference, so these
+    rows are persisted for visibility/audit only — NO matching is performed.
+    """
+    rows: list[dict] = []
+
+    for path in paths:
+        label = _source_name(path)
+        try:
+            for rec in _iter_bank_records(path):
+                if "GLOBAL HOSPITALITY" not in rec["counterparty"].upper():
+                    continue
+                if rec["amount_czk"] <= 0:
+                    continue
+                m = _MARRIOTT_ROC_RE.search((rec["message"] or "").upper())
+                ref = m.group(1) if m else ""
+                row = {
+                    "datum":       rec["datum"],
+                    "amount_czk":  rec["amount_czk"],
+                    "gref":        ref,
+                    "property_id": "",
+                    "zprava":      rec["message"],
+                    "tx_id":       rec["tx_id"],
+                    "source_name": label,
+                }
+                row["tx_key"] = _bank_tx_key(row)
+                rows.append(row)
+        except Exception as e:
+            logger.error("Error reading bank CSV for Marriott %s: %s", label, e)
+
+    logger.info("Collected %d Marriott bank transactions from %d file(s)", len(rows), len(paths))
+    return rows
+
+
 def enrich_booking_rows_with_bank(
     calc_rows: list[dict],
     booking_bank_idx: dict[str, list[dict]],
