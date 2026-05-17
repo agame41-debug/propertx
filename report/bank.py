@@ -143,42 +143,114 @@ def filter_bank_by_cutoff(rows: list[dict], cutoff_date) -> list[dict]:
     return [r for r in rows if r.get("datum") and r["datum"] <= cutoff_date]
 
 
+# Money S3 column names (after cp1250 decode) used to build the index map.
+_MS3_COL_AMOUNT = "Částka"
+_MS3_COL_DATE = "Datum zaúčtování"
+_MS3_COL_MESSAGE = "Doplňující údaj"
+_MS3_COL_TXID = "Identifikátor položky"
+_MS3_COL_PARTNER = "Název protiúčtu"
+# Fixed 0-based indices used if the "Detail 1;0;..." definition row is absent.
+_MS3_FALLBACK_IDX = {
+    _MS3_COL_AMOUNT: 3,
+    _MS3_COL_DATE: 9,
+    _MS3_COL_MESSAGE: 10,
+    _MS3_COL_TXID: 11,
+    _MS3_COL_PARTNER: 14,
+}
+
+
+def _iter_bank_records(source):
+    """Yield unified bank records regardless of source format.
+
+    Record keys: datum (date|None), amount_czk (float), counterparty (str),
+    message (str), ref_secondary (str), tx_id (str), transaction_type (str).
+    """
+    label = _source_name(source)
+    if isinstance(source, str) and not os.path.exists(source):
+        logger.warning("Bank CSV not found: %s", source)
+        return
+    try:
+        raw = _source_bytes(source)
+    except Exception as e:
+        logger.error("Error reading bank source %s: %s", label, e)
+        return
+    if not raw:
+        return
+
+    fmt = _detect_bank_format(raw)
+    if fmt == "legacy":
+        text = raw.decode("utf-16", errors="replace")
+        for row in csv.DictReader(io.StringIO(text)):
+            yield {
+                "datum": _parse_date(row.get("Datum zaúčtování", "").strip()),
+                "amount_czk": _safe_float(row.get("Částka", 0)),
+                "counterparty": row.get("Název protiúčtu", ""),
+                "message": row.get("Zpráva pro příjemce", "").strip(),
+                "ref_secondary": row.get("Reference platby", "").strip(),
+                "tx_id": row.get("ID transakce", "").strip(),
+                "transaction_type": row.get("Typ transakce", "").strip(),
+            }
+    elif fmt == "money_s3":
+        text = raw.decode("cp1250", errors="replace")
+        reader = csv.reader(io.StringIO(text), delimiter=";")
+        colmap: dict[str, int] = {}
+        for cols in reader:
+            if len(cols) < 2 or cols[0].strip() != "Detail 1":
+                continue
+            marker = cols[1].strip()
+            if marker == "0":
+                colmap = {name.strip(): i for i, name in enumerate(cols)}
+                continue
+            if marker != "1":
+                continue
+
+            def _get(name: str) -> str:
+                idx = colmap.get(name, _MS3_FALLBACK_IDX.get(name))
+                if idx is None or idx >= len(cols):
+                    return ""
+                return cols[idx].strip()
+
+            yield {
+                "datum": _parse_date(_get(_MS3_COL_DATE)),
+                "amount_czk": _safe_float(_get(_MS3_COL_AMOUNT)),
+                "counterparty": _get(_MS3_COL_PARTNER),
+                "message": _get(_MS3_COL_MESSAGE),
+                "ref_secondary": "",
+                "tx_id": _get(_MS3_COL_TXID),
+                "transaction_type": "",
+            }
+    else:
+        logger.error("Unrecognized bank file format: %s", label)
+        return
+
+
 def load_bank_csv(paths: list) -> list[dict]:
     """
-    Load bank CSV (UTF-16, comma-separated).
-    Keeps only incoming Airbnb transfers: 'Příchozí úhrada' from CITIBANK EUROPE.
-    Returns list of normalised bank row dicts.
+    Load Airbnb bank transactions (CITIBANK EUROPE incoming) from any
+    supported bank-statement format. Returns normalised bank row dicts.
     """
     rows: list[dict] = []
 
     for path in paths:
         label = _source_name(path)
-        if isinstance(path, str) and not os.path.exists(path):
-            logger.warning("Bank CSV not found: %s", path)
-            continue
         try:
-            with _source_text(path, "utf-16") as f:
-                for row in csv.DictReader(f):
-                    if row.get("Typ transakce", "").strip() != "Příchozí úhrada":
-                        continue
-                    protiucet = row.get("Název protiúčtu", "").upper()
-                    if "CITIBANK EUROPE" not in protiucet:
-                        continue
-                    amount = _safe_float(row.get("Částka", 0))
-                    if amount <= 0:
-                        continue
-                    zprava = row.get("Zpráva pro příjemce", "").strip()
-                    ref_platby = row.get("Reference platby", "").strip()
-                    gref = _extract_gref(zprava) or _extract_gref(ref_platby)
-                    datum = _parse_date(row.get("Datum zaúčtování", "").strip())
-                    rows.append({
-                        "datum":      datum,
-                        "amount_czk": amount,
-                        "gref":       gref,
-                        "tx_id":      row.get("ID transakce", "").strip(),
-                        "zprava":     zprava,
-                        "source_name": label,
-                    })
+            for rec in _iter_bank_records(path):
+                if "CITIBANK EUROPE" not in rec["counterparty"].upper():
+                    continue
+                ttype = rec["transaction_type"]
+                if ttype not in ("Příchozí úhrada", ""):
+                    continue
+                if rec["amount_czk"] <= 0:
+                    continue
+                gref = _extract_gref(rec["message"]) or _extract_gref(rec["ref_secondary"])
+                rows.append({
+                    "datum":      rec["datum"],
+                    "amount_czk": rec["amount_czk"],
+                    "gref":       gref,
+                    "tx_id":      rec["tx_id"],
+                    "zprava":     rec["message"],
+                    "source_name": label,
+                })
         except Exception as e:
             logger.error("Error reading bank CSV %s: %s", label, e)
 
