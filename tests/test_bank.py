@@ -1069,3 +1069,32 @@ def test_detect_format_money_s3():
 def test_source_bytes_from_blob():
     blob = {"original_name": "x.csv", "content": b"abc", "id": 7}
     assert _source_bytes(blob) == b"abc"
+
+
+def test_money_s3_airbnb_rows():
+    src = _ms3_file(
+        _ms3_detail("22798.84", "01.04.2026",
+                    "G-GBTYRNNO42QHF/ROC/G-GBTYRNNO42QHF", "2000025518621917",
+                    "CITIBANK EUROPE PLC"),
+        _ms3_detail("27274.23", "01.04.2026",
+                    "NO.JFM7YNCLTB8ZCFXX/13805101", "2000025514825816",
+                    "BOOKING.COM B.V."),
+    )
+    rows = load_bank_csv([src])
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["amount_czk"] == 22798.84
+    assert r["gref"] == "G-GBTYRNNO42QHF"
+    assert r["datum"] == date(2026, 4, 1)
+    assert r["tx_id"] == "2000025518621917"
+    assert r["tx_key"]
+
+
+def test_money_s3_skips_header_footer():
+    # An owner payout (not CITIBANK/BOOKING) plus header/footer must be ignored.
+    src = _ms3_file(
+        _ms3_detail("63530.57", "15.04.2026",
+                    "Výplata Rentero Property za byt Francouzská 50",
+                    "2000025699874206", "Build with us s.r.o."),
+    )
+    assert load_bank_csv([src]) == []
