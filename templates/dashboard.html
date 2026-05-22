@@ -349,22 +349,16 @@ function _applyFilters() {
     }
   }
 
-  // Net profit per row: Rentero-owned = zisk; external = provize + výdaje
-  // (clients reimburse property expenses through Rentero). The is-rentero
-  // flag uses the heuristic from the backend (owner name starts with
-  // "Rentero" OR no client row), not the raw client_type column.
-  var totalProfit = 0;
+  // Rentero fee per visible row. The backend SQL already encodes 0 for
+  // client_type='rentero', so data-rentero-fee carries 0 for rentero-owned
+  // objects and no client-type check is needed here.
+  var totalFee = 0;
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
     if (row.style.getPropertyValue('display') === 'none') return;
-    if (row.dataset.isRentero === '1') {
-      totalProfit += parseFloat(row.dataset.zisk) || 0;
-    } else {
-      totalProfit += (parseFloat(row.dataset.renteroFee) || 0)
-                   + (parseFloat(row.dataset.expenses)   || 0);
-    }
+    totalFee += parseFloat(row.dataset.renteroFee) || 0;
   });
   var kpiProfit = document.getElementById('kpi-profit');
-  if (kpiProfit) kpiProfit.innerHTML = _formatNumber(totalProfit) + ' Kč';
+  if (kpiProfit) kpiProfit.innerHTML = _formatNumber(totalFee) + ' Kč';
 }
 
 document.querySelectorAll('#dashboard-filter-tabs .filter-tab').forEach(function(btn) {
