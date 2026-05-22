@@ -22,8 +22,11 @@ from report.db import (
     save_hostify_reservations,
     MONTH_STATUS_LOCKED,
 )
-from report.engine import generate_report_in_process
-from report.loader import fetch_raw_reservations_for_period, normalize_reservations
+from report.engine import build_csv_cache, generate_report_in_process
+from report.loader import (
+    fetch_raw_reservations_for_period,
+    normalize_reservations_for_snapshot,
+)
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +79,9 @@ class HostifySyncTask:
                     all_raw = fetch_raw_reservations_for_period(
                         year, month, db_conn=conn
                     )
-                    save_hostify_reservations(conn, normalize_reservations(all_raw))
+                    save_hostify_reservations(
+                        conn, normalize_reservations_for_snapshot(all_raw)
+                    )
                     log.info(
                         "Hostify sync: fetched %d reservations for %d/%d",
                         len(all_raw), month, year,
@@ -121,6 +126,17 @@ class HostifySyncTask:
                 properties = []
 
             active_props = [p for p in properties if p.get("active", False)]
+            # Build the CSV cache once and share it across all regens. Without
+            # this, each generate_report_in_process call would re-parse 9k+
+            # rows of CSV and re-issue hundreds of UPSERTs into payout_batches,
+            # which holds the SQLite write lock long enough to starve any
+            # concurrent bulk_generation_runner subprocess (DB-locked errors).
+            try:
+                csv_cache = build_csv_cache(conn)
+            except Exception as exc:
+                log.warning("Hostify sync: build_csv_cache failed, falling back to per-call parse: %s", exc)
+                csv_cache = None
+
             for prop in active_props:
                 slug = prop["slug"]
                 for year, month in target_months:
@@ -130,7 +146,10 @@ class HostifySyncTask:
                             continue
                         if not state.get("last_generated_at"):
                             continue  # never generated → skip
-                        generate_report_in_process(conn, slug, year, month, config)
+                        generate_report_in_process(
+                            conn, slug, year, month, config,
+                            csv_cache=csv_cache,
+                        )
                     except Exception as exc:
                         log.warning(
                             "Hostify sync regen failed %s %d/%d: %s",

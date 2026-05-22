@@ -612,7 +612,15 @@ def register(app, state) -> None:
         row = next((r for r in rows if r.get("confirmation_code") == code), None)
         if row is None:
             raise HTTPException(404, "Rezervace nenalezena")
-        is_adj = bool(row.get("is_payout_adjustment"))
+        # Synthetic rows (ADJ / AC / SP) carry an independent batch_ref and
+        # the engine's move-OUT/IN suppression keys on (base_code, batch_ref).
+        # Treat all three as "is_adjustment" for storage so engine.py:592 picks
+        # them up via the __(ADJ|SP|AC)\d*$ regex regardless of which kind.
+        is_synthetic = bool(
+            row.get("is_payout_adjustment")
+            or row.get("is_aircover")
+            or row.get("is_split_transaction")
+        )
         state["create_reservation_month_assignment"](conn, {
             "slug": slug,
             "confirmation_code": code,
@@ -622,8 +630,8 @@ def register(app, state) -> None:
             "original_month": month,
             "reason": reason.strip(),
             "actor": state["_get_actor_username"](request),
-            "is_adjustment": is_adj,
-            "batch_ref": row.get("batch_ref", "") if is_adj else "",
+            "is_adjustment": is_synthetic,
+            "batch_ref": row.get("batch_ref", "") if is_synthetic else "",
         })
         # Regenerate in chronological order so past rows exist for adjustments
         months_to_regen = sorted({(year, month), (target_year, target_month)})

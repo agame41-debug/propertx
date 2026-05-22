@@ -339,6 +339,105 @@ def normalize_reservations(all_reservations: list[dict]) -> list[dict]:
     return result
 
 
+def _minimal_filter_for_snapshot(raw: dict) -> dict | None:
+    """
+    Snapshot-level normalization for hostify_reservations table.
+
+    Unlike _normalize_reservation, this does NOT apply business filters.
+    Specifically, cancelled reservations with payout_price<=0 are KEPT — they
+    represent cancellation signals that must overwrite a previously-stored
+    "accepted" snapshot row. Only structurally invalid rows are dropped.
+
+    The engine-side filter (_normalize_reservation) is still applied during
+    report generation, so cancelled+payout=0 reservations remain excluded
+    from the actual report — they just get correctly mirrored in the
+    snapshot first.
+    """
+    status = (raw.get("status") or "").lower()
+    if status in SKIP_STATUSES:
+        return None  # inquiry/declined/voided/... — never useful
+
+    checkin_str = raw.get("checkIn") or raw.get("check_in") or ""
+    checkout_str = raw.get("checkOut") or raw.get("check_out") or ""
+    if not checkin_str or not checkout_str:
+        logger.warning(
+            "Reservation id=%s has no dates, skipping (snapshot).",
+            raw.get("id") or raw.get("reservation_id"),
+        )
+        return None
+    try:
+        checkin = date.fromisoformat(checkin_str)
+        checkout = date.fromisoformat(checkout_str)
+    except ValueError:
+        logger.warning(
+            "Bad dates in reservation id=%s: %s %s",
+            raw.get("id"), checkin_str, checkout_str,
+        )
+        return None
+
+    confirmation_code = str(
+        raw.get("channel_reservation_id") or raw.get("confirmation_code") or ""
+    )
+    if not confirmation_code:
+        logger.warning(
+            "Reservation id=%s has no confirmation_code, skipping (snapshot).",
+            raw.get("id") or raw.get("reservation_id"),
+        )
+        return None
+
+    nights = int(raw.get("nights") or 0) or max((checkout - checkin).days, 1)
+    source = raw.get("source") or "Unknown"
+    payout_price = float(raw.get("payout_price") or raw.get("payout_price_eur") or 0)
+    confirmed_at = raw.get("confirmed_at") or raw.get("created_at") or checkin_str
+    assigned_year, assigned_month = assign_report_month(checkin, checkout, nights, source)
+    month_comment = _month_assignment_comment(
+        checkin, checkout, nights, source, assigned_year, assigned_month
+    )
+
+    return {
+        "reservation_id": str(raw.get("id") or raw.get("reservation_id") or ""),
+        "confirmation_code": confirmation_code,
+        "guest_name": raw.get("guest_name") or "",
+        "check_in": checkin_str,
+        "check_out": checkout_str,
+        "nights": nights,
+        "adults": int(raw.get("adults") or 0),
+        "children": int(raw.get("children") or 0),
+        "infants": int(raw.get("infants") or 0),
+        "cleaning_fee_eur": float(raw.get("cleaning_fee") or raw.get("cleaning_fee_eur") or 0),
+        "city_tax_eur": float(raw.get("city_tax") or raw.get("city_tax_eur") or 0),
+        "channel_commission_eur": (
+            float(raw.get("channel_commission") or raw.get("channel_commission_eur") or 0)
+            + float(raw.get("transaction_fee") or 0)
+        ),
+        "payout_price_eur": payout_price,
+        "source": source,
+        "status": status,
+        "is_cancelled": status == "cancelled",
+        "cancelled_at": raw.get("cancelled_at"),
+        "confirmed_at": str(confirmed_at),
+        "listing_id": raw.get("listing_id"),
+        "listing_nickname": raw.get("listing_nickname") or "",
+        "assigned_year": assigned_year,
+        "assigned_month": assigned_month,
+        "month_comment": month_comment,
+    }
+
+
+def normalize_reservations_for_snapshot(all_reservations: list[dict]) -> list[dict]:
+    """
+    Snapshot-level normalization. Used by report.hostify_sync to write to
+    hostify_reservations. Allows cancelled+payout=0 to pass through so the
+    UPSERT can overwrite a stale "accepted" row when a guest cancels late.
+    """
+    result = []
+    for raw in all_reservations:
+        normalized = _minimal_filter_for_snapshot(raw)
+        if normalized is not None:
+            result.append(normalized)
+    return result
+
+
 def filter_for_property_month(
     all_reservations: list[dict],
     listing_nickname: str,

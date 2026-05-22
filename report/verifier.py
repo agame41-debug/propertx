@@ -94,6 +94,24 @@ def _parse_date(s: str) -> date | None:
     return None
 
 
+def _cnb_rate_for_batch_date(payout_date_str: str) -> float:
+    """Return CNB EUR/CZK rate for a batch payout date, or 0.0 on failure.
+
+    Used as fallback when implied_rate is refused due to a rate_anomaly so
+    payout_batch_items.amount_czk can still display approximate per-item
+    sums on /bank instead of being NULL.
+    """
+    d = _parse_date(payout_date_str or "")
+    if d is None:
+        return 0.0
+    try:
+        from report.cnb import get_rate_for_reservation, CnbRateError
+        info = get_rate_for_reservation(d.isoformat(), persist=True)
+        return float(info.get("rate") or 0.0)
+    except Exception:  # noqa: BLE001 — never break loader on rate fetch error
+        return 0.0
+
+
 def _source_name(source) -> str:
     if isinstance(source, str):
         return os.path.basename(source)
@@ -446,6 +464,11 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
     batches_out: list[dict] = []
     items_out: list[dict] = []
     seen_batches: set[str] = set()
+    # Dedup rate-anomaly warnings: one log line per unique batch_ref per call.
+    # In a regen cycle the same anomalous batch can appear in multiple CSV
+    # files (re-exports, partial overlaps), and without this set the log
+    # gets flooded with hundreds of identical lines.
+    seen_anomaly_refs: set[str] = set()
     encodings = ["utf-8-sig", "cp1250", "latin1"]
 
     for label, rows in _read_csv_rows(csv_paths, encodings, "Airbnb"):
@@ -501,17 +524,26 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
                     f"{it['confirmation_code'] or '?'}/{(it['guest_name'] or '?')[:20]}={it['amount_eur']:.2f}"
                     for it in top
                 )
-                logger.warning(
-                    "Airbnb batch %s rate anomaly: implied_rate=%.4f CZK/EUR is outside [%.1f, %.1f] "
-                    "(amount_czk=%.2f, eur_sum=%.2f). Falling back to CNB rate per reservation. "
-                    "Top contributors: %s",
-                    batch["batch_ref"], raw_rate, _AIRBNB_RATE_MIN, _AIRBNB_RATE_MAX,
-                    batch["amount_czk"], eur_sum, top_summary or "(none)",
-                )
+                if batch["batch_ref"] not in seen_anomaly_refs:
+                    seen_anomaly_refs.add(batch["batch_ref"])
+                    logger.warning(
+                        "Airbnb batch %s rate anomaly: implied_rate=%.4f CZK/EUR is outside [%.1f, %.1f] "
+                        "(amount_czk=%.2f, eur_sum=%.2f). Falling back to CNB rate per reservation. "
+                        "Top contributors: %s",
+                        batch["batch_ref"], raw_rate, _AIRBNB_RATE_MIN, _AIRBNB_RATE_MAX,
+                        batch["amount_czk"], eur_sum, top_summary or "(none)",
+                    )
                 batch["implied_rate"] = 0.0
                 batch["rate_anomaly"] = True
             else:
                 batch["implied_rate"] = round(raw_rate, 6)
+            # Fallback rate used only for per-item amount_czk display when
+            # implied_rate is refused (rate_anomaly).  Calculator still uses
+            # per-reservation CNB by check-in date for the actual payout_czk.
+            batch["display_rate"] = (
+                batch["implied_rate"]
+                or _cnb_rate_for_batch_date(batch.get("payout_date", ""))
+            )
             batch.pop("_eur_contribs", None)
 
         cur_gref = ""
@@ -535,6 +567,7 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
             eur_amount = _safe_float(row.get("Částka", 0))
             batch = batches[cur_gref]
             code = (row.get("Potvrzující kód") or "").strip()
+            display_rate = batch.get("display_rate") or batch["implied_rate"]
             items_out.append({
                 "batch_ref": cur_gref,
                 "item_index": item_index_by_batch[cur_gref],
@@ -544,7 +577,7 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
                 "listing_name": (row.get("Nabídka") or "").strip(),
                 "property_id": "",
                 "amount_eur": eur_amount,
-                "amount_czk": round(eur_amount * batch["implied_rate"], 2) if batch["implied_rate"] else None,
+                "amount_czk": round(eur_amount * display_rate, 2) if display_rate else None,
                 "check_in": _parse_date(row.get("Datum zahájení", "")).isoformat() if _parse_date(row.get("Datum zahájení", "")) else "",
                 "check_out": _parse_date(row.get("Datum ukončení", "")).isoformat() if _parse_date(row.get("Datum ukončení", "")) else "",
                 "source_name": label,
@@ -563,7 +596,9 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
                 all_batches_map.setdefault(code, []).append(new_entry)
                 if code not in reservation_map or abs(eur_amount) > reservation_map[code].get("_res_eur", 0):
                     reservation_map[code] = new_entry
-            elif typ != "Rezervace" and code and "řešení" in typ.lower():
+            elif typ != "Rezervace" and code and (
+                "řešení" in typ.lower() or typ.lower().startswith("vyrovnání")
+            ):
                 if "výplata" in typ.lower():
                     # "Výplata jako výsledek řešení" → AirCover (Airbnb
                     # compensates host for damages).  Separate excluded row.
@@ -573,7 +608,7 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
                         "payout_date": batch["payout_date"],
                         "airbnb_rate": batch["implied_rate"],
                         "amount_eur": eur_amount,
-                        "amount_czk": round(eur_amount * batch["implied_rate"], 2) if batch["implied_rate"] else None,
+                        "amount_czk": round(eur_amount * display_rate, 2) if display_rate else None,
                         "batch_czk": batch["amount_czk"],
                         "guest_name": (row.get("Host") or "").strip(),
                         "listing_name": (row.get("Nabídka") or "").strip(),
@@ -584,8 +619,11 @@ def build_airbnb_payout_data(csv_paths: list) -> dict:
                         "details": (row.get("Podrobnosti") or "").strip(),
                     })
                 else:
-                    # "Vyrovnání z řešení" → payout adjustment (money
-                    # returned to guest).  Treated as __ADJ row.
+                    # "Vyrovnání z řešení" or bare "Vyrovnání" → payout
+                    # adjustment.  Money returned to (or rebated against) the
+                    # guest in a follow-up batch — engine spawns a synthetic
+                    # __ADJ row whose negative payout_czk offsets the parent
+                    # reservation's total in Srovnání.
                     adj_entry = {
                         "batch_ref": cur_gref,
                         "gref": cur_gref,

@@ -199,7 +199,12 @@
 
                     {# Amount #}
                     <div style="text-align:right;flex-shrink:0;">
-                      <div style="font-size:16px;font-weight:700;color:var(--color-green);font-variant-numeric:tabular-nums;">{{ money(item.amount_czk) }}</div>
+                      <div style="font-size:16px;font-weight:700;color:var(--color-green);font-variant-numeric:tabular-nums;">
+                        {{ money(item.amount_czk) }}
+                        {% if batch.rate_anomaly %}
+                        <span style="margin-left:4px;font-size:10px;color:var(--color-amber);font-weight:600;letter-spacing:0.02em;text-transform:uppercase;" title="Airbnb CSV pro tento batch obsahuje anomálii v EUR-sloupci (jeden řádek má CZK místo EUR), takže přepočet podle batch-rate byl odmítnut. Per-item sumy jsou orientační podle ČNB kurzu na den výplaty — pro přesné částky opravte zdrojový CSV.">* orientační</span>
+                        {% endif %}
+                      </div>
                       {% if item.amount_eur %}
                       <div style="font-size:11px;color:var(--text-300);margin-top:1px;">{{ "%.2f"|format(item.amount_eur) }} EUR</div>
                       {% endif %}

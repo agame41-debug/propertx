@@ -41,22 +41,33 @@ def _get_db():
 
 
 def _load_db_into_memory() -> None:
-    """Load all stored CNB rates from SQLite into in-memory cache (once per session)."""
+    """Load all stored CNB rates from SQLite into in-memory cache (once per session).
+
+    Uses a direct sqlite3.connect() instead of report.db.get_connection() to
+    avoid running migrations from this entry point. Otherwise migrations call
+    _backfill_payout_batches_from_active_sources → build_airbnb_payout_data →
+    _cnb_rate_for_batch_date → get_rate_for_reservation → _load_db_into_memory,
+    which is an infinite recursion. Setting _db_loaded=True up-front is a belt-
+    and-braces guard against any other re-entry path.
+    """
     global _db_loaded
     if _db_loaded:
         return
+    _db_loaded = True  # set BEFORE any DB call to break recursion
     try:
-        get_connection, get_all_cnb_rates, _, _ = _get_db()
-        conn = get_connection()
-        stored = get_all_cnb_rates(conn)
-        conn.close()
+        import sqlite3
+        from report.db import _DB_PATH, get_all_cnb_rates
+        conn = sqlite3.connect(_DB_PATH, timeout=30)
+        conn.row_factory = sqlite3.Row
+        try:
+            stored = get_all_cnb_rates(conn)
+        finally:
+            conn.close()
         _rate_cache.update(stored)
-        _db_loaded = True
         if stored:
             logger.debug("Loaded %d CNB rates from SQLite cache", len(stored))
     except Exception as e:
         logger.warning("Could not load CNB rates from SQLite: %s", e)
-        _db_loaded = True  # don't retry on every call
 
 
 def _persist_rate(date_str: str, rate: float) -> None:

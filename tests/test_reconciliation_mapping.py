@@ -276,3 +276,19 @@ class TestComputeL3Reconciliation:
         assert results[0]["status"] == "MATCHED"
         assert results[0]["objekt_src"] == "malostranska"
         assert results[0]["objekt_315"] == "malostranska"
+
+    def test_negative_correction_subtracts_from_315_aggregate(self):
+        # Korekce / klavbék (Money S3 line with negative Dal) must reduce the
+        # 315-side total. Before the loader fix this entry was stored with
+        # abs() and showed up as +X, inflating Srovnání instead of cancelling.
+        payout_agg = {("mymozart 515", "2025-01"): 8085.47}
+        acct = [
+            _acct("MyMozart 515", "Airbnb", 11596.90, mesic="2025-01"),
+            _acct("MyMozart 515", "Airbnb", -3511.43, mesic="2025-01"),
+        ]
+
+        results = compute_l3_reconciliation(payout_agg, acct, "airbnb")
+
+        assert len(results) == 1
+        assert results[0]["status"] == "MATCHED"
+        assert results[0]["diff"] == pytest.approx(0.0, abs=0.01)

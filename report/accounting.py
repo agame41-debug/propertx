@@ -655,14 +655,26 @@ def load_hlavni_kniha_from_bytes(content: bytes, stredisko_map: dict | None = No
             if mapped_popis:
                 objekt_stredisko = expand_objekt_315(mapped_popis, stredisko_map)
 
-        sloupec_d = abs(safe_float(row[10])) if len(row) > 10 else 0.0
-        sloupec_md = abs(safe_float(row[13])) if len(row) > 13 else 0.0
-        castka = sloupec_d if sloupec_d > 0 else sloupec_md
+        sloupec_d = safe_float(row[10]) if len(row) > 10 else 0.0
+        sloupec_md = safe_float(row[13]) if len(row) > 13 else 0.0
+        # Pick the non-zero column.  Sign handling is doc-type-aware (below):
+        # interní zápočty (FKV/FHS/FHO/FU/RF) flip arbitrarily across Money S3
+        # exports because the system writes the Dal-side or the protistrana-side
+        # depending on context, but the magnitude is what reconciliation cares
+        # about.  Live BPS/JINY entries (raw bank movements + manual klavbéky
+        # like "(MM515 - -3511,43)") must keep their sign — that's how a
+        # korekce reduces the payout total in Srovnání.
+        raw_castka = sloupec_d if sloupec_d != 0 else sloupec_md
 
         if datum is None:
             continue
 
         doc_type = classify_315(doc)
+        # Internal zápočty: take magnitude. Bank/manual entries: keep sign.
+        if doc_type in ("FKV", "FHS", "FHO", "FU", "RF"):
+            castka = abs(raw_castka)
+        else:
+            castka = raw_castka
 
         if ucet == "315001":
             channel = "Airbnb"

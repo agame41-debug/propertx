@@ -360,6 +360,46 @@ def _resolve_sources(conn, source_type: str) -> list:
     return get_active_source_files(conn, source_type)
 
 
+def _match_aircover_to_bank(
+    aircover_map: dict,
+    bank_index: dict,
+    bank_index_full: dict | None,
+    already_matched: list[dict],
+) -> list[dict]:
+    """Link AirCover / "Vyrovnání z řešení" batches to their bank txns.
+
+    AirCover batches are 1:1 with bank rows by G-ref, but they're stored in
+    aircover_map separately from airbnb_all_batches and never reach
+    enrich_rows_with_bank's matcher when the synthetic __AC reservation row
+    isn't generated for the current month (e.g. parent moved out, payout
+    date outside cutoff).  Without this pass payout_batch_bank_matches has
+    no row for the AC batch and the bank tx shows up as nespárovaná on /bank.
+    """
+    already = {m.get("batch_ref"): m for m in already_matched if m.get("batch_ref")}
+    matches: list[dict] = []
+    for code, ac_items in (aircover_map or {}).items():
+        for ac in ac_items or []:
+            gref = (ac.get("gref") or ac.get("batch_ref") or "").strip()
+            if not gref or gref in already:
+                continue
+            bank_row = bank_index.get(gref)
+            if bank_row is None and bank_index_full:
+                bank_row = bank_index_full.get(gref)
+            if bank_row is None:
+                continue
+            tx_key = bank_row.get("tx_key", "")
+            if not tx_key:
+                continue
+            matches.append({
+                "batch_ref": gref,
+                "tx_key": tx_key,
+                "match_method": "gref",
+                "matched_amount_czk": bank_row.get("amount_czk"),
+            })
+            already[gref] = matches[-1]
+    return matches
+
+
 def build_csv_cache(conn) -> dict:
     """
     Load and parse all CSV source data once. Return a cache dict that can
@@ -653,14 +693,25 @@ def generate_report_in_process(
         # For codes already in current_codes (main reservation here), use current
         # reservation as past_row reference for building adjustment
         if code in current_codes:
-            # Main reservation is here — only process moved-in adjustment grefs
+            # Two ways an extra batch becomes an ADJ for a same-month parent:
+            #  1. user manually moved a specific batch in via
+            #     reservation_month_assignments (adj_grefs_in)
+            #  2. Airbnb sent a refund / "Vyrovnání" in a separate batch with
+            #     a negative EUR amount (the parent already covers its own
+            #     positive batch — we only synthesize ADJ for the refund half)
+            main_gref = (gref_map.get(code) or {}).get("gref", "")
             for batch_info in batch_list:
                 gref = batch_info.get("gref", "")
                 if gref in seen_adjustment_grefs:
                     continue
                 if (code, gref) in adj_grefs_out:
                     continue
-                if (code, gref) not in adj_grefs_in:
+                payout_eur = float(batch_info.get("payout_eur") or 0.0)
+                is_explicit_move = (code, gref) in adj_grefs_in
+                is_extra_refund = (
+                    gref and gref != main_gref and payout_eur < 0
+                )
+                if not (is_explicit_move or is_extra_refund):
                     continue
                 seen_adjustment_grefs.add(gref)
                 adj_suffix = _next_adj_suffix(code)
@@ -818,6 +869,16 @@ def generate_report_in_process(
                 code, batch_ref, batch_info.get("payout_eur", 0),
             )
 
+    # ── Apply exclusions to synthetic rows (ADJ / AC / SP) ──────────────────
+    # The first sweep at the top of this function only touched main reservations
+    # (synthetics didn't exist yet). Now that ADJ / AirCover / Split rows have
+    # been appended with codes like "HMR9QKJSFH__ADJ", apply user-set
+    # reservation_exclusions to them too — the exclude endpoint stores the
+    # suffixed code as-is, so a string match is sufficient.
+    for r in reservations:
+        if r["confirmation_code"] in excluded_codes:
+            r["is_excluded"] = True
+
     # ── Reinstatement: override hardcoded is_excluded for reinstated synthetics
     from report.db_controls import get_reinstated_codes
     reinstated_codes = get_reinstated_codes(conn, slug)
@@ -837,6 +898,17 @@ def generate_report_in_process(
         year=year,
         month=month,
     )
+    # Snapshot may now contain cancelled+payout=0 rows (since the two-stage
+    # normalization fix). Strip them here so verifier never builds report rows
+    # from a payload that the engine path would otherwise drop.
+    late_hostify_lookup = {
+        code: payload
+        for code, payload in late_hostify_lookup.items()
+        if not (
+            (payload.get("status") or "").lower() == "cancelled"
+            and float(payload.get("payout_price_eur") or 0) <= 0
+        )
+    }
     verified, csv_only = build_verification_index(
         reservations, airbnb_index, booking_index, prop,
         hostify_lookup=late_hostify_lookup,
@@ -997,7 +1069,16 @@ def generate_report_in_process(
         booking_bank_idx_all=booking_bank_idx_all,
         conn=conn, slug=slug,
     )
-    save_payout_batch_bank_matches(conn, "airbnb", airbnb_matches)
+    # AirCover / "Vyrovnání z řešení" batches are 1:1 with bank txns by G-ref
+    # but live in aircover_map, separate from airbnb_all_batches. Without an
+    # explicit pass they never reach payout_batch_bank_matches and the bank
+    # tx shows as nespárovaná on /bank — even though both sides exist.
+    aircover_matches = _match_aircover_to_bank(
+        aircover_map, bank_index, bank_index_full, airbnb_matches,
+    )
+    save_payout_batch_bank_matches(
+        conn, "airbnb", airbnb_matches + aircover_matches,
+    )
     save_payout_batch_bank_matches(conn, "booking", booking_matches)
 
     # ── Downgrade MATCHED → KE KONTROLE when bank payment missing ──────────

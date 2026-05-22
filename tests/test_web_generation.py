@@ -77,7 +77,9 @@ def test_start_bulk_generation_runner_invokes_background_process(monkeypatch):
     def fake_popen(cmd, **kwargs):
         seen["cmd"] = cmd
         seen["kwargs"] = kwargs
-        return object()
+        # The runner now spawns a daemon reaper thread that reads proc.pid
+        # and calls proc.wait(); the fake must satisfy both.
+        return SimpleNamespace(pid=12345, wait=lambda: 0)
 
     monkeypatch.setattr(web_module.subprocess, "Popen", fake_popen)
 

@@ -945,6 +945,20 @@ def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> No
     global _payout_batches_backfill_done
     if _payout_batches_backfill_done:
         return
+    # Set guard BEFORE work. If parsing throws, retrying on every later
+    # get_connection() would re-parse all source CSVs each time and saturate
+    # startup (caskaded re-entry caused 2.5 min of spurious work in prod).
+    # Real CSV-format errors are deterministic: the right retry unit is a
+    # process restart, not a per-request retry.
+    _payout_batches_backfill_done = True
+
+    # Subprocesses (e.g. report.bulk_generation_runner) inherit the parent
+    # webapp's already-warm payout_batches table via the shared SQLite file.
+    # Re-doing the backfill there is pure duplicated work and adds 2-3 sec
+    # of CSV parsing to every subprocess start. _start_bulk_generation_runner
+    # sets RENTERO_SKIP_PAYOUT_BACKFILL=1 to opt out.
+    if os.environ.get("RENTERO_SKIP_PAYOUT_BACKFILL") == "1":
+        return
 
     from report.engine import _persist_csv_payout_artifacts
     from report.verifier import (
@@ -960,7 +974,6 @@ def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> No
         "WHERE source_type IN ('airbnb', 'booking') AND is_active = 1"
     ).fetchall()
     if not rows:
-        _payout_batches_backfill_done = True
         return
 
     try:
@@ -1002,15 +1015,12 @@ def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> No
             booking_bank_idx_all={},
         )
         conn.commit()
-        _payout_batches_backfill_done = True
     except Exception:
         import logging
         logging.getLogger(__name__).warning(
             "payout_batches backfill failed; bank UI may be stale until next regen",
             exc_info=True,
         )
-        # Don't set the guard — let a later request retry, in case the
-        # parse failure was transient (e.g., a partially-written CSV blob).
         conn.rollback()
 
 
