@@ -327,6 +327,34 @@ def test_bank_page_renders_successfully():
     assert "Bankovní transakce" in response.text
 
 
+def test_dashboard_renders_odmena_rentero_kpi():
+    import os
+
+    old_allow = os.environ.get("RENTERO_ALLOW_INSECURE_DEFAULTS")
+    os.environ["RENTERO_ALLOW_INSECURE_DEFAULTS"] = "1"
+    try:
+        with TestClient(web_module.app) as client:
+            login_page = client.get("/login")
+            csrf_token = _extract_csrf_token(login_page.text)
+            login = client.post(
+                "/login",
+                data={"username": "admin", "password": "admin", "csrf_token": csrf_token},
+                follow_redirects=False,
+            )
+            assert login.status_code == 302
+
+            response = client.get("/")
+    finally:
+        if old_allow is None:
+            os.environ.pop("RENTERO_ALLOW_INSECURE_DEFAULTS", None)
+        else:
+            os.environ["RENTERO_ALLOW_INSECURE_DEFAULTS"] = old_allow
+
+    assert response.status_code == 200
+    assert "Odměna Rentero" in response.text
+    assert "Zisk Rentero" not in response.text
+
+
 def test_guest_evidence_template_renders_group_audits():
     request = _admin_request(
         url=SimpleNamespace(path="/property/28_Pluku_58/2026/4/evidence-hostu"),

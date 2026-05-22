@@ -413,26 +413,23 @@ def register(app, state) -> None:
         dashboard_summary["rentero_vat_input_czk"]   = round(rentero_vat_input, 2)
         dashboard_summary["rentero_vat_balance_czk"] = round(rentero_vat_balance, 2)
 
-        # ── KPI 4 net profit + KPI 2 client payout aggregates ──────────────
-        # Rentero-owned (heuristic, includes Rentero-as-z_klient): the row
-        # contributes its zisk_czk to "Zisk Rentero".
-        # External klient/z_klient: contributes provize + výdaje (clients
-        # reimburse expenses through Rentero, so cash-flow to Rentero on
-        # those objects is fee + expenses).
+        # ── KPI 4 Rentero fee + KPI 2 client payout aggregates ─────────────
+        # KPI 4 "Odměna Rentero" = total fee Rentero earns this month, summed
+        # across all objects. rentero_fee_sum_czk already encodes the fee per
+        # client_type (klient → commission, z_klient → 3 %, rentero → 0), so
+        # we just sum it. client_payout_total stays as the rentero → klienti
+        # cash-flow that KPI 2 "Výplata klientům" shows (excludes Rentero).
         client_payout_total = 0.0
-        net_profit = 0.0
+        rentero_fee_total = 0.0
         for row in dashboard_rows:
             for cell in row.get("cells", []):
                 if cell.get("year") == cur_y and cell.get("month") == cur_m:
-                    if row["is_rentero"]:
-                        net_profit += cell.get("zisk_czk", 0) or 0
-                    else:
+                    rentero_fee_total += cell.get("rentero_fee_sum_czk", 0) or 0
+                    if not row["is_rentero"]:
                         client_payout_total += cell.get("client_payout_sum_czk", 0) or 0
-                        net_profit += (cell.get("rentero_fee_sum_czk", 0) or 0) \
-                                    + (cell.get("expenses_sum_czk", 0) or 0)
                     break
         dashboard_summary["total_client_payout_czk"] = client_payout_total
-        dashboard_summary["total_net_profit_czk"] = round(net_profit, 2)
+        dashboard_summary["total_rentero_fee_czk"] = round(rentero_fee_total, 2)
 
         return state["templates"].TemplateResponse(
             request,

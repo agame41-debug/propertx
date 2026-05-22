@@ -103,14 +103,14 @@
     </div>
   </div>
 
-  {# Net profit #}
+  {# Rentero fee (odměna) #}
   <div class="kpi-card kpi-card-red" id="kpi-profit-card">
-    <div class="kpi-label">Zisk Rentero</div>
+    <div class="kpi-label">Odměna Rentero</div>
     <div class="kpi-value" style="color:var(--color-red);font-size:24px;" id="kpi-profit"
-         data-copy="{{ "%.2f"|format(dashboard_summary.total_net_profit_czk) }}">
-      {{ "{:,.2f}".format(dashboard_summary.total_net_profit_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
+         data-copy="{{ "%.2f"|format(dashboard_summary.total_rentero_fee_czk) }}">
+      {{ "{:,.2f}".format(dashboard_summary.total_rentero_fee_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
     </div>
-    <div class="kpi-sub" id="kpi-profit-sub">ubytování vl. obj. + odměna · {{ dashboard_summary.current_month_label }}</div>
+    <div class="kpi-sub" id="kpi-profit-sub">provize ze správy objektů · {{ dashboard_summary.current_month_label }}</div>
   </div>
 
 </div>
