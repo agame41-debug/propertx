@@ -357,6 +357,66 @@ def test_dashboard_renders_odmena_rentero_kpi():
     assert "Zisk Rentero" not in response.text
 
 
+def _render_property_kpi(*, is_rentero_owned, summary, prop, expenses=None, is_dph=True):
+    tmpl = web_module.templates.get_template("partials/property_kpi.html")
+    return tmpl.render(
+        _is_rentero_owned=is_rentero_owned,
+        _is_dph_applicable=is_dph,
+        summary=summary,
+        prop=prop,
+        expenses=expenses or [],
+    )
+
+
+_RENTERO_OWNED_SUMMARY = {
+    "gross_payout_czk": 10000.0,
+    "accommodation_income_czk": 8000.0,
+    "expenses_total_czk": 0.0,
+    "vat_input_czk": 0.0,
+    "vat_balance_czk": 0.0,
+    "zisk_czk": 9000.0,
+    "client_payout_before_expenses_czk": 8000.0,
+    "client_payout_after_expenses_czk": 8000.0,
+    "rentero_commission_rate": 0.15,
+    "rentero_fee_czk": 0.0,
+    "vat_rentero_fee_czk": 0.0,
+    "rentero_odmena_czk": 0.0,
+    "rentero_vyplata_czk": 0.0,
+}
+
+
+def test_property_kpi_rentero_owned_shows_dash_when_no_fee():
+    # Rentero-owned object charges no fee → the "Rentero fee" KPI card shows
+    # "—" instead of a (zero) amount, with no percentage suffix and no Net row.
+    html = _render_property_kpi(
+        is_rentero_owned=True,
+        summary=_RENTERO_OWNED_SUMMARY,
+        prop={"client_type": "rentero"},
+    )
+    assert "Rentero fee" in html        # the card still exists
+    assert "—" in html                  # dash placeholder for the missing fee
+    assert "Net" not in html            # no fee breakdown rendered
+    assert "Rentero fee (15" not in html  # no "(15 %)" suffix when fee is 0
+
+
+def test_property_kpi_zklient_owned_still_shows_fee():
+    # A Rentero-owned object tagged z_klient still charges its 3 % fee, so the
+    # card shows the value and the Net breakdown (regression guard).
+    summary = dict(
+        _RENTERO_OWNED_SUMMARY,
+        rentero_commission_rate=0.03,
+        rentero_fee_czk=300.0,
+        rentero_odmena_czk=300.0,
+        rentero_vyplata_czk=300.0,
+    )
+    html = _render_property_kpi(
+        is_rentero_owned=True,
+        summary=summary,
+        prop={"client_type": "z_klient"},
+    )
+    assert "Net" in html
+
+
 def test_guest_evidence_template_renders_group_audits():
     request = _admin_request(
         url=SimpleNamespace(path="/property/28_Pluku_58/2026/4/evidence-hostu"),

@@ -62,6 +62,14 @@ def build_report_summary(
         rentero_fee_czk = _r(gross_payout_czk * rentero_commission_rate)
         vat_rentero_fee_czk = 0.0
         client_gross_income_czk = _r(accommodation_income_czk + city_tax_czk)
+    elif client_type == "rentero":
+        # Rentero-owned object: no external client and no commission to charge
+        # itself → no management fee. The meaningful KPI here is zisk_czk
+        # (computed below). Mirrors the dashboard rule: zero only for
+        # client_type='rentero'; klient/z_klient keep their fee.
+        rentero_fee_czk = 0.0
+        vat_rentero_fee_czk = 0.0
+        client_gross_income_czk = accommodation_income_czk
     else:
         rentero_fee_czk = _r(accommodation_income_czk * rentero_commission_rate)
         vat_rentero_fee_czk = _r(rentero_fee_czk * vat_rate)

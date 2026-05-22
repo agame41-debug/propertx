@@ -6,6 +6,15 @@ PROP = {
     "vat_rate": 0.21,
 }
 
+# Fee math is only charged on client-owned objects (klient/z_klient); the
+# fee-calculation test below uses this explicit client config so it keeps
+# exercising the commission formula now that rentero-owned objects charge 0.
+KLIENT_PROP = {
+    "client_type": "klient",
+    "rentero_commission": 0.15,
+    "vat_rate": 0.21,
+}
+
 
 def test_build_report_summary_includes_fees_expenses_and_bank_totals():
     rows = [
@@ -36,7 +45,7 @@ def test_build_report_summary_includes_fees_expenses_and_bank_totals():
 
     summary = build_report_summary(
         rows,
-        PROP,
+        KLIENT_PROP,
         expenses=expenses,
         transferred_rows=transferred_rows,
     )
@@ -117,3 +126,40 @@ def test_build_report_summary_empty_codes_dont_warn():
     summary = build_report_summary(rows, prop)
     assert summary["integrity_warnings"] == []
     assert summary["gross_payout_czk"] == 15.0  # both summed, neither deduped
+
+
+# ── Rentero-owned objects charge no management fee ──────────────────────
+# A Rentero-owned property (client_type='rentero') has no external client and
+# no commission to charge itself, so its fee must be 0. Mirrors the dashboard
+# rule: zero only for client_type='rentero'; klient/z_klient keep their fee.
+
+def _fee_rows():
+    return [{"payout_czk": 10000.0, "cena_ubytovani_czk": 8000.0,
+             "city_tax_czk": 200.0, "priprava_pokoje_czk": 0,
+             "dph_uklid_balicky_czk": 0}]
+
+
+def test_rentero_owned_object_charges_no_fee():
+    prop = {"client_type": "rentero", "rentero_commission": 0.15, "vat_rate": 0.21}
+    s = build_report_summary(_fee_rows(), prop)
+    assert s["rentero_fee_czk"] == 0.0
+    assert s["vat_rentero_fee_czk"] == 0.0
+    # derived fields follow
+    assert s["rentero_odmena_czk"] == 0.0
+    assert s["rentero_vyplata_czk"] == 0.0  # 0 fee + 0 dph + 0 expenses
+    # client payout is just the accommodation income (no fee deducted)
+    assert s["client_payout_before_expenses_czk"] == 8000.0
+
+
+def test_klient_object_still_charges_commission_fee():
+    prop = {"client_type": "klient", "rentero_commission": 0.15, "vat_rate": 0.21}
+    s = build_report_summary(_fee_rows(), prop)
+    assert s["rentero_fee_czk"] == 1200.0          # 8000 * 0.15
+    assert s["vat_rentero_fee_czk"] == 252.0        # 1200 * 0.21
+
+
+def test_zklient_object_still_charges_three_percent():
+    prop = {"client_type": "z_klient", "rentero_commission": 0.15, "vat_rate": 0.21}
+    s = build_report_summary(_fee_rows(), prop)
+    assert s["rentero_fee_czk"] == 300.0            # 10000 * 0.03
+    assert s["vat_rentero_fee_czk"] == 0.0

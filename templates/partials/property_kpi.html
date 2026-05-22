@@ -112,22 +112,36 @@
       </div>
     </div>
   {% else %}
-    <div class="kpi kpi-err">
-      <div class="kpi-label">Rentero fee ({{ '%.0f'|format((summary.rentero_commission_rate or 0) * 100) }} %)</div>
-      <div class="kpi-value neg" data-copy="{{ '%.2f'|format((summary.rentero_fee_czk or 0) + (summary.vat_rentero_fee_czk or 0)) }}">
-        −{{ fmt_czk((summary.rentero_fee_czk or 0) + (summary.vat_rentero_fee_czk or 0)) }}
+    {% set _rentero_fee_total = (summary.rentero_fee_czk or 0) + (summary.vat_rentero_fee_czk or 0) %}
+    {% if _rentero_fee_total %}
+      <div class="kpi kpi-err">
+        <div class="kpi-label">Rentero fee ({{ '%.0f'|format((summary.rentero_commission_rate or 0) * 100) }} %)</div>
+        <div class="kpi-value neg" data-copy="{{ '%.2f'|format(_rentero_fee_total) }}">
+          −{{ fmt_czk(_rentero_fee_total) }}
+        </div>
+        <div class="kpi-sub">
+          <span class="pair"><span>Net</span><span class="v">−{{ fmt_czk(summary.rentero_fee_czk or 0) }}</span></span>
+          {% if (summary.vat_rentero_fee_czk or 0) > 0 %}
+            <span class="sep">·</span>
+            <span class="pair" style="color:var(--dph-text)">
+              <span>DPH</span>
+              <span class="v">−{{ fmt_czk(summary.vat_rentero_fee_czk) }}</span>
+            </span>
+          {% endif %}
+        </div>
       </div>
-      <div class="kpi-sub">
-        <span class="pair"><span>Net</span><span class="v">−{{ fmt_czk(summary.rentero_fee_czk or 0) }}</span></span>
-        {% if (summary.vat_rentero_fee_czk or 0) > 0 %}
-          <span class="sep">·</span>
-          <span class="pair" style="color:var(--dph-text)">
-            <span>DPH</span>
-            <span class="v">−{{ fmt_czk(summary.vat_rentero_fee_czk) }}</span>
-          </span>
-        {% endif %}
+    {% else %}
+      {# Rentero-owned object (client_type='rentero'): Rentero charges no
+         commission to itself, so there's no fee. Keep the 4-card layout but
+         render a muted dash card, mirroring the empty Výdaje card. #}
+      <div class="kpi kpi-mute">
+        <div class="kpi-label">Rentero fee</div>
+        <div class="kpi-value">—</div>
+        <div class="kpi-sub">
+          <span class="pair"><span>Vlastní objekt</span></span>
+        </div>
       </div>
-    </div>
+    {% endif %}
   {% endif %}
 
   {# ── KPI 4: Výdaje ────────────────────────────────────── #}
