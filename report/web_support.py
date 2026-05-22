@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -461,6 +462,7 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
                         * (1.0 - COALESCE(o.rentero_commission, 0.15) * (1.0 + COALESCE(o.vat_rate, 0.21)))
                 END), 0), 2) as client_payout_sum_czk,
                 ROUND(COALESCE(SUM(CASE
+                    WHEN COALESCE(o.client_type, 'rentero') = 'rentero' THEN 0
                     WHEN COALESCE(o.client_type, 'rentero') = 'z_klient' THEN
                         CAST(json_extract(r.data, '$.payout_czk') AS REAL) * 0.03
                     ELSE
@@ -1040,13 +1042,36 @@ def _start_bulk_generation_runner(run_id: int, year: int, month: int, *, db_path
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, f"bulk_run_{run_id}.log")
     fh = open(log_file, "w")  # noqa: SIM115
-    subprocess.Popen(
+    # Webapp lifespan already ran the payout_batches backfill against the
+    # shared SQLite file; the subprocess can skip it (saves ~2-3 sec startup
+    # plus avoids re-parsing thousands of CSV rows).
+    env = os.environ.copy()
+    env["RENTERO_SKIP_PAYOUT_BACKFILL"] = "1"
+    proc = subprocess.Popen(
         cmd,
         cwd=_BASE_DIR,
         stdout=fh,
         stderr=subprocess.STDOUT,
         start_new_session=True,
+        env=env,
     )
+    # Without this thread the parent webapp never reaps the child, leaving
+    # a zombie (Z, defunct) entry in the process table after each bulk run.
+    def _reap(p: subprocess.Popen, log_handle) -> None:
+        try:
+            p.wait()
+        finally:
+            try:
+                log_handle.close()
+            except Exception:
+                pass
+
+    threading.Thread(
+        target=_reap,
+        args=(proc, fh),
+        daemon=True,
+        name=f"bulk-reaper-{proc.pid}",
+    ).start()
 
 
 def _load_bank_rows_with_drilldown(
@@ -1087,6 +1112,7 @@ def _load_bank_rows_with_drilldown(
                    pb.credited_date,
                    pb.amount_czk AS batch_amount_czk,
                    pb.amount_eur AS batch_amount_eur,
+                   pb.implied_rate AS batch_implied_rate,
                    pb.source_name AS batch_source_name,
                    pbi.item_index,
                    pbi.item_type,
@@ -1150,6 +1176,14 @@ def _load_bank_rows_with_drilldown(
         batch = batch_maps.get(batch_key)
         if batch is None:
             reservations: list[dict] = []
+            # rate_anomaly = batch's implied_rate refused at load time (one CSV
+            # item had a CZK number in the EUR column, inflating eur_sum so the
+            # ratio fell outside _AIRBNB_RATE_MIN.._AIRBNB_RATE_MAX).  In that
+            # case payout_batch_items.amount_czk was computed from a CNB-rate
+            # fallback and the operator should know the per-item sums are
+            # approximate (the CSV needs a fix at the source).
+            implied = item.get("batch_implied_rate")
+            eur_total = item.get("batch_amount_eur") or 0
             batch = {
                 "channel": item.get("channel", ""),
                 "batch_ref": item.get("batch_ref", ""),
@@ -1159,6 +1193,12 @@ def _load_bank_rows_with_drilldown(
                 "credited_date": item.get("credited_date", ""),
                 "batch_amount_czk": item.get("batch_amount_czk"),
                 "batch_amount_eur": item.get("batch_amount_eur"),
+                "rate_anomaly": (
+                    item.get("channel") == "airbnb"
+                    and (implied is None or implied == 0)
+                    and eur_total > 0
+                    and (item.get("batch_amount_czk") or 0) > 0
+                ),
                 "batch_source_name": item.get("batch_source_name", ""),
                 "reservations": reservations,
                 "items": reservations,
