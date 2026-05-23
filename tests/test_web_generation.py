@@ -362,6 +362,7 @@ def _render_property_kpi(*, is_rentero_owned, summary, prop, expenses=None, is_d
     return tmpl.render(
         _is_rentero_owned=is_rentero_owned,
         _is_dph_applicable=is_dph,
+        _show_dph=is_dph,
         summary=summary,
         prop=prop,
         expenses=expenses or [],
@@ -507,6 +508,32 @@ def test_property_dph_summary_no_header_badge_and_vstup_before_vystup():
     html = _render_property_dph_summary(summary=_RENTERO_DPH_SUMMARY)
     assert "badge" not in html
     assert html.index("DPH na vstupu") < html.index("DPH na výstupu")
+
+
+_KLIENT_PROVIZE_DPH_SUMMARY = {
+    "vat_output_czk": 1570.0,
+    "vat_input_czk": 0.0,
+    "vat_input_count": 0,
+    "vat_balance_czk": 1570.0,
+    "vat_rentero_fee_czk": 420.0,
+    "vat_room_prep_czk": 100.0,
+    "platform_commission_vat_czk": 1050.0,
+}
+
+
+def test_property_dph_summary_klient_shows_provize_line():
+    html = _render_property_dph_summary(summary=_KLIENT_PROVIZE_DPH_SUMMARY)
+    assert "Provize" in html
+    assert "Ubytovací služby" not in html   # not a Rentero-owned object
+
+
+def test_property_kpi_klient_shows_dph_row_when_show_dph():
+    summary = dict(_RENTERO_OWNED_SUMMARY, vat_balance_czk=1570.0)
+    html = _render_property_kpi(
+        is_rentero_owned=False, summary=summary,
+        prop={"client_type": "klient"}, is_dph=True,
+    )
+    assert "DPH&nbsp;=" in html
 
 
 def test_guest_evidence_template_renders_group_audits():

@@ -62,6 +62,18 @@
             <span class="dph-row-k">Příprava pokoje</span>
             <span class="dph-row-v">−&nbsp;{{ fmt_czk(summary.vat_room_prep_czk or 0) }}</span>
           </div>
+          {% if (summary.platform_commission_vat_czk or 0) > 0 %}
+          <div class="dph-row">
+            <span class="dph-row-k">Provize (21&nbsp;%)</span>
+            <span class="dph-row-v">−&nbsp;{{ fmt_czk(summary.platform_commission_vat_czk or 0) }}</span>
+          </div>
+          {% endif %}
+          {% if (summary.vat_input_czk or 0) > 0 %}
+          <div class="dph-row">
+            <span class="dph-row-k">Přefakturované výdaje</span>
+            <span class="dph-row-v">−&nbsp;{{ fmt_czk(summary.vat_input_czk or 0) }}</span>
+          </div>
+          {% endif %}
         {% endif %}
       </div>
     </div>

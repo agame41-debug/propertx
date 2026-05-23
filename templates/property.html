@@ -11,6 +11,11 @@
    defer to client.platce_dph as before. #}
 {% set _is_rentero_owned = (not client) or (not client.name) or (client.name|lower).startswith('rentero') %}
 {% set _is_dph_applicable = _is_rentero_owned or (client and client.platce_dph) %}
+{# Rentero is itself a VAT payer and settles DPH on every managed object (its
+   odměna, reverse-charged platform commission, expense input VAT), so the DPH
+   settlement is shown for all objects. The "Plátce DPH" badge stays tied to
+   _is_dph_applicable (the client's real VAT status). #}
+{% set _show_dph = True %}
 
 <div class="page">
   {% include "partials/property_intro.html" %}
@@ -19,7 +24,7 @@
   {% include "partials/property_kpi.html" %}
   {% include "partials/property_reservations.html" %}
   {% include "partials/property_breakdown.html" %}
-  {% if _is_dph_applicable %}
+  {% if _show_dph %}
     {% include "partials/property_dph_summary.html" %}
   {% endif %}
   {% include "partials/property_expenses.html" %}
