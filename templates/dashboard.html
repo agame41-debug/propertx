@@ -105,14 +105,14 @@
             {% if _vat_is_refund %}+{% else %}−{% endif %}&nbsp;{{ "{:,.2f}".format(_vat_balance|abs).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
           </div>
           <div class="kpi-sub" id="kpi-vat-sub" style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;">
-            <span style="font-family:var(--font-mono);font-size:11px;" title="DPH na výstupu — z provizí a přípravy pokoje">
+            <span style="font-family:var(--font-mono);font-size:11px;" title="DPH na výstupu — odvádí se státu (z provizí a přípravy pokoje)">
               <span style="color:var(--text-300);">Výstup</span>
-              <span style="color:var(--color-green);" id="kpi-vat-output">+{{ "{:,.2f}".format(dashboard_summary.rentero_vat_output_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}</span>
+              <span style="color:var(--color-red);" id="kpi-vat-output">−{{ "{:,.2f}".format(dashboard_summary.rentero_vat_output_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}</span>
             </span>
             <span style="color:var(--text-300);opacity:.4">·</span>
-            <span style="font-family:var(--font-mono);font-size:11px;" title="DPH na vstupu (odpočet) — z výdajů s DPH">
+            <span style="font-family:var(--font-mono);font-size:11px;" title="DPH na vstupu (odpočet) — ve prospěch (z výdajů s DPH)">
               <span style="color:var(--text-300);">Vstup</span>
-              <span style="color:var(--color-red);" id="kpi-vat-input">−{{ "{:,.2f}".format(dashboard_summary.rentero_vat_input_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}</span>
+              <span style="color:var(--color-green);" id="kpi-vat-input">+{{ "{:,.2f}".format(dashboard_summary.rentero_vat_input_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}</span>
             </span>
           </div>
         </div>
@@ -371,8 +371,8 @@ function _applyFilters() {
       + _formatNumber(Math.abs(totalVatBalance)) + ' Kč';
     kpiVatBalance.style.color = vatRefund ? 'var(--color-green)' : 'var(--color-red)';
   }
-  if (kpiVatOutput) kpiVatOutput.textContent = '+' + _formatNumber(totalVatOutput);
-  if (kpiVatInput)  kpiVatInput.textContent  = '−' + _formatNumber(totalVatInput);
+  if (kpiVatOutput) kpiVatOutput.textContent = '−' + _formatNumber(totalVatOutput);
+  if (kpiVatInput)  kpiVatInput.textContent  = '+' + _formatNumber(totalVatInput);
 
   // Rentero fee per visible row. The backend SQL already encodes 0 for
   // client_type='rentero', so data-rentero-fee carries 0 for rentero-owned
