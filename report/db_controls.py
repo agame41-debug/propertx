@@ -27,7 +27,58 @@ def create_reservation_month_assignment(
     With month-scoped uniqueness, one code can have separate assignments for
     different source months (e.g. main reservation in Feb, adjustment in Mar).
     UNIQUE(slug, confirmation_code, original_year, original_month).
+
+    A *main* reservation (is_adjustment=0) lives in exactly ONE month, so a new
+    main move SUPERSEDES any prior active main move for the same code. Without
+    this, "move A→B then move back B→A" records two rows with different original
+    months — the UNIQUE key doesn't collide, both stay active, and the engine
+    pulls the reservation into BOTH months (prod bug 2026-05, codes 5905484643 /
+    HM45TR2QRN). Adjustments (ADJ/SP/AC) are independent and never superseded.
     """
+    slug = data["slug"]
+    code = data["confirmation_code"]
+    actor = str(data.get("actor") or "").strip()
+    target_year = int(data["target_year"])
+    target_month = int(data["target_month"])
+    original_year = int(data["original_year"])
+    original_month = int(data["original_month"])
+    is_adjustment = 1 if data.get("is_adjustment") else 0
+
+    if not is_adjustment:
+        prior = conn.execute(
+            """SELECT original_year, original_month
+                 FROM reservation_month_assignments
+                WHERE slug = ? AND confirmation_code = ?
+                  AND is_adjustment = 0 AND reverted_at IS NULL
+                ORDER BY created_at ASC""",
+            (slug, code),
+        ).fetchall()
+        if prior:
+            # The TRUE natural month is the earliest move's original month
+            # (the month the reservation was first moved OUT of). Re-anchor to
+            # it so the engine's move-OUT suppression keys on the right month
+            # even after several moves.
+            natural_year = prior[0]["original_year"]
+            natural_month = prior[0]["original_month"]
+            conn.execute(
+                """UPDATE reservation_month_assignments
+                      SET reverted_at = ?, reverted_by = ?
+                    WHERE slug = ? AND confirmation_code = ?
+                      AND is_adjustment = 0 AND reverted_at IS NULL""",
+                (_now(), actor or "auto-supersede", slug, code),
+            )
+        else:
+            # First-ever move always starts on the reservation's natural month.
+            natural_year, natural_month = original_year, original_month
+
+        if (target_year, target_month) == (natural_year, natural_month):
+            # Moving back to the natural month = net no-op: leave NO active
+            # assignment so the reservation falls to its natural month via
+            # normal loading. (The superseded rows above stay soft-deleted.)
+            conn.commit()
+            return
+        original_year, original_month = natural_year, natural_month
+
     conn.execute(
         """INSERT INTO reservation_month_assignments
                (slug, confirmation_code, target_year, target_month,
@@ -47,16 +98,16 @@ def create_reservation_month_assignment(
                reverted_at    = NULL,
                reverted_by    = NULL""",
         {
-            "slug": data["slug"],
-            "confirmation_code": data["confirmation_code"],
-            "target_year": int(data["target_year"]),
-            "target_month": int(data["target_month"]),
-            "original_year": int(data["original_year"]),
-            "original_month": int(data["original_month"]),
+            "slug": slug,
+            "confirmation_code": code,
+            "target_year": target_year,
+            "target_month": target_month,
+            "original_year": original_year,
+            "original_month": original_month,
             "reason": str(data.get("reason") or "").strip(),
-            "actor": str(data.get("actor") or "").strip(),
+            "actor": actor,
             "created_at": _now(),
-            "is_adjustment": 1 if data.get("is_adjustment") else 0,
+            "is_adjustment": is_adjustment,
             "batch_ref": str(data.get("batch_ref") or "").strip(),
         },
     )
