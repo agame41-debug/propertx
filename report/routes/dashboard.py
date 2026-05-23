@@ -125,25 +125,40 @@ def register(app, state) -> None:
             today = date.today()
             current_year, current_month = today.year, today.month
 
-        # Quick health check for current month (single query, no per-property loop)
+        # Health check for current month. Must match the dashboard, which
+        # recomputes issue counts LIVE from report_rows (see
+        # _build_dashboard_maps). Reading the stored report_history snapshot
+        # here would go stale: issues resolved after generation (late bank/CSV
+        # import, re-verification) stay yellow in the sidebar while the
+        # dashboard shows green. So we recompute from report_rows too, gated by
+        # "a report exists for this month" (history row) — matching the
+        # dashboard's ok/issues vs action/empty distinction.
         health_map: dict[str, str] = {}
         if current_year and current_month:
-            rows = conn.execute(
-                "SELECT slug, rozdil, ke_kontrole, chybi_hostify, chybi_csv "
-                "FROM report_history WHERE year=? AND month=? ORDER BY generated_at DESC",
+            report_slugs = {
+                r["slug"]
+                for r in conn.execute(
+                    "SELECT DISTINCT slug FROM report_history WHERE year=? AND month=?",
+                    (current_year, current_month),
+                ).fetchall()
+            }
+            live_issues: dict[str, int] = {}
+            for row in conn.execute(
+                """SELECT slug,
+                        SUM(CASE WHEN json_extract(data, '$.verification_status') = 'ROZDÍL' THEN 1 ELSE 0 END)
+                      + SUM(CASE WHEN json_extract(data, '$.verification_status') = 'CHYBÍ_V_CSV' THEN 1 ELSE 0 END)
+                      + SUM(CASE WHEN json_extract(data, '$.verification_status') = 'CHYBÍ_V_HOSTIFY' THEN 1 ELSE 0 END)
+                      + SUM(CASE WHEN json_extract(data, '$.verification_status') = 'MATCHED'
+                                 AND json_extract(data, '$.tax_verification_required')
+                                 AND (COALESCE(CAST(json_extract(data, '$.checkin_missing_age_guests') AS INTEGER), 0) > 0
+                                      OR NOT json_extract(data, '$.checkin_verified'))
+                            THEN 1 ELSE 0 END) AS issues
+                   FROM report_rows WHERE year=? AND month=? GROUP BY slug""",
                 (current_year, current_month),
-            ).fetchall()
-            seen: set[str] = set()
-            for row in rows:
-                if row["slug"] not in seen:
-                    seen.add(row["slug"])
-                    issues = (
-                        (row["rozdil"] or 0)
-                        + (row["ke_kontrole"] or 0)
-                        + (row["chybi_hostify"] or 0)
-                        + (row["chybi_csv"] or 0)
-                    )
-                    health_map[row["slug"]] = "issues" if issues > 0 else "ok"
+            ).fetchall():
+                live_issues[row["slug"]] = row["issues"] or 0
+            for slug in report_slugs:
+                health_map[slug] = "issues" if live_issues.get(slug, 0) > 0 else "ok"
 
         return state["templates"].TemplateResponse(
             request,

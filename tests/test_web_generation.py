@@ -878,6 +878,52 @@ def test_dashboard_renders_kpi_carousel():
     assert 'id="kpi-card-dph"' in html             # DPH is its own card now
 
 
+def test_sidebar_health_uses_live_rows_not_stale_history(monkeypatch):
+    # Regression: the sidebar dot must reflect the SAME live report_rows the
+    # dashboard uses, not a stale report_history snapshot. If an issue was
+    # recorded at generation time (ROZDÍL in history) but later resolved
+    # (live rows all MATCHED), the sidebar should show "ok" (green), matching
+    # the dashboard — not "issues" (yellow).
+    from report.db import save_report_rows, log_report_generated
+    from report.db_admin import upsert_report_object
+
+    conn = get_connection(":memory:")
+    try:
+        upsert_report_object(conn, {
+            "slug": "Obj", "display_name": "Obj", "listing_nickname": "Obj",
+            "client_type": "rentero", "active": True,
+        })
+        # Stale snapshot: a ROZDÍL recorded in history at generation time.
+        log_report_generated(conn, "Obj", 2026, 4, "Obj.xlsx",
+                             [{"confirmation_code": "c1", "verification_status": "ROZDÍL"}])
+        # Live rows: issue resolved → all MATCHED (clean).
+        save_report_rows(conn, "Obj", 2026, 4,
+                        [{"confirmation_code": "c1", "verification_status": "MATCHED"}])
+
+        # Setup sanity: the stored history really does carry the issue.
+        assert conn.execute(
+            "SELECT rozdil FROM report_history WHERE slug='Obj' AND year=2026 AND month=4"
+        ).fetchone()["rozdil"] >= 1
+
+        captured = {}
+        monkeypatch.setattr(web_module, "_get_active_properties",
+                            lambda config: [{"slug": "Obj", "display_name": "Obj", "listing_nickname": "Obj"}])
+        monkeypatch.setattr(
+            web_module.templates, "TemplateResponse",
+            lambda request, template, context: captured.update({"context": context})
+            or SimpleNamespace(status_code=200),
+        )
+
+        asyncio.run(web_module.sidebar_objects(
+            request=_admin_request(), year=2026, month=4, conn=conn,
+            config={"properties": {}},
+        ))
+
+        assert captured["context"]["health_map"].get("Obj") == "ok"
+    finally:
+        conn.close()
+
+
 def test_inventory_view_does_not_flag_marriott_only_object_as_missing_booking_or_airbnb(monkeypatch):
     monkeypatch.setattr(web_module, "get_all_clients", lambda conn: [{"property_slug": "MarriottOnly", "name": "Client M"}])
 
