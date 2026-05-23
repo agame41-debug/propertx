@@ -134,6 +134,8 @@ def register(app, state) -> None:
         # "a report exists for this month" (history row) — matching the
         # dashboard's ok/issues vs action/empty distinction.
         health_map: dict[str, str] = {}
+        report_slugs: set[str] = set()
+        live_issues: dict[str, int] = {}
         if current_year and current_month:
             report_slugs = {
                 r["slug"]
@@ -142,7 +144,6 @@ def register(app, state) -> None:
                     (current_year, current_month),
                 ).fetchall()
             }
-            live_issues: dict[str, int] = {}
             for row in conn.execute(
                 """SELECT slug,
                         SUM(CASE WHEN json_extract(data, '$.verification_status') = 'ROZDÍL' THEN 1 ELSE 0 END)
@@ -159,6 +160,18 @@ def register(app, state) -> None:
                 live_issues[row["slug"]] = row["issues"] or 0
             for slug in report_slugs:
                 health_map[slug] = "issues" if live_issues.get(slug, 0) > 0 else "ok"
+
+        # Hide objects with no reservations in the selected month, matching the
+        # dashboard's per-month list. "Has reservations" = a report exists
+        # (history row) AND there are live report_rows. The currently-open
+        # object (active_slug) is always kept so the sidebar still reflects
+        # where you are. If nothing qualifies (e.g. an empty month opened from
+        # the dashboard), fall back to showing all so navigation never breaks.
+        visible_slugs = report_slugs & set(live_issues)
+        if active_slug:
+            visible_slugs.add(active_slug)
+        if visible_slugs:
+            properties = [p for p in properties if p["slug"] in visible_slugs]
 
         return state["templates"].TemplateResponse(
             request,

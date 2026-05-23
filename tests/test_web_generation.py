@@ -924,6 +924,48 @@ def test_sidebar_health_uses_live_rows_not_stale_history(monkeypatch):
         conn.close()
 
 
+def test_sidebar_hides_objects_without_reservations(monkeypatch):
+    # The sidebar list must match the dashboard: objects with no reservations
+    # in the selected month are hidden.
+    from report.db import save_report_rows, log_report_generated
+    from report.db_admin import upsert_report_object
+
+    conn = get_connection(":memory:")
+    try:
+        for slug in ("Active", "Empty"):
+            upsert_report_object(conn, {
+                "slug": slug, "display_name": slug, "listing_nickname": slug,
+                "client_type": "rentero", "active": True,
+            })
+        # Active has a generated report with reservations; Empty has none.
+        log_report_generated(conn, "Active", 2026, 4, "Active.xlsx",
+                             [{"confirmation_code": "a1", "verification_status": "MATCHED"}])
+        save_report_rows(conn, "Active", 2026, 4,
+                        [{"confirmation_code": "a1", "verification_status": "MATCHED"}])
+
+        captured = {}
+        monkeypatch.setattr(web_module, "_get_active_properties", lambda config: [
+            {"slug": "Active", "display_name": "Active", "listing_nickname": "Active"},
+            {"slug": "Empty", "display_name": "Empty", "listing_nickname": "Empty"},
+        ])
+        monkeypatch.setattr(
+            web_module.templates, "TemplateResponse",
+            lambda request, template, context: captured.update({"context": context})
+            or SimpleNamespace(status_code=200),
+        )
+
+        asyncio.run(web_module.sidebar_objects(
+            request=_admin_request(), year=2026, month=4, conn=conn,
+            config={"properties": {}},
+        ))
+
+        slugs = [p["slug"] for p in captured["context"]["properties"]]
+        assert "Active" in slugs
+        assert "Empty" not in slugs
+    finally:
+        conn.close()
+
+
 def test_inventory_view_does_not_flag_marriott_only_object_as_missing_booking_or_airbnb(monkeypatch):
     monkeypatch.setattr(web_module, "get_all_clients", lambda conn: [{"property_slug": "MarriottOnly", "name": "Client M"}])
 
