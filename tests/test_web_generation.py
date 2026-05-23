@@ -792,6 +792,60 @@ def test_client_save_persists_hostify_child_aliases():
         conn.close()
 
 
+def test_dashboard_attaches_per_property_dph_to_current_cell(monkeypatch):
+    # The dashboard sweep computes build_report_summary per property; this
+    # asserts the per-property DPH (output/input/balance) is stashed onto the
+    # current-month cell so the template can emit data-vat-* attributes for
+    # the per-filter recompute (mirrors the existing zisk_czk attach).
+    from report.db import save_report_rows, log_report_generated
+    from report.db_admin import upsert_report_object
+
+    conn = get_connection(":memory:")
+    try:
+        upsert_report_object(conn, {
+            "slug": "Own", "display_name": "Own", "listing_nickname": "Own",
+            "client_type": "rentero", "rentero_commission": 0.15,
+            "vat_rate": 0.21, "active": True,
+        })
+        rows = [{
+            "confirmation_code": "Own-1",
+            "payout_czk": 10000.0,
+            "cena_ubytovani_czk": 8000.0,
+            "verification_status": "MATCHED",
+        }]
+        save_report_rows(conn, "Own", 2026, 4, rows)
+        log_report_generated(conn, "Own", 2026, 4, "Own.xlsx", rows)
+
+        seeded_prop = {
+            "slug": "Own", "display_name": "Own", "listing_nickname": "Own",
+            "client_type": "rentero", "rentero_commission": 0.15, "vat_rate": 0.21,
+        }
+        monkeypatch.setattr(web_module, "_get_active_properties", lambda config: [seeded_prop])
+
+        captured = {}
+        monkeypatch.setattr(
+            web_module.templates, "TemplateResponse",
+            lambda request, template, context: captured.update({"context": context})
+            or SimpleNamespace(status_code=200),
+        )
+
+        asyncio.run(web_module.dashboard(
+            request=_admin_request(), year=2026, month=4, conn=conn,
+            config={"properties": {}},
+        ))
+
+        rows_vm = captured["context"]["dashboard_rows"]
+        own = next(r for r in rows_vm if r["slug"] == "Own")
+        cur = next(c for c in own["cells"]
+                   if c.get("year") == 2026 and c.get("month") == 4)
+        assert "vat_output_czk" in cur
+        assert "vat_input_czk" in cur
+        assert "vat_balance_czk" in cur
+        assert isinstance(cur["vat_balance_czk"], float)
+    finally:
+        conn.close()
+
+
 def test_inventory_view_does_not_flag_marriott_only_object_as_missing_booking_or_airbnb(monkeypatch):
     monkeypatch.setattr(web_module, "get_all_clients", lambda conn: [{"property_slug": "MarriottOnly", "name": "Client M"}])
 

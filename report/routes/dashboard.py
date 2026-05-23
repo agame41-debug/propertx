@@ -370,6 +370,7 @@ def register(app, state) -> None:
         # the per-row "rentero ZISK" indicator and the KPI 4 aggregate).
         slug_to_prop = {p["slug"]: p for p in properties}
         slug_to_zisk: dict[str, float] = {}
+        slug_to_vat: dict[str, dict] = {}
         rentero_vat_output = 0.0
         rentero_vat_input = 0.0
         rentero_vat_balance = 0.0
@@ -390,6 +391,11 @@ def register(app, state) -> None:
             rentero_vat_output  += s.get("vat_output_czk", 0)  or 0
             rentero_vat_input   += s.get("vat_input_czk", 0)   or 0
             rentero_vat_balance += s.get("vat_balance_czk", 0) or 0
+            slug_to_vat[slug] = {
+                "output":  round(float(s.get("vat_output_czk")  or 0), 2),
+                "input":   round(float(s.get("vat_input_czk")   or 0), 2),
+                "balance": round(float(s.get("vat_balance_czk") or 0), 2),
+            }
             # Zisk only for Rentero-owned objects (per-row indicator). Use
             # summary.zisk_czk when set; otherwise the property-page
             # fallback formula (covers Rentero-as-z_klient).
@@ -407,6 +413,10 @@ def register(app, state) -> None:
             for cell in row.get("cells", []):
                 if cell.get("year") == cur_y and cell.get("month") == cur_m:
                     cell["zisk_czk"] = slug_to_zisk.get(row["slug"], 0.0)
+                    _vat = slug_to_vat.get(row["slug"], {})
+                    cell["vat_output_czk"]  = _vat.get("output", 0.0)
+                    cell["vat_input_czk"]   = _vat.get("input", 0.0)
+                    cell["vat_balance_czk"] = _vat.get("balance", 0.0)
                     break
 
         dashboard_summary["rentero_vat_output_czk"]  = round(rentero_vat_output, 2)
