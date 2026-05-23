@@ -170,7 +170,8 @@ def test_zklient_object_still_charges_three_percent():
 # model of what a client would be paid / what Rentero would earn.
 
 def test_rentero_owned_object_has_model_client():
-    prop = {"client_type": "rentero", "rentero_commission": 0.15, "vat_rate": 0.21}
+    prop = {"client_type": "rentero", "rentero_commission": 0.15,
+            "vat_rate": 0.21, "balicky_per_person": 199}
     s = build_report_summary(_fee_rows(), prop)
     assert s["rentero_fee_czk"] == 0.0            # real fee stays zero
     m = s["model_client"]
@@ -179,6 +180,7 @@ def test_rentero_owned_object_has_model_client():
     assert m["rentero_odmena_total_czk"] == 1452.0  # 1200 + 252
     assert m["client_payout_before_expenses_czk"] == 6548.0  # 8000 - 1200 - 252
     assert m["rentero_commission_rate"] == 0.15
+    assert m["balicky_per_person"] == 199           # per-person package rate
 
 
 def test_klient_and_zklient_have_no_model_client():

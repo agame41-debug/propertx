@@ -428,6 +428,7 @@ def test_property_kpi_rentero_owned_shows_model_card():
             "vat_rentero_fee_czk": 252.0,
             "rentero_odmena_total_czk": 1452.0,
             "client_payout_before_expenses_czk": 6548.0,
+            "balicky_per_person": 199.0,
         },
     )
     html = _render_property_kpi(
@@ -435,6 +436,7 @@ def test_property_kpi_rentero_owned_shows_model_card():
     )
     assert "Modelová výplata klienta" in html
     assert "Odměna Rentero" in html
+    assert "199 Kč/os" in html          # balíček per-person rate
 
 
 def test_property_kpi_rentero_owned_no_data_still_shows_dash():

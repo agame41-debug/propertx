@@ -188,6 +188,7 @@ def build_report_summary(
             "client_payout_before_expenses_czk": _r(
                 accommodation_income_czk - model_fee - model_vat
             ),
+            "balicky_per_person": float(property_config.get("balicky_per_person", 0) or 0),
         }
 
     return result
