@@ -500,6 +500,15 @@ def test_property_dph_summary_klient_shows_prefakturace_breakdown():
     assert "Rentero fee" in html
 
 
+def test_property_dph_summary_no_header_badge_and_vstup_before_vystup():
+    # The saldo headline is already shown in the page table, so the card header
+    # no longer carries the "K odvedení · …" badge; and the columns are ordered
+    # vstup (odpočet, +) before výstup (owed, −) as a running balance.
+    html = _render_property_dph_summary(summary=_RENTERO_DPH_SUMMARY)
+    assert "badge" not in html
+    assert html.index("DPH na vstupu") < html.index("DPH na výstupu")
+
+
 def test_guest_evidence_template_renders_group_audits():
     request = _admin_request(
         url=SimpleNamespace(path="/property/28_Pluku_58/2026/4/evidence-hostu"),

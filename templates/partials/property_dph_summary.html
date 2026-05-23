@@ -1,10 +1,12 @@
 {# DPH summary card. Included by property.html when _is_dph_applicable
    (Rentero-owned OR external client with platce_dph=1).
-   Three-column box:
-     výstup (DPH na výstupu, broken down by Rentero fee and Příprava pokoje)
-     vstup  (DPH na vstupu, the deductible from rated expenses)
+   Three-column box, ordered as a running balance:
+     vstup  (DPH na vstupu / odpočet — in the taxpayer's favour, shown +)
+     výstup (DPH na výstupu — owed to the state, shown −; for Rentero objects
+             this is the 12% accommodation VAT, otherwise fee + room prep)
      saldo  (= výstup − vstup; refund or debt depending on sign)
-   Saldo color and label flip based on sign. #}
+   The headline saldo badge lives in the page table, so it is intentionally
+   omitted from this card header. Saldo color and label flip based on sign. #}
 
 {% set vat_balance = summary.vat_balance_czk or 0 %}
 {% set is_refund = vat_balance < 0 %}
@@ -16,19 +18,30 @@
   <div class="card-h">
     <div class="card-h-left">
       <span class="card-title">Vyúčtování DPH</span>
-      <span class="badge {% if is_refund %}badge-ok{% else %}badge-err{% endif %}">
-        {% if is_refund %}Nadměrný odpočet{% else %}K odvedení{% endif %}
-        &nbsp;·&nbsp;{{ fmt_czk(vat_balance|abs) }}
-      </span>
     </div>
   </div>
 
   <div class="dph-box">
 
-    {# ─── Výstup column ─── #}
+    {# ─── Vstup column (odpočet — ve prospěch, +) ─── #}
+    <div class="dph-col">
+      <div class="dph-k">DPH na vstupu (odpočet)</div>
+      <div class="dph-v teal">+&nbsp;{{ fmt_czk(summary.vat_input_czk or 0) }}</div>
+      <div class="dph-breakdown">
+        <div class="dph-row">
+          <span class="dph-row-k">Z výdajů s DPH</span>
+          <span class="dph-row-v">+&nbsp;{{ fmt_czk(summary.vat_input_czk or 0) }}</span>
+        </div>
+        <div class="dph-row">
+          <span class="dph-row-k dim">{{ vat_input_count }} {{ vat_input_word }}</span>
+        </div>
+      </div>
+    </div>
+
+    {# ─── Výstup column (k odvedení — −) ─── #}
     <div class="dph-col">
       <div class="dph-k">DPH na výstupu</div>
-      <div class="dph-v teal">+&nbsp;{{ fmt_czk(summary.vat_output_czk or 0) }}</div>
+      <div class="dph-v neg">−&nbsp;{{ fmt_czk(summary.vat_output_czk or 0) }}</div>
       <div class="dph-breakdown">
         {% if summary.accommodation_vat_czk is defined %}
           {# Rentero-owned object: Rentero is the accommodation supplier and
@@ -38,33 +51,18 @@
              would double-tax them. #}
           <div class="dph-row">
             <span class="dph-row-k">Ubytovací služby (12&nbsp;%)</span>
-            <span class="dph-row-v">+&nbsp;{{ fmt_czk(summary.accommodation_vat_czk or 0) }}</span>
+            <span class="dph-row-v">−&nbsp;{{ fmt_czk(summary.accommodation_vat_czk or 0) }}</span>
           </div>
         {% else %}
           <div class="dph-row">
             <span class="dph-row-k">Rentero fee</span>
-            <span class="dph-row-v">+&nbsp;{{ fmt_czk(summary.vat_rentero_fee_czk or 0) }}</span>
+            <span class="dph-row-v">−&nbsp;{{ fmt_czk(summary.vat_rentero_fee_czk or 0) }}</span>
           </div>
           <div class="dph-row">
             <span class="dph-row-k">Příprava pokoje</span>
-            <span class="dph-row-v">+&nbsp;{{ fmt_czk(summary.vat_room_prep_czk or 0) }}</span>
+            <span class="dph-row-v">−&nbsp;{{ fmt_czk(summary.vat_room_prep_czk or 0) }}</span>
           </div>
         {% endif %}
-      </div>
-    </div>
-
-    {# ─── Vstup column ─── #}
-    <div class="dph-col">
-      <div class="dph-k">DPH na vstupu (odpočet)</div>
-      <div class="dph-v teal">−&nbsp;{{ fmt_czk(summary.vat_input_czk or 0) }}</div>
-      <div class="dph-breakdown">
-        <div class="dph-row">
-          <span class="dph-row-k">Z výdajů s DPH</span>
-          <span class="dph-row-v">−&nbsp;{{ fmt_czk(summary.vat_input_czk or 0) }}</span>
-        </div>
-        <div class="dph-row">
-          <span class="dph-row-k dim">{{ vat_input_count }} {{ vat_input_word }}</span>
-        </div>
       </div>
     </div>
 
