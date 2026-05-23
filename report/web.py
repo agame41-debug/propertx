@@ -628,6 +628,85 @@ def _apply_import_impacts(
     return result
 
 
+def _apply_object_config_change_impacts(conn, slug, *, config):
+    """Mark a property's open report months STALE and auto-regenerate them
+    after its aliases / calculation config changed.
+
+    Renaming a Hostify listing (or otherwise editing an object's aliases /
+    rates) changes WHICH reservations belong to the object and how their
+    money is computed, so every already-generated month must be refreshed —
+    otherwise the old rows stay broken (CSV rows stuck on CHYBÍ_V_HOSTIFY,
+    Hostify reservations orphaned) until the next nightly sync.
+
+    Mirrors `_apply_import_impacts`: LOCKED months are only notified (never
+    rewritten), EMPTY (never-generated) months are skipped, and regeneration
+    runs sequentially on a single daemon thread instead of N subprocesses.
+    """
+    rows = conn.execute(
+        """SELECT year, month, status, data_state, last_generated_at
+             FROM report_month_state
+            WHERE slug = ?
+            ORDER BY year, month""",
+        (slug,),
+    ).fetchall()
+
+    result = {"auto_started": [], "locked_notified": []}
+    for row in rows:
+        year, month = int(row["year"]), int(row["month"])
+        data_state = row["data_state"]
+        has_data = bool(row["last_generated_at"]) or (
+            data_state not in (None, "", MONTH_DATA_STATE_EMPTY)
+        )
+        if not has_data:
+            continue
+        if row["status"] == MONTH_STATUS_LOCKED:
+            _create_import_impact_notification(
+                conn,
+                slug=slug,
+                year=year,
+                month=month,
+                event_type="CONFIG_CHANGE_LOCKED_MONTH",
+                source_type="config",
+                message=(
+                    f"Změna konfigurace objektu (aliasy/sazby) ovlivňuje uzamčený "
+                    f"měsíc {month:02d}/{year}. Měsíc nebyl přepsán automaticky."
+                ),
+                summary={"source_type": "config", "message": "Změna konfigurace objektu"},
+            )
+            result["locked_notified"].append((slug, year, month))
+            continue
+        mark_report_month_stale(conn, slug, year, month)
+        result["auto_started"].append((slug, year, month))
+
+    # Regenerate all affected months sequentially on one daemon thread.
+    if result["auto_started"]:
+        import threading
+        jobs = list(result["auto_started"])
+        db_path = _db_path_for_connection(conn)
+
+        def _run_sequential():
+            import sqlite3 as _sqlite3
+            from report.engine import generate_report_in_process
+            from report.config import load_runtime_config
+            _conn = _sqlite3.connect(db_path, timeout=30)
+            _conn.row_factory = _sqlite3.Row
+            _cfg = load_runtime_config(_CONFIG_PATH, db_conn=_conn)
+            for _slug, _year, _month in jobs:
+                try:
+                    generate_report_in_process(_conn, _slug, _year, _month, _cfg)
+                except Exception as exc:
+                    _logger.warning(
+                        "Config-change regen failed for %s %d/%d: %s",
+                        _slug, _month, _year, exc,
+                    )
+            _conn.close()
+
+        t = threading.Thread(target=_run_sequential, daemon=True)
+        t.start()
+
+    return result
+
+
 def _load_import_run_summary_for_source_file(conn, file_id: int) -> dict:
     row = conn.execute(
         """SELECT summary_json

@@ -10,6 +10,52 @@ from report.db import get_orphan_listings_for_display
 logger = logging.getLogger(__name__)
 
 
+def _object_alias_signature(alias_rows) -> frozenset:
+    """Active (channel, alias_type, alias_value) tuples — identity of which
+    external listings map to this object."""
+    return frozenset(
+        (r.get("channel"), r.get("alias_type"), r.get("alias_value"))
+        for r in (alias_rows or [])
+        if r.get("is_active")
+    )
+
+
+def _object_calc_signature(prop: dict) -> tuple:
+    """Config fields that change report OUTPUT (not contact info)."""
+    def _num(value):
+        try:
+            return round(float(value), 6)
+        except (TypeError, ValueError):
+            return None
+
+    return (
+        str(prop.get("client_type") or ""),
+        _num(prop.get("vat_rate")),
+        _num(prop.get("rentero_commission")),
+        _num(prop.get("balicky_per_person")),
+        _num(prop.get("city_tax_rate")),
+        str(prop.get("listing_nickname") or ""),
+        prop.get("listing_id"),
+        bool(prop.get("active")),
+    )
+
+
+def _all_active_alias_signatures(alias_rows) -> dict:
+    """Map slug → active alias signature, for detecting which objects changed
+    across a bulk Hostify inventory sync (which may add renamed nicknames)."""
+    by_slug: dict[str, set] = {}
+    for r in (alias_rows or []):
+        if not r.get("is_active"):
+            continue
+        slug = r.get("report_object_slug")
+        if not slug:
+            continue
+        by_slug.setdefault(slug, set()).add(
+            (r.get("channel"), r.get("alias_type"), r.get("alias_value"))
+        )
+    return {slug: frozenset(values) for slug, values in by_slug.items()}
+
+
 def register(app, state) -> None:
     require_auth = state["require_auth"]
     require_write_access = state["require_write_access"]
@@ -68,14 +114,31 @@ def register(app, state) -> None:
         _=Depends(require_auth),
         _w=Depends(require_write_access),
         conn=Depends(get_db),
+        config=Depends(get_config),
     ):
+        aliases_before = _all_active_alias_signatures(state["get_report_object_aliases"](conn))
         try:
             summary = state["sync_hostify_inventory"](conn)
         except state["HostifyHttpError"] as exc:
             state["_set_flash"](request, "error", "Synchronizace Hostify inventory selhala.", str(exc))
             return RedirectResponse("/inventory", status_code=303)
 
+        # Objects whose aliases moved (e.g. Hostify renamed a listing) have
+        # stale reports → refresh them so renames never silently break months.
+        aliases_after = _all_active_alias_signatures(state["get_report_object_aliases"](conn))
+        regen_months = 0
+        for changed_slug, sig_after in aliases_after.items():
+            if aliases_before.get(changed_slug) == sig_after:
+                continue
+            try:
+                impact = state["_apply_object_config_change_impacts"](conn, changed_slug, config=config)
+                regen_months += len(impact.get("auto_started") or [])
+            except Exception as exc:  # never fail the sync on regen orchestration
+                logger.warning("Inventory-sync config impacts failed for %s: %s", changed_slug, exc)
+
         message, detail = state["_format_inventory_sync_summary"](summary)
+        if regen_months:
+            detail = f"{detail + ' ' if detail else ''}Auto-regenerace: {regen_months} měsíců."
         state["_set_flash"](request, "success", message, detail)
         return RedirectResponse("/inventory?status=draft", status_code=303)
 
@@ -272,6 +335,15 @@ def register(app, state) -> None:
             updated_prop["client_type"] = client_type
 
         effective_from = config_effective_from.strip() or None
+
+        # Snapshot identity/calc config BEFORE the change so we can detect
+        # whether aliases or rates actually moved (contact-info edits must
+        # NOT trigger a full regen).
+        aliases_before = _object_alias_signature(
+            state["get_report_object_aliases"](conn, slug, include_inactive=False)
+        )
+        calc_before = _object_calc_signature(props[slug])
+
         state["sync_property_to_db"](
             conn,
             slug,
@@ -280,7 +352,30 @@ def register(app, state) -> None:
             alias_valid_from=effective_from,
         )
 
-        state["_set_flash"](request, "success", "Konfigurace objektu byla uložena.")
+        aliases_after = _object_alias_signature(
+            state["get_report_object_aliases"](conn, slug, include_inactive=False)
+        )
+        calc_after = _object_calc_signature(updated_prop)
+
+        detail = None
+        if aliases_before != aliases_after or calc_before != calc_after:
+            # Aliases/rates changed → existing reports for this object are now
+            # stale (e.g. a renamed Hostify listing). Mark affected months
+            # STALE and auto-regenerate them so reports never silently break.
+            try:
+                impact = state["_apply_object_config_change_impacts"](conn, slug, config=config)
+                started = len(impact.get("auto_started") or [])
+                locked = len(impact.get("locked_notified") or [])
+                bits = []
+                if started:
+                    bits.append(f"Auto-regenerace spuštěna pro {started} měsíců.")
+                if locked:
+                    bits.append(f"Uzamčené měsíce pouze notifikovány: {locked}.")
+                detail = " ".join(bits) or None
+            except Exception as exc:  # never fail the save on regen orchestration
+                logger.warning("Config-change impacts failed for %s: %s", slug, exc)
+
+        state["_set_flash"](request, "success", "Konfigurace objektu byla uložena.", detail)
         return RedirectResponse(f"/clients/{slug}", status_code=303)
 
     @app.get("/bank", response_class=HTMLResponse)

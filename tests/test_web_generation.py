@@ -637,12 +637,19 @@ def test_inventory_sync_redirects_with_success_flash(monkeypatch):
     )
     request = SimpleNamespace(session={})
 
-    response = asyncio.run(
-        web_module.inventory_sync(
-            request=request,
-            conn=object(),
+    # Route now reads object aliases (before/after) to detect renamed listings,
+    # so it needs a real connection; an empty DB yields no config-change impacts.
+    conn = get_connection(":memory:")
+    try:
+        response = asyncio.run(
+            web_module.inventory_sync(
+                request=request,
+                conn=conn,
+                config={},
+            )
         )
-    )
+    finally:
+        conn.close()
 
     assert response.status_code == 303
     assert response.headers["location"] == "/inventory?status=draft"
