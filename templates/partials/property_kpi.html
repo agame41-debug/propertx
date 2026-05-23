@@ -149,7 +149,7 @@
             <span class="pair"><span>Odměna</span><span class="v">−{{ fmt_czk(_mc.rentero_fee_czk or 0) }} ({{ '%.0f'|format((_mc.rentero_commission_rate or 0) * 100) }} %)</span></span>
             {% if (_mc.balicky_per_person or 0) > 0 %}
               <span class="sep">·</span>
-              <span class="pair"><span>B</span><span class="v">{{ '%.0f'|format(_mc.balicky_per_person) }} Kč/os</span></span>
+              <span class="pair"><span>Balíčky</span><span class="v">{{ '%.0f'|format(_mc.balicky_per_person) }} Kč/os</span></span>
             {% endif %}
           </div>
         </div>

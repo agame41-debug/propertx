@@ -437,6 +437,7 @@ def test_property_kpi_rentero_owned_shows_model_card():
     assert "Modelová výplata klienta" in html
     assert "Odměna" in html
     assert "Odměna Rentero" not in html  # shortened to "Odměna" to fit one line
+    assert "Balíčky" in html             # full word (fits on one line)
     assert "199 Kč/os" in html           # balíček per-person rate, same sub line
 
 
