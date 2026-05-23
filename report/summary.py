@@ -174,4 +174,20 @@ def build_report_summary(
     else:
         result["zisk_czk"] = None
 
+    # Illustrative "if this were a client object" model for Rentero-owned
+    # objects: what a client would be paid and what Rentero would earn.
+    # Display-only; does not affect any real figure (fee stays 0).
+    if client_type == "rentero":
+        model_fee = _r(accommodation_income_czk * rentero_commission_rate)
+        model_vat = _r(model_fee * vat_rate)
+        result["model_client"] = {
+            "rentero_commission_rate": rentero_commission_rate,
+            "rentero_fee_czk": model_fee,
+            "vat_rentero_fee_czk": model_vat,
+            "rentero_odmena_total_czk": _r(model_fee + model_vat),
+            "client_payout_before_expenses_czk": _r(
+                accommodation_income_czk - model_fee - model_vat
+            ),
+        }
+
     return result
