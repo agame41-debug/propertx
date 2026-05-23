@@ -143,14 +143,10 @@
             {{ fmt_czk(_mc.client_payout_before_expenses_czk or 0) }}
           </div>
           <div class="kpi-sub">
-            <span class="pair"><span>Odměna Rentero</span><span class="v">−{{ fmt_czk(_mc.rentero_fee_czk or 0) }} ({{ '%.0f'|format((_mc.rentero_commission_rate or 0) * 100) }} %)</span></span>
-            {% if (_mc.vat_rentero_fee_czk or 0) > 0 %}
-              <span class="sep">·</span>
-              <span class="pair" style="color:var(--dph-text)">
-                <span>DPH</span>
-                <span class="v">−{{ fmt_czk(_mc.vat_rentero_fee_czk) }}</span>
-              </span>
-            {% endif %}
+            {# One line: net odměna (with %) + balíček rate. DPH is omitted
+               here to keep all three fitting without truncation on the
+               narrow 4-up KPI grid. #}
+            <span class="pair"><span>Odměna</span><span class="v">−{{ fmt_czk(_mc.rentero_fee_czk or 0) }} ({{ '%.0f'|format((_mc.rentero_commission_rate or 0) * 100) }} %)</span></span>
             {% if (_mc.balicky_per_person or 0) > 0 %}
               <span class="sep">·</span>
               <span class="pair"><span>B</span><span class="v">{{ '%.0f'|format(_mc.balicky_per_person) }} Kč/os</span></span>
