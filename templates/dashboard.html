@@ -309,6 +309,7 @@ function _applyFilters() {
   var totalPayout = 0, totalCenaUbyt = 0, totalProvize = 0, totalClientPayout = 0;
   var totalRez = 0, totalRezPrev = 0, withData = 0, propCount = 0, issues = 0;
   var hasRentero = false, hasClient = false;
+  var totalVatOutput = 0, totalVatInput = 0, totalVatBalance = 0;
 
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
     var show = true;
@@ -331,6 +332,9 @@ function _applyFilters() {
       totalCenaUbyt += parseFloat(row.dataset.cenaUbyt) || 0;
       totalProvize += parseFloat(row.dataset.provize) || 0;
       if (!isRent) totalClientPayout += parseFloat(row.dataset.clientPayout) || 0;
+      totalVatOutput  += parseFloat(row.dataset.vatOutput)  || 0;
+      totalVatInput   += parseFloat(row.dataset.vatInput)   || 0;
+      totalVatBalance += parseFloat(row.dataset.vatBalance) || 0;
       totalRez += parseInt(row.dataset.rez) || 0;
       totalRezPrev += parseInt(row.dataset.rezPrev) || 0;
       if (parseInt(row.dataset.hasData)) withData++;
@@ -356,19 +360,19 @@ function _applyFilters() {
   var kpiClientPayout = document.getElementById('kpi-client-payout');
   if (kpiClientPayout) kpiClientPayout.innerHTML = _formatNumber(totalClientPayout) + ' Kč';
 
-  // Swap KPI 2 between "Výplata klientům" (default) and "Bilance DPH" (rentero filter).
-  // The DPH numbers are static for current month — we just show/hide the prebuilt block.
-  var kpiCard2Default = document.getElementById('kpi-card-2-default');
-  var kpiCard2Dph     = document.getElementById('kpi-card-2-dph');
-  if (kpiCard2Default && kpiCard2Dph) {
-    if (_activeTab === 'rentero') {
-      kpiCard2Default.setAttribute('hidden', '');
-      kpiCard2Dph.removeAttribute('hidden');
-    } else {
-      kpiCard2Dph.setAttribute('hidden', '');
-      kpiCard2Default.removeAttribute('hidden');
-    }
+  // Bilance DPH — standalone card, recomputed over the visible rows.
+  // refund (balance < 0) → green "+"; owed (balance >= 0) → red "−".
+  var kpiVatBalance = document.getElementById('kpi-vat-balance');
+  var kpiVatOutput  = document.getElementById('kpi-vat-output');
+  var kpiVatInput   = document.getElementById('kpi-vat-input');
+  if (kpiVatBalance) {
+    var vatRefund = totalVatBalance < 0;
+    kpiVatBalance.innerHTML = (vatRefund ? '+' : '−') + ' '
+      + _formatNumber(Math.abs(totalVatBalance)) + ' Kč';
+    kpiVatBalance.style.color = vatRefund ? 'var(--color-green)' : 'var(--color-red)';
   }
+  if (kpiVatOutput) kpiVatOutput.textContent = '+' + _formatNumber(totalVatOutput);
+  if (kpiVatInput)  kpiVatInput.textContent  = '−' + _formatNumber(totalVatInput);
 
   // Rentero fee per visible row. The backend SQL already encodes 0 for
   // client_type='rentero', so data-rentero-fee carries 0 for rentero-owned
@@ -395,6 +399,30 @@ function searchCards(q) {
   _searchQuery = q.toLowerCase();
   _applyFilters();
 }
+
+// ── KPI carousel pager ──
+(function () {
+  var carousel = document.getElementById('kpi-carousel');
+  if (!carousel) return;
+  var track = document.getElementById('kpi-carousel-track');
+  var prev  = document.getElementById('kpi-nav-prev');
+  var next  = document.getElementById('kpi-nav-next');
+  var dots  = Array.prototype.slice.call(document.querySelectorAll('#kpi-dots .kpi-dot'));
+  var pages = track ? track.children.length : 0;
+  carousel.dataset.pages = pages;
+  var current = 0;
+  function go(n) {
+    current = Math.max(0, Math.min(n, pages - 1));
+    if (track) track.style.transform = 'translateX(' + (-100 * current) + '%)';
+    dots.forEach(function (d, i) { d.classList.toggle('is-active', i === current); });
+    if (prev) prev.disabled = current === 0;
+    if (next) next.disabled = current === pages - 1;
+  }
+  if (prev) prev.addEventListener('click', function () { go(current - 1); });
+  if (next) next.addEventListener('click', function () { go(current + 1); });
+  dots.forEach(function (d, i) { d.addEventListener('click', function () { go(i); }); });
+  go(0);
+})();
 </script>
 
 {% endblock %}
