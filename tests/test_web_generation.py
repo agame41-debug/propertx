@@ -460,6 +460,46 @@ def test_property_kpi_rentero_owned_no_data_still_shows_dash():
     assert "—" in html
 
 
+def _render_property_dph_summary(*, summary):
+    tmpl = web_module.templates.get_template("partials/property_dph_summary.html")
+    return tmpl.render(summary=summary)
+
+
+_RENTERO_DPH_SUMMARY = {
+    "vat_output_czk": 5141.36,
+    "accommodation_vat_czk": 5141.36,
+    "vat_input_czk": 0.0,
+    "vat_input_count": 0,
+    "vat_balance_czk": 5141.36,
+    "vat_rentero_fee_czk": 0.0,
+    "vat_room_prep_czk": 1315.75,
+}
+
+# klient summary: no accommodation_vat_czk key → legacy prefakturace breakdown.
+_KLIENT_DPH_SUMMARY = {
+    "vat_output_czk": 1452.0,
+    "vat_input_czk": 0.0,
+    "vat_input_count": 0,
+    "vat_balance_czk": 1452.0,
+    "vat_rentero_fee_czk": 1200.0,
+    "vat_room_prep_czk": 252.0,
+}
+
+
+def test_property_dph_summary_rentero_shows_accommodation_vat():
+    html = _render_property_dph_summary(summary=_RENTERO_DPH_SUMMARY)
+    assert "Ubytovací služby" in html
+    assert "Příprava pokoje" not in html
+    assert "Rentero fee" not in html
+
+
+def test_property_dph_summary_klient_shows_prefakturace_breakdown():
+    html = _render_property_dph_summary(summary=_KLIENT_DPH_SUMMARY)
+    assert "Ubytovací služby" not in html
+    assert "Příprava pokoje" in html
+    assert "Rentero fee" in html
+
+
 def test_guest_evidence_template_renders_group_audits():
     request = _admin_request(
         url=SimpleNamespace(path="/property/28_Pluku_58/2026/4/evidence-hostu"),

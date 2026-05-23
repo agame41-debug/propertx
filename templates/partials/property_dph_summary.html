@@ -30,14 +30,26 @@
       <div class="dph-k">DPH na výstupu</div>
       <div class="dph-v teal">+&nbsp;{{ fmt_czk(summary.vat_output_czk or 0) }}</div>
       <div class="dph-breakdown">
-        <div class="dph-row">
-          <span class="dph-row-k">Rentero fee</span>
-          <span class="dph-row-v">+&nbsp;{{ fmt_czk(summary.vat_rentero_fee_czk or 0) }}</span>
-        </div>
-        <div class="dph-row">
-          <span class="dph-row-k">Příprava pokoje</span>
-          <span class="dph-row-v">+&nbsp;{{ fmt_czk(summary.vat_room_prep_czk or 0) }}</span>
-        </div>
+        {% if summary.accommodation_vat_czk is defined %}
+          {# Rentero-owned object: Rentero is the accommodation supplier and
+             owes the 12% reduced-rate VAT on the full guest consideration.
+             This single line replaces the fee/příprava breakdown — the gross
+             already contains úklid/balíčky, so a separate 21% room-prep line
+             would double-tax them. #}
+          <div class="dph-row">
+            <span class="dph-row-k">Ubytovací služby (12&nbsp;%)</span>
+            <span class="dph-row-v">+&nbsp;{{ fmt_czk(summary.accommodation_vat_czk or 0) }}</span>
+          </div>
+        {% else %}
+          <div class="dph-row">
+            <span class="dph-row-k">Rentero fee</span>
+            <span class="dph-row-v">+&nbsp;{{ fmt_czk(summary.vat_rentero_fee_czk or 0) }}</span>
+          </div>
+          <div class="dph-row">
+            <span class="dph-row-k">Příprava pokoje</span>
+            <span class="dph-row-v">+&nbsp;{{ fmt_czk(summary.vat_room_prep_czk or 0) }}</span>
+          </div>
+        {% endif %}
       </div>
     </div>
 
