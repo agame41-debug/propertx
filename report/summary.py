@@ -5,6 +5,12 @@ report/summary.py — canonical financial summary shared by web and Excel.
 from __future__ import annotations
 
 
+# Czech reduced VAT rate for accommodation services (ubytovací služby).
+# Rentero-owned objects are the supplier and owe this on the full guest
+# consideration. Fixed by law; not a per-object config value.
+ACCOMMODATION_VAT_RATE = 0.12
+
+
 def _r(value) -> float:
     return round(float(value or 0), 2)
 
@@ -51,6 +57,7 @@ def build_report_summary(
         sum(float(r.get("cena_ubytovani_czk") or 0) for r in rows)
     )
     city_tax_czk = _r(sum(float(r.get("city_tax_czk") or 0) for r in rows))
+    platform_commission_czk = _r(sum(float(r.get("provize_czk") or 0) for r in rows))
     room_prep_czk = _r(sum(float(r.get("priprava_pokoje_czk") or 0) for r in rows))
     vat_room_prep_czk = _r(
         sum(float(r.get("dph_uklid_balicky_czk") or 0) for r in rows)
@@ -105,6 +112,7 @@ def build_report_summary(
     result = {
         "gross_payout_czk": gross_payout_czk,
         "accommodation_income_czk": accommodation_income_czk,
+        "platform_commission_czk": platform_commission_czk,
         "room_prep_czk": room_prep_czk,
         "vat_room_prep_czk": vat_room_prep_czk,
         "rentero_commission_rate": rentero_commission_rate,
@@ -124,11 +132,30 @@ def build_report_summary(
         "integrity_warnings": integrity_warnings,
     }
 
-    # ── New fields (property-page redesign Phase 1) ──────────────────────
-    # Alias: dph_prefakturace_klient_czk == vat_output_czk semantically.
-    # Kept under both names for template clarity without renaming the field
-    # used elsewhere (Excel, other consumers).
-    result["vat_output_czk"] = result["dph_prefakturace_klient_czk"]
+    # ── Output VAT (DPH na výstupu) ──────────────────────────────────────
+    #   klient / z_klient → Rentero's prefakturace VAT (fee + room prep);
+    #                       alias of dph_prefakturace_klient_czk.
+    #   rentero           → Rentero is the accommodation supplier and owes the
+    #                       12% reduced-rate accommodation VAT on the full guest
+    #                       consideration (payout + platform commission − city
+    #                       tax), extracted from the VAT-inclusive gross. This
+    #                       replaces the prefakturace breakdown (the gross
+    #                       already contains úklid/balíčky, so the separate 21%
+    #                       room-prep line would double-tax them).
+    if client_type == "rentero":
+        accommodation_gross_czk = _r(
+            gross_payout_czk + platform_commission_czk - city_tax_czk
+        )
+        accommodation_vat_czk = _r(
+            accommodation_gross_czk
+            * ACCOMMODATION_VAT_RATE
+            / (1 + ACCOMMODATION_VAT_RATE)
+        )
+        result["accommodation_gross_czk"] = accommodation_gross_czk
+        result["accommodation_vat_czk"] = accommodation_vat_czk
+        result["vat_output_czk"] = accommodation_vat_czk
+    else:
+        result["vat_output_czk"] = result["dph_prefakturace_klient_czk"]
 
     # vat_input: sum of DPH from expenses that have a VAT rate set.
     # Legacy expenses with NULL vat_rate are excluded from the aggregate

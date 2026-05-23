@@ -30,9 +30,19 @@ def _expense(gross=1000, dph=210, rate=0.21):
     }
 
 
-def test_vat_output_alias_for_rentero():
-    s = build_report_summary([_row()], _rentero_config(), expenses=[_expense()])
+def test_vat_output_alias_for_klient():
+    # klient/z_klient: output VAT is still the prefakturace alias.
+    s = build_report_summary([_row()], _klient_config(), expenses=[_expense()])
     assert s["vat_output_czk"] == s["dph_prefakturace_klient_czk"]
+
+
+def test_vat_output_is_accommodation_vat_for_rentero():
+    # rentero: output VAT is the 12% accommodation VAT, no longer the
+    # prefakturace alias. _row() has no provize_czk, so gross = 10000 − 200.
+    s = build_report_summary([_row()], _rentero_config(), expenses=[_expense()])
+    assert s["accommodation_vat_czk"] == 1050.0          # 9800 × 0.12/1.12
+    assert s["vat_output_czk"] == s["accommodation_vat_czk"]
+    assert s["vat_output_czk"] != s["dph_prefakturace_klient_czk"]
 
 
 def test_vat_input_sums_only_rated_expenses():

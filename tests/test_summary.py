@@ -188,3 +188,36 @@ def test_klient_and_zklient_have_no_model_client():
         prop = {"client_type": ct, "rentero_commission": 0.15, "vat_rate": 0.21}
         s = build_report_summary(_fee_rows(), prop)
         assert "model_client" not in s
+
+
+# ── 12% accommodation VAT on Rentero-owned objects ──────────────────────
+# Rentero is the accommodation supplier on its own objects, so it owes the
+# Czech 12% reduced-rate VAT on the full guest consideration
+# (payout + platform commission − city tax), extracted from the VAT-inclusive
+# gross. Replaces the prefakturace output-VAT for rentero objects only.
+
+def _accommodation_rows():
+    return [{"payout_czk": 10000.0, "provize_czk": 2000.0, "city_tax_czk": 200.0,
+             "cena_ubytovani_czk": 8000.0, "priprava_pokoje_czk": 0,
+             "dph_uklid_balicky_czk": 0}]
+
+
+def test_rentero_accommodation_vat_is_output_vat():
+    prop = {"client_type": "rentero", "rentero_commission": 0.15, "vat_rate": 0.21}
+    s = build_report_summary(_accommodation_rows(), prop)
+    assert s["platform_commission_czk"] == 2000.0
+    assert s["accommodation_gross_czk"] == 11800.0          # 10000 + 2000 − 200
+    assert s["accommodation_vat_czk"] == 1264.29            # 11800 × 0.12/1.12
+    assert s["vat_output_czk"] == 1264.29                   # replaces prefakturace
+    assert s["vat_balance_czk"] == 1264.29                  # output − 0 input
+    # zisk reflects the new (larger) vat_balance
+    assert s["zisk_czk"] == round(10000.0 - 0.0 - 1264.29, 2)  # 8735.71
+
+
+def test_klient_and_zklient_have_no_accommodation_vat():
+    for ct in ("klient", "z_klient"):
+        prop = {"client_type": ct, "rentero_commission": 0.15, "vat_rate": 0.21}
+        s = build_report_summary(_accommodation_rows(), prop)
+        assert "accommodation_vat_czk" not in s
+        assert "accommodation_gross_czk" not in s
+        assert s["vat_output_czk"] == s["dph_prefakturace_klient_czk"]
