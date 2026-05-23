@@ -254,8 +254,10 @@
     {# Col 3: Financial.
        Top line (green): gross payout from platforms.
        Bottom line: for Rentero-owned objects = "rentero ZISK" (brand color),
-                    for external clients = "klient PAYOUT" (blue, legacy). #}
+                    for external clients = "klient PAYOUT" (blue) + a third
+                    "odměna FEE" line (red) = Rentero's fee on that object. #}
     {% set zisk = cur_cell.zisk_czk|default(0) if cur_cell else 0 %}
+    {% set rentero_fee = cur_cell.rentero_fee_sum_czk|default(0) if cur_cell else 0 %}
     <div class="pr-financial" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
       {% if cur_cell and cur_cell.kind == 'report' %}
         <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(payout) }}">{{ "{:,.2f}".format(payout).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč</div>
@@ -263,6 +265,9 @@
           <div style="font-size:10px;color:var(--brand);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(zisk) }}">rentero {{ "{:,.2f}".format(zisk).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
         {% elif client_payout > 0 %}
           <div style="font-size:10px;color:var(--color-blue);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(client_payout) }}">klient {{ "{:,.2f}".format(client_payout).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
+          {% if rentero_fee > 0 %}
+          <div style="font-size:10px;color:var(--color-red);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(rentero_fee) }}">odměna {{ "{:,.2f}".format(rentero_fee).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
+          {% endif %}
         {% endif %}
       {% else %}
       <span style="color:var(--text-300);font-size:var(--text-xs);">—</span>
