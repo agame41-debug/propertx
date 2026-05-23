@@ -164,6 +164,7 @@
 
 {# ── Property List ── #}
 {% if dashboard_rows %}
+{% set ns = namespace(visible=0) %}
 <div id="property-grid" class="stagger-list">
   {# Header row (desktop only) #}
   <div class="desktop-only" style="display:grid;grid-template-columns:2fr 160px 140px 100px 24px;gap:var(--space-md);
@@ -190,6 +191,10 @@
   {% set has_data = 1 if (cur_cell and cur_cell.kind in ['report', 'locked']) else 0 %}
   {% set rez_prev = prev_cell.rows_count|default(0) if prev_cell else 0 %}
 
+  {# Hide objects with no reservations in the selected month. Reports
+     generate automatically, so 0 here means genuinely no bookings. #}
+  {% if rez_count > 0 %}
+  {% set ns.visible = ns.visible + 1 %}
   <a href="{% if cur_cell %}/property/{{ row.slug }}/{{ cur_cell.year }}/{{ cur_cell.month }}{% else %}/{% endif %}"
      class="prop-row"
      data-health="{{ row.health }}"
@@ -274,15 +279,27 @@
       {% endif %}
     </div>
 
-    {# Col 4: Status — only surfaces when actionable (issues) #}
+    {# Col 4: Stav — month status. Locked → Uzamčeno; else issue badges
+       (Δ rozdíl / ? ke_kontrole / chybí); else green ✓ OK. Rows that reach
+       here always have a report (no-reservation rows are skipped above). #}
     <div class="pr-stats pr-hide-mobile">
-      {% if cur_cell and cur_cell.kind == 'report' and issues_count > 0 %}
+      {% if is_locked %}
+        <span class="badge badge-neutral" style="font-size:10px;display:inline-flex;align-items:center;gap:3px;">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Uzamčeno
+        </span>
+      {% elif issues_count > 0 %}
         {% if cur_cell.rozdil %}
         <span class="badge badge-orange" style="font-size:10px;">&#916;{{ cur_cell.rozdil }}</span>
         {% endif %}
         {% if cur_cell.ke_kontrole %}
         <span class="badge badge-amber" style="font-size:10px;">?{{ cur_cell.ke_kontrole }}</span>
         {% endif %}
+        {% set chybi = (cur_cell.chybi_hostify or 0) + (cur_cell.chybi_csv or 0) %}
+        {% if chybi %}
+        <span class="badge badge-red" style="font-size:10px;">chybí&nbsp;{{ chybi }}</span>
+        {% endif %}
+      {% else %}
+        <span class="badge badge-green" style="font-size:10px;">&#10003;&nbsp;OK</span>
       {% endif %}
     </div>
 
@@ -290,8 +307,15 @@
     <div class="pr-arrow">›</div>
 
   </a>
+  {% endif %}
   {% endfor %}
 </div>
+
+{% if ns.visible == 0 %}
+<div class="card" style="padding:var(--space-2xl) var(--space-xl);text-align:center;color:var(--text-300);font-size:var(--text-sm);">
+  V tomto měsíci nemá žádný objekt rezervace.
+</div>
+{% endif %}
 
 {% else %}
 <div class="card" style="padding:var(--space-4xl) var(--space-xl);text-align:center;">
