@@ -131,16 +131,38 @@
         </div>
       </div>
     {% else %}
-      {# Rentero-owned object (client_type='rentero'): Rentero charges no
-         commission to itself, so there's no fee. Keep the 4-card layout but
-         render a muted dash card, mirroring the empty Výdaje card. #}
-      <div class="kpi kpi-mute">
-        <div class="kpi-label">Rentero fee</div>
-        <div class="kpi-value">—</div>
-        <div class="kpi-sub">
-          <span class="pair"><span>Vlastní objekt</span></span>
+      {% set _mc = summary.model_client %}
+      {% if _mc and (_mc.client_payout_before_expenses_czk or 0) > 0 %}
+        {# Rentero-owned object (client_type='rentero'): Rentero charges no
+           real fee, but we show an illustrative "if this were a client
+           object" model — what a client would be paid and what Rentero would
+           earn. Muted styling signals it's a model, not real cash. #}
+        <div class="kpi kpi-mute">
+          <div class="kpi-label">Modelová výplata klienta</div>
+          <div class="kpi-value" data-copy="{{ '%.2f'|format(_mc.client_payout_before_expenses_czk or 0) }}">
+            {{ fmt_czk(_mc.client_payout_before_expenses_czk or 0) }}
+          </div>
+          <div class="kpi-sub">
+            <span class="pair"><span>Odměna Rentero</span><span class="v">−{{ fmt_czk(_mc.rentero_fee_czk or 0) }} ({{ '%.0f'|format((_mc.rentero_commission_rate or 0) * 100) }} %)</span></span>
+            {% if (_mc.vat_rentero_fee_czk or 0) > 0 %}
+              <span class="sep">·</span>
+              <span class="pair" style="color:var(--dph-text)">
+                <span>DPH</span>
+                <span class="v">−{{ fmt_czk(_mc.vat_rentero_fee_czk) }}</span>
+              </span>
+            {% endif %}
+          </div>
         </div>
-      </div>
+      {% else %}
+        {# No bookings to model this month → empty muted card. #}
+        <div class="kpi kpi-mute">
+          <div class="kpi-label">Rentero fee</div>
+          <div class="kpi-value">—</div>
+          <div class="kpi-sub">
+            <span class="pair"><span>Vlastní objekt</span></span>
+          </div>
+        </div>
+      {% endif %}
     {% endif %}
   {% endif %}
 

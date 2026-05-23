@@ -417,6 +417,45 @@ def test_property_kpi_zklient_owned_still_shows_fee():
     assert "Net" in html
 
 
+def test_property_kpi_rentero_owned_shows_model_card():
+    # Rentero-owned object with bookings → KPI slot 3 shows the illustrative
+    # "modelová výplata klienta" card instead of the empty "—".
+    summary = dict(
+        _RENTERO_OWNED_SUMMARY,
+        model_client={
+            "rentero_commission_rate": 0.15,
+            "rentero_fee_czk": 1200.0,
+            "vat_rentero_fee_czk": 252.0,
+            "rentero_odmena_total_czk": 1452.0,
+            "client_payout_before_expenses_czk": 6548.0,
+        },
+    )
+    html = _render_property_kpi(
+        is_rentero_owned=True, summary=summary, prop={"client_type": "rentero"},
+    )
+    assert "Modelová výplata klienta" in html
+    assert "Odměna Rentero" in html
+
+
+def test_property_kpi_rentero_owned_no_data_still_shows_dash():
+    # Rentero-owned object with no bookings → nothing to model → "—".
+    summary = dict(
+        _RENTERO_OWNED_SUMMARY,
+        model_client={
+            "rentero_commission_rate": 0.15,
+            "rentero_fee_czk": 0.0,
+            "vat_rentero_fee_czk": 0.0,
+            "rentero_odmena_total_czk": 0.0,
+            "client_payout_before_expenses_czk": 0.0,
+        },
+    )
+    html = _render_property_kpi(
+        is_rentero_owned=True, summary=summary, prop={"client_type": "rentero"},
+    )
+    assert "Modelová výplata klienta" not in html
+    assert "—" in html
+
+
 def test_guest_evidence_template_renders_group_audits():
     request = _admin_request(
         url=SimpleNamespace(path="/property/28_Pluku_58/2026/4/evidence-hostu"),
