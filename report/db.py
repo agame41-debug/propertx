@@ -2430,8 +2430,60 @@ def save_bank_transactions(
     *,
     commit: bool = True,
 ) -> None:
-    """Upsert normalized bank transactions used for matching."""
+    """Upsert normalized bank transactions used for matching.
+
+    Logical-identity dedup: the SAME payment exported from two different bank
+    statements gets a different bank tx_id (hence a different tx_key), so a plain
+    tx_key UPSERT would store it twice. A payment is uniquely identified by
+    (channel, gref, datum, amount) when a gref is present; skip an incoming row
+    whose logical identity already maps to a DIFFERENT tx_key.
+    """
     now = _now()
+
+    def _amt(v) -> float:
+        try:
+            return round(float(v or 0), 2)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _datum_str(v) -> str:
+        return v.isoformat() if hasattr(v, "isoformat") else (v or "")
+
+    logical_to_tx: dict[tuple, str] = {}
+    for er in conn.execute(
+        "SELECT tx_key, datum, amount_czk, gref FROM bank_transactions "
+        "WHERE channel = ? AND gref IS NOT NULL AND gref <> ''",
+        (channel,),
+    ).fetchall():
+        logical_to_tx[(er["gref"], _datum_str(er["datum"]), _amt(er["amount_czk"]))] = er["tx_key"]
+
+    payload = []
+    for r in rows:
+        tx_key = r.get("tx_key", "")
+        if not tx_key:
+            continue
+        gref = r.get("gref", "") or ""
+        if gref:
+            lk = (gref, _datum_str(r.get("datum")), _amt(r.get("amount_czk")))
+            mapped = logical_to_tx.get(lk)
+            if mapped is not None and mapped != tx_key:
+                continue  # cross-export duplicate of an already-stored payment
+            logical_to_tx[lk] = tx_key
+        payload.append(
+            (
+                tx_key,
+                channel,
+                r.get("tx_id", ""),
+                _datum_str(r.get("datum")),
+                r.get("amount_czk"),
+                gref,
+                r.get("property_id", ""),
+                r.get("zprava", ""),
+                r.get("source_name", ""),
+                now,
+            )
+        )
+
     conn.executemany(
         """INSERT INTO bank_transactions
            (tx_key, channel, tx_id, datum, amount_czk, gref, property_id,
@@ -2447,22 +2499,7 @@ def save_bank_transactions(
              zprava=excluded.zprava,
              source_name=excluded.source_name,
              updated_at=excluded.updated_at""",
-        [
-            (
-                r.get("tx_key", ""),
-                channel,
-                r.get("tx_id", ""),
-                r.get("datum").isoformat() if hasattr(r.get("datum"), "isoformat") else (r.get("datum") or ""),
-                r.get("amount_czk"),
-                r.get("gref", ""),
-                r.get("property_id", ""),
-                r.get("zprava", ""),
-                r.get("source_name", ""),
-                now,
-            )
-            for r in rows
-            if r.get("tx_key")
-        ],
+        payload,
     )
     if commit:
         conn.commit()
@@ -2778,11 +2815,34 @@ def get_accounting_entries(
         clauses.append("ae.mesic = ?")
         params.append(mesic)
     where = " WHERE " + " AND ".join(clauses)
-    rows = conn.execute(
-        f"SELECT ae.* FROM accounting_entries ae{where} ORDER BY ae.mesic, ae.objekt, ae.datum",
-        params,
-    ).fetchall()
-    return [dict(r) for r in rows]
+    rows = [
+        dict(r)
+        for r in conn.execute(
+            f"SELECT ae.* FROM accounting_entries ae{where} ORDER BY ae.mesic, ae.objekt, ae.datum",
+            params,
+        ).fetchall()
+    ]
+
+    # Collapse re-imported documents: when the same document number exists across
+    # multiple active source files (overlapping re-exports), keep only the rows
+    # from the NEWEST import for that document. Otherwise the 315 side of Srovnání
+    # double-counts (e.g. an older partial export #17 + a newer full export #29
+    # both active made Opletalova 8 February show 2× its real amount).
+    newest_sf_for_doc: dict[str, int] = {}
+    for r in rows:
+        doc = (r.get("doc") or "").strip()
+        if not doc:
+            continue
+        sf = r.get("source_file_id") or 0
+        if sf > newest_sf_for_doc.get(doc, -1):
+            newest_sf_for_doc[doc] = sf
+
+    return [
+        r
+        for r in rows
+        if not (r.get("doc") or "").strip()
+        or (r.get("source_file_id") or 0) == newest_sf_for_doc[(r.get("doc") or "").strip()]
+    ]
 
 
 # --------------------------------------------------------------------------- #
