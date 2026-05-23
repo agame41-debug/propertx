@@ -58,6 +58,7 @@ def build_report_summary(
     )
     city_tax_czk = _r(sum(float(r.get("city_tax_czk") or 0) for r in rows))
     platform_commission_czk = _r(sum(float(r.get("provize_czk") or 0) for r in rows))
+    platform_commission_vat_czk = _r(sum(float(r.get("dph_provize_czk") or 0) for r in rows))
     room_prep_czk = _r(sum(float(r.get("priprava_pokoje_czk") or 0) for r in rows))
     vat_room_prep_czk = _r(
         sum(float(r.get("dph_uklid_balicky_czk") or 0) for r in rows)
@@ -113,6 +114,7 @@ def build_report_summary(
         "gross_payout_czk": gross_payout_czk,
         "accommodation_income_czk": accommodation_income_czk,
         "platform_commission_czk": platform_commission_czk,
+        "platform_commission_vat_czk": platform_commission_vat_czk,
         "room_prep_czk": room_prep_czk,
         "vat_room_prep_czk": vat_room_prep_czk,
         "rentero_commission_rate": rentero_commission_rate,
@@ -132,16 +134,27 @@ def build_report_summary(
         "integrity_warnings": integrity_warnings,
     }
 
+    # vat_input: sum of DPH from expenses that have a VAT rate set.
+    # Legacy expenses with NULL vat_rate are excluded from the aggregate so we
+    # don't lie about the deduction. Computed before output VAT so the
+    # klient/z_klient branch can fold recharged-expense VAT into the output.
+    rated_expenses = [
+        e for e in expenses
+        if (e.get("vat_rate") is not None) and (float(e.get("vat_rate") or 0) > 0)
+    ]
+    result["vat_input_czk"] = _r(sum(float(e.get("amount_dph_czk") or 0) for e in rated_expenses))
+    result["vat_input_count"] = len(rated_expenses)
+
     # ── Output VAT (DPH na výstupu) ──────────────────────────────────────
-    #   klient / z_klient → Rentero's prefakturace VAT (fee + room prep);
-    #                       alias of dph_prefakturace_klient_czk.
-    #   rentero           → Rentero is the accommodation supplier and owes the
-    #                       12% reduced-rate accommodation VAT on the full guest
-    #                       consideration (payout + platform commission − city
-    #                       tax), extracted from the VAT-inclusive gross. This
-    #                       replaces the prefakturace breakdown (the gross
-    #                       already contains úklid/balíčky, so the separate 21%
-    #                       room-prep line would double-tax them).
+    #   rentero           → 12% reduced-rate accommodation VAT on the full
+    #                       guest consideration (payout + commission − city
+    #                       tax). The commission is already inside this base.
+    #   klient / z_klient → Rentero recharges costs to the client with output
+    #                       VAT and charges its odměna with VAT. Output VAT =
+    #                       prefakturace (fee + room prep) + commission VAT (net
+    #                       of the Airbnb/Booking reverse charge) +
+    #                       recharged-expense VAT. The recharged expenses also
+    #                       sit in vat_input, so they net out in the balance.
     if client_type == "rentero":
         accommodation_gross_czk = _r(
             gross_payout_czk + platform_commission_czk - city_tax_czk
@@ -155,17 +168,12 @@ def build_report_summary(
         result["accommodation_vat_czk"] = accommodation_vat_czk
         result["vat_output_czk"] = accommodation_vat_czk
     else:
-        result["vat_output_czk"] = result["dph_prefakturace_klient_czk"]
+        result["vat_output_czk"] = _r(
+            result["dph_prefakturace_klient_czk"]
+            + platform_commission_vat_czk
+            + result["vat_input_czk"]
+        )
 
-    # vat_input: sum of DPH from expenses that have a VAT rate set.
-    # Legacy expenses with NULL vat_rate are excluded from the aggregate
-    # so we don't lie about the deduction.
-    rated_expenses = [
-        e for e in expenses
-        if (e.get("vat_rate") is not None) and (float(e.get("vat_rate") or 0) > 0)
-    ]
-    result["vat_input_czk"] = _r(sum(float(e.get("amount_dph_czk") or 0) for e in rated_expenses))
-    result["vat_input_count"] = len(rated_expenses)
     result["vat_balance_czk"] = _r(result["vat_output_czk"] - result["vat_input_czk"])
 
     # Net total for the expense-table footer (same exclusion rule as above).

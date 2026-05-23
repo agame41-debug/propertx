@@ -220,4 +220,37 @@ def test_klient_and_zklient_have_no_accommodation_vat():
         s = build_report_summary(_accommodation_rows(), prop)
         assert "accommodation_vat_czk" not in s
         assert "accommodation_gross_czk" not in s
-        assert s["vat_output_czk"] == s["dph_prefakturace_klient_czk"]
+
+
+# ── Commission VAT in klient/z_klient output VAT ────────────────────────
+# Rentero recharges the Airbnb/Booking commission to the client with 21%
+# output VAT (the reverse charge on the platform invoice nets to zero), so the
+# object's output VAT = prefakturace (fee + room prep) + commission VAT +
+# recharged-expense VAT. Recharged expenses also sit in vat_input → net zero.
+
+def _klient_provize_rows():
+    return [{"payout_czk": 12000.0, "cena_ubytovani_czk": 10000.0,
+             "provize_czk": 5000.0, "dph_provize_czk": 1050.0,
+             "city_tax_czk": 0, "priprava_pokoje_czk": 0,
+             "dph_uklid_balicky_czk": 100.0}]
+
+
+def test_klient_output_vat_includes_commission():
+    prop = {"client_type": "klient", "rentero_commission": 0.20, "vat_rate": 0.21}
+    s = build_report_summary(_klient_provize_rows(), prop)
+    assert s["platform_commission_vat_czk"] == 1050.0
+    assert s["vat_rentero_fee_czk"] == 420.0            # 10000 × 0.20 × 0.21
+    assert s["vat_room_prep_czk"] == 100.0
+    assert s["dph_prefakturace_klient_czk"] == 520.0     # 420 + 100
+    assert s["vat_output_czk"] == 1570.0                 # 520 + 1050 + 0 input
+    assert s["vat_balance_czk"] == 1570.0
+
+
+def test_klient_recharged_expense_nets_out_in_balance():
+    prop = {"client_type": "klient", "rentero_commission": 0.20, "vat_rate": 0.21}
+    expenses = [{"amount_czk": 363.0, "amount_dph_czk": 63.0,
+                 "amount_net_czk": 300.0, "vat_rate": 0.21}]
+    s = build_report_summary(_klient_provize_rows(), prop, expenses=expenses)
+    assert s["vat_input_czk"] == 63.0
+    assert s["vat_output_czk"] == 1633.0                 # 520 + 1050 + 63 recharged
+    assert s["vat_balance_czk"] == 1570.0                # expense nets out

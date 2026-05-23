@@ -30,10 +30,17 @@ def _expense(gross=1000, dph=210, rate=0.21):
     }
 
 
-def test_vat_output_alias_for_klient():
-    # klient/z_klient: output VAT is still the prefakturace alias.
+def test_vat_output_for_klient_is_prefakturace_plus_commission_plus_input():
+    # klient/z_klient: output VAT = prefakturace + commission VAT + recharged
+    # expense VAT (no longer a plain alias of dph_prefakturace_klient_czk).
     s = build_report_summary([_row()], _klient_config(), expenses=[_expense()])
-    assert s["vat_output_czk"] == s["dph_prefakturace_klient_czk"]
+    expected = round(
+        s["dph_prefakturace_klient_czk"]
+        + s["platform_commission_vat_czk"]
+        + s["vat_input_czk"],
+        2,
+    )
+    assert s["vat_output_czk"] == expected
 
 
 def test_vat_output_is_accommodation_vat_for_rentero():
