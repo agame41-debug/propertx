@@ -56,6 +56,64 @@
   .kpi-card-primary { border-color: oklch(0.65 0.18 280 / 0.5); }
   .kpi-card-neutral { }
 
+  /* ── Dashboard KPI carousel (dashboard.html only) ─────────────────────
+     The shared .kpi-grid stays untouched; the carousel uses its own scoped
+     classes. Pages are fixed 4-column grids so a partial page keeps the
+     same card width and aligns left instead of stretching one card wide. */
+  .kpi-carousel { margin-bottom: var(--space-xl); }
+  .kpi-carousel-viewport { overflow: hidden; }
+  .kpi-carousel-track {
+    display: flex;
+    transition: transform 0.3s ease;
+  }
+  .kpi-page {
+    flex: 0 0 100%;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-md);
+  }
+  .kpi-carousel-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+  }
+  /* Single page → nothing to page through → hide the controls. */
+  .kpi-carousel[data-pages="1"] .kpi-carousel-nav { display: none; }
+  .kpi-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-base);
+    color: var(--text-100);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  }
+  .kpi-nav-btn:hover:not(:disabled) {
+    background: var(--bg-4, var(--bg-3));
+    border-color: oklch(1 0 0 / 0.18);
+  }
+  .kpi-nav-btn:disabled { opacity: 0.35; cursor: default; }
+  .kpi-dots { display: flex; align-items: center; gap: 6px; }
+  .kpi-dot {
+    width: 7px;
+    height: 7px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: oklch(var(--fg) / 0.18);
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .kpi-dot.is-active { background: var(--brand); transform: scale(1.15); }
+
   @media (hover: hover) and (pointer: fine) {
     .kpi-card:hover {
       border-color: oklch(1 0 0 / 0.10);

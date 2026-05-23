@@ -23,96 +23,114 @@
   <div style="font-size:var(--text-sm);color:var(--text-300);margin-top:3px;">{{ dashboard_summary.current_month_label }} · {{ dashboard_summary.property_count }} objekt{{ dashboard_summary.property_suffix }}</div>
 </div>
 
-{# ── KPI Summary Bar ── #}
-<div class="kpi-grid">
+{# ── KPI Summary Bar (carousel) ── #}
+<div class="kpi-carousel" id="kpi-carousel">
+  <div class="kpi-carousel-viewport">
+    <div class="kpi-carousel-track" id="kpi-carousel-track">
 
-  {# Total payout #}
-  <div class="kpi-card kpi-card-green">
-    <div class="kpi-label">Celková výplata</div>
-    <div class="kpi-value" style="color:var(--color-green);font-size:24px;" id="kpi-payout"
-         data-copy="{{ "%.2f"|format(dashboard_summary.total_payout_czk) }}">
-      {{ "{:,.2f}".format(dashboard_summary.total_payout_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
-    </div>
-    <div class="kpi-sub" id="kpi-payout-sub">platformy → rentero · {{ dashboard_summary.current_month_label }}</div>
-  </div>
+      {# ─────────────── Page 1 ─────────────── #}
+      <div class="kpi-page">
 
-  {# Client payout (default) — swapped for DPH balance when rentero filter active #}
-  {% set _vat_balance = dashboard_summary.rentero_vat_balance_czk or 0 %}
-  {% set _vat_is_refund = _vat_balance < 0 %}
-  <div class="kpi-card kpi-card-blue" id="kpi-card-2"
-       data-vat-output="{{ '%.2f'|format(dashboard_summary.rentero_vat_output_czk or 0) }}"
-       data-vat-input="{{ '%.2f'|format(dashboard_summary.rentero_vat_input_czk or 0) }}"
-       data-vat-balance="{{ '%.2f'|format(_vat_balance) }}">
-    {# Default content (Vše / Klienti / Z Klienti) #}
-    <div id="kpi-card-2-default">
-      <div class="kpi-label">Výplata klientům</div>
-      <div class="kpi-value" style="color:var(--color-blue);font-size:24px;" id="kpi-client-payout"
-           data-copy="{{ '%.2f'|format(dashboard_summary.total_client_payout_czk) }}">
-        {{ "{:,.2f}".format(dashboard_summary.total_client_payout_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
+        {# Total payout #}
+        <div class="kpi-card kpi-card-green">
+          <div class="kpi-label">Celková výplata</div>
+          <div class="kpi-value" style="color:var(--color-green);font-size:24px;" id="kpi-payout"
+               data-copy="{{ "%.2f"|format(dashboard_summary.total_payout_czk) }}">
+            {{ "{:,.2f}".format(dashboard_summary.total_payout_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
+          </div>
+          <div class="kpi-sub" id="kpi-payout-sub">platformy → rentero · {{ dashboard_summary.current_month_label }}</div>
+        </div>
+
+        {# Client payout — always "Výplata klientům" (DPH moved to its own card) #}
+        <div class="kpi-card kpi-card-blue">
+          <div class="kpi-label">Výplata klientům</div>
+          <div class="kpi-value" style="color:var(--color-blue);font-size:24px;" id="kpi-client-payout"
+               data-copy="{{ '%.2f'|format(dashboard_summary.total_client_payout_czk) }}">
+            {{ "{:,.2f}".format(dashboard_summary.total_client_payout_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
+          </div>
+          <div class="kpi-sub">rentero → klienti · {{ dashboard_summary.current_month_label }}</div>
+        </div>
+
+        {# Total reservations with sparkline #}
+        <div class="kpi-card kpi-card-primary">
+          <div class="kpi-label">Celkem rezervací</div>
+          <div class="kpi-value" style="font-size:24px;" id="kpi-reservations"
+               data-copy="{{ dashboard_summary.total_reservations }}">
+            {{ dashboard_summary.total_reservations }}
+            {% set d = dashboard_summary.reservations_delta %}
+            <span id="kpi-delta" class="kpi-delta {% if d > 0 %}kpi-delta-pos{% elif d < 0 %}kpi-delta-neg{% endif %}" {% if d == 0 %}style="display:none;"{% endif %}>{{ '+' if d > 0 else '' }}{{ d }}</span>
+          </div>
+          <div class="kpi-sub">
+            {% set pts = dashboard_summary.sparkline_points %}
+            {% set max_pt = (pts | max) if pts and (pts | max) > 0 else 1 %}
+            <svg width="80" height="24" viewBox="0 0 80 24" style="display:inline-block;vertical-align:middle;margin-right:6px;">
+              {% for v in pts %}
+              {% set bh = [((v / max_pt) * 20) | round | int, 2] | max %}
+              {% set bx = loop.index0 * 14 %}
+              <rect x="{{ bx }}" y="{{ 24 - bh }}" width="10" height="{{ bh }}"
+                    rx="2"
+                    fill="{% if loop.last %}var(--color-blue){% else %}oklch(0.65 0.15 250 / 0.3){% endif %}"/>
+              {% endfor %}
+            </svg>
+            vs minulý měsíc
+          </div>
+        </div>
+
+        {# Rentero fee (odměna) #}
+        <div class="kpi-card kpi-card-red" id="kpi-profit-card">
+          <div class="kpi-label">Odměna Rentero</div>
+          <div class="kpi-value" style="color:var(--color-red);font-size:24px;" id="kpi-profit"
+               data-copy="{{ "%.2f"|format(dashboard_summary.total_rentero_fee_czk) }}">
+            {{ "{:,.2f}".format(dashboard_summary.total_rentero_fee_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
+          </div>
+          <div class="kpi-sub" id="kpi-profit-sub">provize ze správy objektů · {{ dashboard_summary.current_month_label }}</div>
+        </div>
+
       </div>
-      <div class="kpi-sub">rentero → klienti · {{ dashboard_summary.current_month_label }}</div>
-    </div>
-    {# DPH content (rentero filter) — hidden by default.
-       Aggregate is across ALL properties because Rentero's DPH liability
-       touches every object: vat_rentero_fee + vat_room_prep on all
-       managed properties (output) minus deductible vat_input on all
-       expenses Rentero handles. #}
-    <div id="kpi-card-2-dph" hidden title="Souhrn DPH ze všech objektů — DPH, která se týká Rentero">
-      <div class="kpi-label">Bilance DPH</div>
-      <div class="kpi-value" id="kpi-vat-balance"
-           style="font-size:24px;color:{% if _vat_is_refund %}var(--color-green){% else %}var(--color-red){% endif %};"
-           data-copy="{{ '%.2f'|format(_vat_balance|abs) }}">
-        {% if _vat_is_refund %}+{% else %}−{% endif %}&nbsp;{{ "{:,.2f}".format(_vat_balance|abs).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
+
+      {# ─────────────── Page 2 ─────────────── #}
+      <div class="kpi-page">
+
+        {# Bilance DPH — standalone, always visible, recomputed per filter.
+           Aggregate across visible objects = Rentero's DPH position
+           (DPH na výstupu z provizí + přípravy minus odpočet na vstupu). #}
+        {% set _vat_balance = dashboard_summary.rentero_vat_balance_czk or 0 %}
+        {% set _vat_is_refund = _vat_balance < 0 %}
+        <div class="kpi-card kpi-card-amber" id="kpi-card-dph"
+             title="Souhrn DPH ze všech objektů — DPH, která se týká Rentero">
+          <div class="kpi-label">Bilance DPH</div>
+          <div class="kpi-value" id="kpi-vat-balance"
+               style="font-size:24px;color:{% if _vat_is_refund %}var(--color-green){% else %}var(--color-red){% endif %};"
+               data-copy="{{ '%.2f'|format(_vat_balance|abs) }}">
+            {% if _vat_is_refund %}+{% else %}−{% endif %}&nbsp;{{ "{:,.2f}".format(_vat_balance|abs).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
+          </div>
+          <div class="kpi-sub" id="kpi-vat-sub" style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;">
+            <span style="font-family:var(--font-mono);font-size:11px;" title="DPH na výstupu — z provizí a přípravy pokoje">
+              <span style="color:var(--text-300);">Výstup</span>
+              <span style="color:var(--color-green);" id="kpi-vat-output">+{{ "{:,.2f}".format(dashboard_summary.rentero_vat_output_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}</span>
+            </span>
+            <span style="color:var(--text-300);opacity:.4">·</span>
+            <span style="font-family:var(--font-mono);font-size:11px;" title="DPH na vstupu (odpočet) — z výdajů s DPH">
+              <span style="color:var(--text-300);">Vstup</span>
+              <span style="color:var(--color-red);" id="kpi-vat-input">−{{ "{:,.2f}".format(dashboard_summary.rentero_vat_input_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}</span>
+            </span>
+          </div>
+        </div>
+
       </div>
-      <div class="kpi-sub" id="kpi-vat-sub" style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;">
-        <span style="font-family:var(--font-mono);font-size:11px;" title="DPH na výstupu — z provizí a přípravy pokoje">
-          <span style="color:var(--text-300);">Výstup</span>
-          <span style="color:var(--color-green);">+{{ "{:,.2f}".format(dashboard_summary.rentero_vat_output_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}</span>
-        </span>
-        <span style="color:var(--text-300);opacity:.4">·</span>
-        <span style="font-family:var(--font-mono);font-size:11px;" title="DPH na vstupu (odpočet) — z výdajů s DPH">
-          <span style="color:var(--text-300);">Vstup</span>
-          <span style="color:var(--color-red);">−{{ "{:,.2f}".format(dashboard_summary.rentero_vat_input_czk or 0).replace(",", "X").replace(".", ",").replace("X", " ") }}</span>
-        </span>
-      </div>
+
     </div>
   </div>
 
-  {# Total reservations with sparkline #}
-  <div class="kpi-card kpi-card-primary">
-    <div class="kpi-label">Celkem rezervací</div>
-    <div class="kpi-value" style="font-size:24px;" id="kpi-reservations"
-         data-copy="{{ dashboard_summary.total_reservations }}">
-      {{ dashboard_summary.total_reservations }}
-      {% set d = dashboard_summary.reservations_delta %}
-      <span id="kpi-delta" class="kpi-delta {% if d > 0 %}kpi-delta-pos{% elif d < 0 %}kpi-delta-neg{% endif %}" {% if d == 0 %}style="display:none;"{% endif %}>{{ '+' if d > 0 else '' }}{{ d }}</span>
+  {# Arrows + dots, centered below the grid #}
+  <div class="kpi-carousel-nav" id="kpi-carousel-nav">
+    <button type="button" class="kpi-nav-btn" id="kpi-nav-prev" aria-label="Předchozí karty" disabled>‹</button>
+    <div class="kpi-dots" id="kpi-dots">
+      <button type="button" class="kpi-dot is-active" aria-label="Stránka 1"></button>
+      <button type="button" class="kpi-dot" aria-label="Stránka 2"></button>
     </div>
-    <div class="kpi-sub">
-      {% set pts = dashboard_summary.sparkline_points %}
-      {% set max_pt = (pts | max) if pts and (pts | max) > 0 else 1 %}
-      <svg width="80" height="24" viewBox="0 0 80 24" style="display:inline-block;vertical-align:middle;margin-right:6px;">
-        {% for v in pts %}
-        {% set bh = [((v / max_pt) * 20) | round | int, 2] | max %}
-        {% set bx = loop.index0 * 14 %}
-        <rect x="{{ bx }}" y="{{ 24 - bh }}" width="10" height="{{ bh }}"
-              rx="2"
-              fill="{% if loop.last %}var(--color-blue){% else %}oklch(0.65 0.15 250 / 0.3){% endif %}"/>
-        {% endfor %}
-      </svg>
-      vs minulý měsíc
-    </div>
+    <button type="button" class="kpi-nav-btn" id="kpi-nav-next" aria-label="Další karty">›</button>
   </div>
-
-  {# Rentero fee (odměna) #}
-  <div class="kpi-card kpi-card-red" id="kpi-profit-card">
-    <div class="kpi-label">Odměna Rentero</div>
-    <div class="kpi-value" style="color:var(--color-red);font-size:24px;" id="kpi-profit"
-         data-copy="{{ "%.2f"|format(dashboard_summary.total_rentero_fee_czk) }}">
-      {{ "{:,.2f}".format(dashboard_summary.total_rentero_fee_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
-    </div>
-    <div class="kpi-sub" id="kpi-profit-sub">provize ze správy objektů · {{ dashboard_summary.current_month_label }}</div>
-  </div>
-
 </div>
 
 {# ── Section divider ── #}
@@ -187,6 +205,9 @@
      data-rentero-fee="{{ cur_cell.rentero_fee_sum_czk|default(0) if cur_cell else 0 }}"
      data-expenses="{{ cur_cell.expenses_sum_czk|default(0) if cur_cell else 0 }}"
      data-zisk="{{ cur_cell.zisk_czk|default(0) if cur_cell else 0 }}"
+     data-vat-output="{{ cur_cell.vat_output_czk|default(0) if cur_cell else 0 }}"
+     data-vat-input="{{ cur_cell.vat_input_czk|default(0) if cur_cell else 0 }}"
+     data-vat-balance="{{ cur_cell.vat_balance_czk|default(0) if cur_cell else 0 }}"
      data-rez="{{ rez_count }}"
      data-rez-prev="{{ rez_prev }}"
      data-has-data="{{ has_data }}"

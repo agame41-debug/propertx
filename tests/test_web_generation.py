@@ -846,6 +846,38 @@ def test_dashboard_attaches_per_property_dph_to_current_cell(monkeypatch):
         conn.close()
 
 
+def test_dashboard_renders_kpi_carousel():
+    import os
+
+    old_allow = os.environ.get("RENTERO_ALLOW_INSECURE_DEFAULTS")
+    os.environ["RENTERO_ALLOW_INSECURE_DEFAULTS"] = "1"
+    try:
+        with TestClient(web_module.app) as client:
+            login_page = client.get("/login")
+            csrf_token = _extract_csrf_token(login_page.text)
+            login = client.post(
+                "/login",
+                data={"username": "admin", "password": "admin", "csrf_token": csrf_token},
+                follow_redirects=False,
+            )
+            assert login.status_code == 302
+            response = client.get("/")
+    finally:
+        if old_allow is None:
+            os.environ.pop("RENTERO_ALLOW_INSECURE_DEFAULTS", None)
+        else:
+            os.environ["RENTERO_ALLOW_INSECURE_DEFAULTS"] = old_allow
+
+    assert response.status_code == 200
+    html = response.text
+    assert "kpi-carousel-track" in html          # carousel exists
+    assert html.count('class="kpi-page"') == 2   # two pages
+    assert "kpi-dots" in html                     # dot nav
+    assert "Bilance DPH" in html                  # DPH is now a standalone card
+    assert 'id="kpi-card-2-dph"' not in html       # old swap markup removed
+    assert 'id="kpi-card-dph"' in html             # DPH is its own card now
+
+
 def test_inventory_view_does_not_flag_marriott_only_object_as_missing_booking_or_airbnb(monkeypatch):
     monkeypatch.setattr(web_module, "get_all_clients", lambda conn: [{"property_slug": "MarriottOnly", "name": "Client M"}])
 
