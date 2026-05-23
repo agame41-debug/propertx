@@ -435,8 +435,8 @@ def test_property_kpi_rentero_owned_shows_model_card():
         is_rentero_owned=True, summary=summary, prop={"client_type": "rentero"},
     )
     assert "Modelová výplata klienta" in html
-    assert "Odměna" in html
-    assert "Odměna Rentero" not in html  # shortened to "Odměna" to fit one line
+    assert "Odměna bez DPH" in html      # net odměna, labelled bez DPH
+    assert "Odměna Rentero" not in html  # shortened to fit one line
     assert "Balíčky" in html             # full word (fits on one line)
     assert "199 Kč/os" in html           # balíček per-person rate, same sub line
 
