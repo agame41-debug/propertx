@@ -355,6 +355,9 @@ def test_dashboard_renders_odmena_rentero_kpi():
     assert response.status_code == 200
     assert "Odměna Rentero" in response.text
     assert "Zisk Rentero" not in response.text
+    # KPI sub-line shows the portfolio total incl. modelová odměna.
+    assert "vč. modelové" in response.text
+    assert 'id="kpi-profit-model"' in response.text
 
 
 def _render_property_kpi(*, is_rentero_owned, summary, prop, expenses=None, is_dph=True):

@@ -469,6 +469,12 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
                         CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)
                         * COALESCE(o.rentero_commission, 0.15) * (1.0 + COALESCE(o.vat_rate, 0.21))
                 END), 0), 2) as rentero_fee_sum_czk,
+                ROUND(COALESCE(SUM(CASE
+                    WHEN COALESCE(o.client_type, 'rentero') = 'rentero' THEN
+                        CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)
+                        * COALESCE(o.rentero_commission, 0.15) * (1.0 + COALESCE(o.vat_rate, 0.21))
+                    ELSE 0
+                END), 0), 2) as model_rentero_fee_sum_czk,
                 SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'MATCHED'
                          AND (NOT json_extract(r.data, '$.tax_verification_required')
                               OR (COALESCE(CAST(json_extract(r.data, '$.checkin_missing_age_guests') AS INTEGER), 0) = 0
@@ -504,6 +510,7 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
                 "provize_sum_czk": row["provize_sum_czk"] or 0,
                 "client_payout_sum_czk": row["client_payout_sum_czk"] or 0,
                 "rentero_fee_sum_czk": row["rentero_fee_sum_czk"] or 0,
+                "model_rentero_fee_sum_czk": row["model_rentero_fee_sum_czk"] or 0,
             })
 
     month_state_map: dict[str, dict] = {p["slug"]: {} for p in properties}
@@ -572,6 +579,13 @@ def _build_dashboard_view_model(
         history_map.get(p["slug"], {}).get((cur_y, cur_m), {}).get("client_payout_sum_czk", 0) or 0
         for p in properties
     )
+    # Modelová odměna ("if our own objects were client objects") — already 0 for
+    # klient/z_klient in SQL, so this is purely the notional fee on Rentero-owned
+    # objects. The KPI shows real fee + this as the portfolio's full earning power.
+    total_model_rentero_fee_czk = sum(
+        history_map.get(p["slug"], {}).get((cur_y, cur_m), {}).get("model_rentero_fee_sum_czk", 0) or 0
+        for p in properties
+    )
     total_res_cur = sum(
         (history_map.get(p["slug"], {}).get((cur_y, cur_m), {}).get("rows_count") or 0)
         for p in properties
@@ -600,6 +614,7 @@ def _build_dashboard_view_model(
         "current_month_label": f"{cur_m:02d}/{cur_y}",
         "total_payout_czk": total_payout_czk,
         "total_client_payout_czk": total_client_payout_czk,
+        "total_model_rentero_fee_czk": round(total_model_rentero_fee_czk, 2),
         "total_reservations": total_res_cur,
         "reservations_delta": res_delta,
         "sparkline_points": sparkline_points,
@@ -686,6 +701,7 @@ def _build_dashboard_view_model(
                     "provize_sum_czk": (h or {}).get("provize_sum_czk", 0) or 0,
                     "client_payout_sum_czk": (h or {}).get("client_payout_sum_czk", 0) or 0,
                     "rentero_fee_sum_czk": (h or {}).get("rentero_fee_sum_czk", 0) or 0,
+                    "model_rentero_fee_sum_czk": (h or {}).get("model_rentero_fee_sum_czk", 0) or 0,
                     "matched": (h or {}).get("matched", 0),
                     "rozdil": (h or {}).get("rozdil", 0),
                     "ke_kontrole": (h or {}).get("ke_kontrole", 0),

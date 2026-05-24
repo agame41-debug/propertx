@@ -468,6 +468,12 @@ def register(app, state) -> None:
                     break
         dashboard_summary["total_client_payout_czk"] = client_payout_total
         dashboard_summary["total_rentero_fee_czk"] = round(rentero_fee_total, 2)
+        # "Including model" = real fee (clients) + modelová odměna on Rentero-owned
+        # objects. The model total is 0 for klient/z_klient (computed in the view
+        # model), so this never double-counts a real fee.
+        dashboard_summary["total_rentero_fee_with_model_czk"] = round(
+            rentero_fee_total + (dashboard_summary.get("total_model_rentero_fee_czk") or 0), 2
+        )
 
         return state["templates"].TemplateResponse(
             request,

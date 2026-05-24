@@ -83,7 +83,7 @@
                data-copy="{{ "%.2f"|format(dashboard_summary.total_rentero_fee_czk) }}">
             {{ "{:,.2f}".format(dashboard_summary.total_rentero_fee_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
           </div>
-          <div class="kpi-sub" id="kpi-profit-sub">provize ze správy objektů · {{ dashboard_summary.current_month_label }}</div>
+          <div class="kpi-sub" id="kpi-profit-sub" title="Reálná provize z klientských objektů + modelová odměna z objektů Rentero">vč. modelové <span id="kpi-profit-model" style="font-weight:600;color:var(--text-200);">{{ "{:,.2f}".format(dashboard_summary.total_rentero_fee_with_model_czk).replace(",", "X").replace(".", ",").replace("X", " ") }}</span> Kč · {{ dashboard_summary.current_month_label }}</div>
         </div>
 
       </div>
@@ -208,6 +208,7 @@
      data-provize="{{ provize }}"
      data-client-payout="{{ client_payout }}"
      data-rentero-fee="{{ cur_cell.rentero_fee_sum_czk|default(0) if cur_cell else 0 }}"
+     data-model-fee="{{ cur_cell.model_rentero_fee_sum_czk|default(0) if cur_cell else 0 }}"
      data-expenses="{{ cur_cell.expenses_sum_czk|default(0) if cur_cell else 0 }}"
      data-zisk="{{ cur_cell.zisk_czk|default(0) if cur_cell else 0 }}"
      data-vat-output="{{ cur_cell.vat_output_czk|default(0) if cur_cell else 0 }}"
@@ -258,16 +259,22 @@
 
     {# Col 3: Financial.
        Top line (green): gross payout from platforms.
-       Bottom line: for Rentero-owned objects = "rentero ZISK" (brand color),
+       Bottom line: for Rentero-owned objects = "rentero ZISK" (brand color)
+                    + a "odměna" line (red) = MODELOVÁ odměna (what Rentero
+                      would earn if the object were client-managed) — efficiency;
                     for external clients = "klient PAYOUT" (blue) + a third
-                    "odměna FEE" line (red) = Rentero's fee on that object. #}
+                    "odměna FEE" line (red) = Rentero's REAL fee on that object. #}
     {% set zisk = cur_cell.zisk_czk|default(0) if cur_cell else 0 %}
     {% set rentero_fee = cur_cell.rentero_fee_sum_czk|default(0) if cur_cell else 0 %}
+    {% set model_fee = cur_cell.model_rentero_fee_sum_czk|default(0) if cur_cell else 0 %}
     <div class="pr-financial" style="text-align:right;display:flex;flex-direction:column;justify-content:center;">
       {% if cur_cell and cur_cell.kind == 'report' %}
         <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(payout) }}">{{ "{:,.2f}".format(payout).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč</div>
         {% if row.is_rentero %}
           <div style="font-size:10px;color:var(--brand);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(zisk) }}">rentero {{ "{:,.2f}".format(zisk).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
+          {% if model_fee > 0 %}
+          <div style="font-size:10px;color:var(--color-red);font-variant-numeric:tabular-nums;opacity:.85;" title="Modelová odměna — kolik by Rentero vydělalo, kdyby objekt byl klientský" data-copy="{{ "%.2f"|format(model_fee) }}">odměna {{ "{:,.2f}".format(model_fee).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
+          {% endif %}
         {% elif client_payout > 0 %}
           <div style="font-size:10px;color:var(--color-blue);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(client_payout) }}">klient {{ "{:,.2f}".format(client_payout).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
           {% if rentero_fee > 0 %}
@@ -405,14 +412,18 @@ function _applyFilters() {
 
   // Rentero fee per visible row. The backend SQL already encodes 0 for
   // client_type='rentero', so data-rentero-fee carries 0 for rentero-owned
-  // objects and no client-type check is needed here.
-  var totalFee = 0;
+  // objects (and data-model-fee carries 0 for client objects) — no client-type
+  // check is needed here. "With model" = real fee + modelová odměna.
+  var totalFee = 0, totalModelFee = 0;
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
     if (row.style.getPropertyValue('display') === 'none') return;
     totalFee += parseFloat(row.dataset.renteroFee) || 0;
+    totalModelFee += parseFloat(row.dataset.modelFee) || 0;
   });
   var kpiProfit = document.getElementById('kpi-profit');
   if (kpiProfit) kpiProfit.innerHTML = _formatNumber(totalFee) + ' Kč';
+  var kpiProfitModel = document.getElementById('kpi-profit-model');
+  if (kpiProfitModel) kpiProfitModel.textContent = _formatNumber(totalFee + totalModelFee);
 }
 
 document.querySelectorAll('#dashboard-filter-tabs .filter-tab').forEach(function(btn) {
