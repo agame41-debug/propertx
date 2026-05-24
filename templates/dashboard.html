@@ -83,7 +83,7 @@
                data-copy="{{ "%.2f"|format(dashboard_summary.total_rentero_fee_czk) }}">
             {{ "{:,.2f}".format(dashboard_summary.total_rentero_fee_czk).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč
           </div>
-          <div class="kpi-sub" id="kpi-profit-sub" title="Reálná provize z klientských objektů + modelová odměna z objektů Rentero">vč. modelové <span id="kpi-profit-model" style="font-weight:600;color:var(--text-200);">{{ "{:,.2f}".format(dashboard_summary.total_rentero_fee_with_model_czk).replace(",", "X").replace(".", ",").replace("X", " ") }}</span> Kč · {{ dashboard_summary.current_month_label }}</div>
+          <div class="kpi-sub" id="kpi-profit-sub" title="Reálná provize z klientských objektů + modelová odměna z objektů Rentero">vč. rentero <span id="kpi-profit-model" style="font-weight:600;color:var(--text-200);">{{ "{:,.2f}".format(dashboard_summary.total_rentero_fee_with_model_czk).replace(",", "X").replace(".", ",").replace("X", " ") }}</span> Kč · {{ dashboard_summary.current_month_label }}</div>
         </div>
 
       </div>

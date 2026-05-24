@@ -356,7 +356,7 @@ def test_dashboard_renders_odmena_rentero_kpi():
     assert "Odměna Rentero" in response.text
     assert "Zisk Rentero" not in response.text
     # KPI sub-line shows the portfolio total incl. modelová odměna.
-    assert "vč. modelové" in response.text
+    assert "vč. rentero" in response.text
     assert 'id="kpi-profit-model"' in response.text
 
 
