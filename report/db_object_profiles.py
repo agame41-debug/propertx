@@ -59,7 +59,10 @@ def insert_segment(
     source: str = "ui",
 ) -> int:
     now = _now()
-    merged = {**_DEFAULTS, **{k: v for k, v in fields.items() if k in PROFILE_FIELDS}}
+    # Coalesce present-but-None values to defaults: every profile column is NOT NULL,
+    # so a None from a nullable legacy report_objects row (backfill) or a sparse
+    # caller must fall back to _DEFAULTS rather than violate the constraint.
+    merged = {**_DEFAULTS, **{k: v for k, v in fields.items() if k in PROFILE_FIELDS and v is not None}}
     cols = ["slug", "valid_from_ym", "valid_to_ym", *PROFILE_FIELDS, "source", "created_at", "updated_at"]
     vals = [slug, valid_from_ym, valid_to_ym, *[merged[f] for f in PROFILE_FIELDS], source, now, now]
     placeholders = ",".join("?" for _ in cols)

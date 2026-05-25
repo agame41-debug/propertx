@@ -83,7 +83,7 @@ Reuse the existing DPH markup currently inside `#kpi-card-2-dph`, moved to its o
 
 - **Label:** `Bilance DPH`
 - **Value** (`id="kpi-vat-balance"`): `+/− {abs} Kč`; green (`--color-green`) when refund (balance < 0), red (`--color-red`) when owed (balance ≥ 0)
-- **Sub-line** (`id="kpi-vat-sub"`): `Výstup +{output}` · `Vstup −{input}`
+- **Sub-line** (`id="kpi-vat-sub"`): `Výstup −{output}` · `Vstup +{input}` (output VAT is owed → red/−; input VAT is a deduction → green/+, per commit cf5b77b)
 - Border color `kpi-card-amber` (static); the value color conveys sign.
 
 Initial server-rendered values come from the existing `dashboard_summary.rentero_vat_output_czk / rentero_vat_input_czk / rentero_vat_balance_czk` (the all-objects aggregate). Default tab is *Vše* (all rows visible), so the initial render equals what JS would compute over all rows — consistent.
@@ -128,7 +128,7 @@ data-vat-balance="{{ cur_cell.vat_balance_czk|default(0) if cur_cell else 0 }}"
 While iterating visible rows, accumulate `totalVatOutput`, `totalVatInput`, `totalVatBalance`. After the loop, update the DPH card:
 
 - `#kpi-vat-balance` text → `(balance < 0 ? '+' : '−') + _formatNumber(Math.abs(balance)) + ' Kč'`, color green if `balance < 0` else red.
-- `#kpi-vat-sub` output/input spans → `+output` / `−input`.
+- `#kpi-vat-sub` output/input spans → `−output` / `+input` (output owed = red/−, input deduction = green/+).
 
 Remove the old swap block (the `kpiCard2Default` / `kpiCard2Dph` show/hide logic), and remove the `#kpi-card-2-default` / `#kpi-card-2-dph` wrappers from card 2 — card 2 renders **Výplata klientům** directly.
 

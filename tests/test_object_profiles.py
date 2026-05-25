@@ -142,3 +142,45 @@ def test_report_object_profiles_table_exists():
             "client_type", "city_tax_rate", "balicky_per_person", "vat_rate",
             "rentero_commission", "stredisko", "active", "source"} <= cols
     conn.close()
+
+
+def test_backfill_tolerates_null_rate_legacy_rows():
+    """report_objects rate columns are nullable; the profile columns are NOT NULL.
+    A legacy row with NULL rates must backfill to defaults, not crash on the
+    constraint (regression for the present-but-None merge in insert_segment)."""
+    conn = get_connection(":memory:")
+    conn.execute(
+        """INSERT INTO report_objects
+              (slug, display_name, city_tax_rate, vat_rate, rentero_commission,
+               balicky_per_person, active, created_at, updated_at)
+           VALUES ('nul','Nul',NULL,NULL,NULL,NULL,1,'t','t')"""
+    )
+    conn.commit()
+    conn.execute("DELETE FROM report_object_profiles WHERE slug='nul'")
+    assert backfill_object_profiles(conn) == 1  # would raise IntegrityError before the fix
+    seg = get_object_profile(conn, "nul", 2026, 5)
+    assert seg["rentero_commission"] == 0.15
+    assert seg["vat_rate"] == 0.21
+    assert seg["balicky_per_person"] == 249
+    assert seg["city_tax_rate"] == 0
+    assert seg["client_type"] == "rentero"
+    conn.close()
+
+
+def test_this_month_only_splits_bounded_segment_into_three():
+    """this-month-only on a CLOSED [from,to] segment yields three parts; the right
+    part carries the ORIGINAL values (covers the orig_to > m branch that the
+    open-segment split test never exercises)."""
+    conn = get_connection(":memory:")
+    conn.execute("INSERT INTO report_objects (slug, created_at, updated_at) VALUES ('x','t','t')")
+    insert_segment(conn, "x", "2026-03", "2026-08", {"client_type": "klient", "owner_name": "Base"})
+    set_profile_this_month_only(conn, "x", 2026, 5, {"owner_name": "JustMay"})
+    assert get_object_profile(conn, "x", 2026, 4)["owner_name"] == "Base"
+    assert get_object_profile(conn, "x", 2026, 5)["owner_name"] == "JustMay"
+    assert get_object_profile(conn, "x", 2026, 6)["owner_name"] == "Base"   # right part = original
+    assert get_object_profile(conn, "x", 2026, 8)["owner_name"] == "Base"
+    assert get_object_profile(conn, "x", 2026, 9) is None                   # outside original range
+    bounds = sorted((s["valid_from_ym"], s["valid_to_ym"])
+                    for s in list_object_profile_segments(conn, "x"))
+    assert bounds == [("2026-03", "2026-04"), ("2026-05", "2026-05"), ("2026-06", "2026-08")]
+    conn.close()

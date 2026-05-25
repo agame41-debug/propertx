@@ -114,6 +114,24 @@ def test_engine_triggers_materialization(monkeypatch):
     conn.close()
 
 
+def test_delete_template_preserves_past_rows_and_stops_future():
+    """Deleting a template must leave already-materialized expense rows intact
+    (so historical reports don't change) while preventing any future month from
+    re-materializing it."""
+    conn = get_connection(":memory:")
+    _seed_object(conn)
+    tid = _mk(conn, start_ym="2026-05", end_ym=None)
+    assert materialize_templates_for_month(conn, "x", 2026, 5) == 1
+    assert len(get_expenses(conn, "x", 2026, 5)) == 1
+    delete_expense_template(conn, tid)
+    # Past row survives the delete...
+    assert len(get_expenses(conn, "x", 2026, 5)) == 1
+    # ...and future months no longer materialize anything.
+    assert materialize_templates_for_month(conn, "x", 2026, 6) == 0
+    assert get_expenses(conn, "x", 2026, 6) == []
+    conn.close()
+
+
 def test_upsert_tsv_template_is_idempotent_by_source():
     conn = get_connection(":memory:")
     _seed_object(conn)

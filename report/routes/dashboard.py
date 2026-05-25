@@ -486,7 +486,7 @@ def register(app, state) -> None:
                     if not row["is_rentero"]:
                         client_payout_total += cell.get("client_payout_sum_czk", 0) or 0
                     break
-        dashboard_summary["total_client_payout_czk"] = client_payout_total
+        dashboard_summary["total_client_payout_czk"] = round(client_payout_total, 2)
         dashboard_summary["total_rentero_fee_czk"] = round(rentero_fee_total, 2)
         # "Including model" = real fee (clients) + modelová odměna on Rentero-owned
         # objects. The model total is 0 for klient/z_klient (computed in the view

@@ -35,6 +35,9 @@ _TSV_FIELDS = ("owner_name", "ico", "dic", "platce_dph", "adresa",
 def _normalize(text: str) -> str:
     text = unicodedata.normalize("NFD", text or "")
     text = "".join(c for c in text if unicodedata.category(c) != "Mn")
+    # Fold every dash variant (hyphen/figure/en/em-dash, minus sign) to ASCII '-'
+    # so a TSV en-dash name matches a DB hyphen name and vice versa.
+    text = re.sub(r"[‐-―−]", "-", text)
     return re.sub(r"\s+", " ", text.lower().strip())
 
 
@@ -143,7 +146,14 @@ def _segment_differs(changes: dict, seg: dict | None) -> bool:
     return False
 
 
+_YM_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
 def _ym_to_int(effective_ym: str) -> tuple[int, int]:
+    # Validate format/month range so a malformed "2026-13" can't silently write a
+    # nonsensical segment (valid_from_ym="2026-13") and corrupt the timeline.
+    if not _YM_RE.match(effective_ym or ""):
+        raise ValueError(f"Neplatný měsíc '{effective_ym}', očekává se 'YYYY-MM'")
     return int(effective_ym[:4]), int(effective_ym[5:7])
 
 

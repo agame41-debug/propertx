@@ -143,6 +143,43 @@ def test_tsv_auto_expenses_internet_template_and_ost_sluzby_oneoff():
     conn.close()
 
 
+def _row(**vals):
+    """Build one TSV data row in HEADER column order from keyword fields."""
+    cols = ["category", "stredisko", "canonical_name", "owner_name", "ico",
+            "platce_dph", "dic", "aliases", "ulice", "misto", "psc", "stat",
+            "kod_statu", "banka", "ucet", "kod_banky", "internet", "ost_sluzby",
+            "ost_sluzby_popis", "ost_sluzby2", "ost_sluzby2_popis"]
+    return "\t".join(str(vals.get(c, "")) for c in cols)
+
+
+def test_match_folds_en_dash_to_hyphen():
+    """A TSV canonical_name using an en-dash (–) matches a DB display_name using an
+    ASCII hyphen (-) after dash normalization. Regression for the en-dash trap."""
+    conn = get_connection(":memory:")
+    _seed(conn, "Opletalova_45_Leva", "Opletalova 45 - levá")   # hyphen in DB
+    content = _tsv(_row(category="standard", stredisko="OPL45L",
+                        canonical_name="Opletalova 45 – levá",   # en-dash in TSV
+                        owner_name="New Owner", ico="1"))
+    summary = apply_objekty_import(conn, content, "2026-05")
+    assert summary["unmatched"] == []
+    assert "Opletalova_45_Leva" in summary["updated_slugs"]
+    assert get_object_profile(conn, "Opletalova_45_Leva", 2026, 5)["owner_name"] == "New Owner"
+    conn.close()
+
+
+def test_apply_rejects_malformed_effective_ym():
+    """A malformed effective month must be rejected, not silently written as a
+    nonsensical segment bound."""
+    import pytest
+    conn = get_connection(":memory:")
+    _seed(conn, "Francouzska_50", "Francouzská 50")
+    content = _tsv(_row(category="standard", stredisko="FRAN_50",
+                        canonical_name="Francouzská 50", owner_name="X", ico="1"))
+    with pytest.raises(ValueError):
+        apply_objekty_import(conn, content, "2026-13")
+    conn.close()
+
+
 def test_delta_summary_counts_without_writing():
     conn = get_connection(":memory:")
     _seed(conn, "Francouzska_50", "Francouzská 50")
