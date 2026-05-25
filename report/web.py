@@ -49,6 +49,7 @@ from report.config import (
     get_booking_config,
     get_hostify_listing_names,
     load_runtime_config,
+    resolve_property_config,
     sync_property_to_db,
 )
 from hostify_api import HostifyHttpError

@@ -1011,6 +1011,10 @@ def test_property_detail_includes_transferred_rows_in_summary(monkeypatch):
         "get_all_properties",
         lambda config: [{"slug": "28_Pluku_58", "display_name": "28. Pluku 58", "listing_nickname": "28. Pluku 58"}],
     )
+    monkeypatch.setattr(
+        web_module, "resolve_property_config",
+        lambda conn, slug, year, month, config: {"slug": slug, **(config["properties"].get(slug) or {})},
+    )
     monkeypatch.setattr(web_module, "get_report_rows", lambda *args, **kwargs: [{"guest_name": "Stored"}])
     monkeypatch.setattr(web_module, "apply_overrides_to_rows", lambda conn, rows, *args, **kwargs: rows)
     monkeypatch.setattr(web_module, "get_expenses", lambda *args, **kwargs: [])

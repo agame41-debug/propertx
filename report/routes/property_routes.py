@@ -49,7 +49,9 @@ def register(app, state) -> None:
         if slug not in props:
             raise HTTPException(404, "Objekt nenalezen")
         state["check_property_access"](request, slug, conn)
-        prop = props[slug]
+        # Use the object profile as of THIS month (owner/type/rates), matching
+        # how the engine generated the rows — so summary math is month-correct.
+        prop = state["resolve_property_config"](conn, slug, year, month, config)
 
         raw_rows = state["get_report_rows"](conn, slug, year, month)
         rows = state["_prepare_rows_for_display"](

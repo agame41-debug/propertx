@@ -407,6 +407,9 @@ def register(app, state) -> None:
             prop = slug_to_prop.get(slug)
             if not prop:
                 continue
+            # Month-resolve owner/type/rates so the per-property summary matches
+            # the selected month's object profile (not just current values).
+            prop = state["resolve_property_config"](conn, slug, cur_y, cur_m, config)
             raw_rows = state["get_report_rows"](conn, slug, cur_y, cur_m)
             rows_for_summary = state["_prepare_rows_for_display"](
                 state["apply_overrides_to_rows"](conn, raw_rows, slug, cur_y, cur_m)
