@@ -2,6 +2,7 @@ import pytest
 
 from report.db import get_connection, save_report_rows, log_report_generated
 from report.db_admin import upsert_report_object
+from report.db_object_profiles import insert_segment
 from report.web_support import _build_dashboard_maps, _build_dashboard_view_model
 
 
@@ -14,6 +15,14 @@ def _setup_object(conn, slug, client_type):
         "rentero_commission": 0.15,
         "vat_rate": 0.21,
         "active": True,
+    })
+    # Profiles are now the source of truth for client_type/rates. Seed an open
+    # segment mirroring the object so the month-aware dashboard JOIN resolves it.
+    insert_segment(conn, slug, None, None, {
+        "client_type": client_type,
+        "rentero_commission": 0.15,
+        "vat_rate": 0.21,
+        "active": 1,
     })
 
 

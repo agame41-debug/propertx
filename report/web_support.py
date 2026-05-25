@@ -489,7 +489,10 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
                               OR NOT json_extract(r.data, '$.checkin_verified'))
                     THEN 1 ELSE 0 END) as ke_kontrole
             FROM report_rows r
-            LEFT JOIN report_objects o ON o.slug = r.slug
+            LEFT JOIN report_object_profiles o
+                   ON o.slug = r.slug
+                  AND (o.valid_from_ym IS NULL OR o.valid_from_ym <= printf('%04d-%02d', r.year, r.month))
+                  AND (o.valid_to_ym IS NULL OR o.valid_to_ym >= printf('%04d-%02d', r.year, r.month))
             WHERE r.slug IN ({slug_ph}) AND ({month_cond})
             GROUP BY r.slug, r.year, r.month""",
         slugs,
