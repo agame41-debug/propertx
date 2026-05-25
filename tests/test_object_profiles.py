@@ -82,6 +82,34 @@ def test_no_overlap_invariant_holds():
     conn.close()
 
 
+from report.db_object_profiles import backfill_object_profiles
+
+
+def test_backfill_collapses_legacy_into_open_segment():
+    conn = get_connection(":memory:")
+    conn.execute(
+        """INSERT INTO report_objects (slug, display_name, client_type, city_tax_rate,
+              vat_rate, rentero_commission, balicky_per_person, active, created_at, updated_at)
+           VALUES ('a','A','z_klient',50,0.12,0.03,249,1,'t','t')"""
+    )
+    conn.execute(
+        """INSERT INTO clients (property_slug, name, ico, platce_dph, adresa, updated_at)
+           VALUES ('a','Owner s.r.o.','123',1,'Praha','t')"""
+    )
+    conn.commit()
+    # Wipe the segment auto-created by migrations to test the backfill directly
+    conn.execute("DELETE FROM report_object_profiles WHERE slug='a'")
+    n = backfill_object_profiles(conn)
+    assert n == 1
+    seg = get_object_profile(conn, "a", 2026, 5)
+    assert seg["client_type"] == "z_klient"
+    assert seg["owner_name"] == "Owner s.r.o."
+    assert seg["ico"] == "123" and seg["platce_dph"] == 1
+    assert seg["valid_from_ym"] is None and seg["valid_to_ym"] is None
+    assert backfill_object_profiles(conn) == 0
+    conn.close()
+
+
 def test_report_object_profiles_table_exists():
     conn = get_connection(":memory:")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(report_object_profiles)")}

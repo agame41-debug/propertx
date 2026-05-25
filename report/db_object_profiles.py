@@ -171,6 +171,45 @@ def set_profile_this_month_only(conn, slug: str, year: int, month: int, changes:
     return insert_segment(conn, slug, m, m, _merged_fields(cov, changes), source=source)
 
 
+def backfill_object_profiles(conn: sqlite3.Connection) -> int:
+    """Create one open segment ([NULL, NULL]) per report_object that has no
+    profile segment yet, merging legacy report_objects + clients values.
+    Idempotent: skips objects that already have any segment."""
+    inserted = 0
+    objs = conn.execute("SELECT * FROM report_objects").fetchall()
+    for o in objs:
+        slug = o["slug"]
+        if conn.execute(
+            "SELECT 1 FROM report_object_profiles WHERE slug = ? LIMIT 1", (slug,)
+        ).fetchone():
+            continue
+        c = conn.execute(
+            "SELECT * FROM clients WHERE property_slug = ?", (slug,)
+        ).fetchone()
+        c = dict(c) if c else {}
+        fields = {
+            "owner_name": c.get("name", ""),
+            "ico": c.get("ico", ""),
+            "dic": c.get("dic", ""),
+            "platce_dph": c.get("platce_dph", 0) or 0,
+            "adresa": c.get("adresa", ""),
+            "bank_account": c.get("bank_account", ""),
+            "email": c.get("email", ""),
+            "phone": c.get("phone", ""),
+            "notes": c.get("notes", ""),
+            "client_type": o["client_type"],
+            "city_tax_rate": o["city_tax_rate"],
+            "balicky_per_person": o["balicky_per_person"],
+            "vat_rate": o["vat_rate"],
+            "rentero_commission": o["rentero_commission"],
+            "stredisko": "",
+            "active": o["active"],
+        }
+        insert_segment(conn, slug, None, None, fields, source="migration")
+        inserted += 1
+    return inserted
+
+
 def update_profile_segment(conn, segment_id: int, changes: dict) -> None:
     sets = [f"{f} = ?" for f in PROFILE_FIELDS if f in changes]
     if not sets:

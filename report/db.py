@@ -881,6 +881,8 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _drop_ownership_columns_from_payout_batch_bank_matches(conn)
     _deactivate_legacy_checkin_source_files(conn)
     _backfill_payout_batches_from_active_sources(conn)
+    from report.db_object_profiles import backfill_object_profiles
+    backfill_object_profiles(conn)
     _seed_admin_user(conn)
 
 
