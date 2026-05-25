@@ -173,6 +173,35 @@ CREATE TABLE IF NOT EXISTS report_object_aliases (
 CREATE INDEX IF NOT EXISTS idx_report_object_aliases_lookup
     ON report_object_aliases(report_object_slug, channel, alias_type, is_active);
 
+CREATE TABLE IF NOT EXISTS report_object_profiles (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug            TEXT NOT NULL REFERENCES report_objects(slug) ON DELETE CASCADE,
+    valid_from_ym   TEXT,            -- "YYYY-MM"; NULL = open start
+    valid_to_ym     TEXT,            -- "YYYY-MM" inclusive; NULL = open-ended
+    owner_name      TEXT NOT NULL DEFAULT '',
+    ico             TEXT NOT NULL DEFAULT '',
+    dic             TEXT NOT NULL DEFAULT '',
+    platce_dph      INTEGER NOT NULL DEFAULT 0,
+    adresa          TEXT NOT NULL DEFAULT '',
+    bank_account    TEXT NOT NULL DEFAULT '',
+    email           TEXT NOT NULL DEFAULT '',
+    phone           TEXT NOT NULL DEFAULT '',
+    notes           TEXT NOT NULL DEFAULT '',
+    client_type     TEXT NOT NULL DEFAULT 'rentero',
+    city_tax_rate   REAL NOT NULL DEFAULT 0,
+    balicky_per_person REAL NOT NULL DEFAULT 0,
+    vat_rate        REAL NOT NULL DEFAULT 0.21,
+    rentero_commission REAL NOT NULL DEFAULT 0.15,
+    stredisko       TEXT NOT NULL DEFAULT '',
+    active          INTEGER NOT NULL DEFAULT 1,
+    source          TEXT NOT NULL DEFAULT 'ui',
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_object_profiles_lookup
+    ON report_object_profiles(slug, valid_from_ym);
+
 CREATE TABLE IF NOT EXISTS clients (
     property_slug   TEXT PRIMARY KEY,
     name            TEXT NOT NULL DEFAULT '',
