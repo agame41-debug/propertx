@@ -225,9 +225,12 @@ def test_sources_import_route_redirects_with_duplicate_flash():
 
 
 def _checkin_csv_bytes() -> bytes:
+    # Current Hostify export format (Birth Date based; the old Nationality/Guest-Age
+    # format was removed in 0dd6072). Birth 01-01-1991 → age 35 at the 2026 check-in.
     return (
-        "Property Name;Full Name;Nationality;ID Type;ID Number;Phone Number;Check-Out Date;Reservation ID;Check-In Date;Name;Surname;Birth Country;Residence Country;Guest Age\n"
-        "28. Pluku 58;John Adult;CZ;P;1;;12-03-2026;chk-001;10-03-2026;John;Adult;CZ;CZ;35\n"
+        "Property Name;Full Name;Check-Out Date;Reservation ID;Check-In Date;"
+        "Name;Surname;Birth Date;Nights of Stay;Booking Reference;Reservation External ID\n"
+        "28. Pluku 58;John Adult;12-03-2026;chk-001;10-03-2026;John;Adult;01-01-1991;;;\n"
     ).encode("utf-8")
 
 
@@ -285,6 +288,13 @@ def test_checkin_backfill_materializes_legacy_blob_only_source():
             commit=True,
         )
         conn.close()
+
+        # The blob-snapshot backfill is once-per-process; the first get_connection
+        # above already marked it done (source_files was empty then). Reset the guard
+        # so the next connection runs the backfill with the legacy blob now present —
+        # exactly the real "process starts, finds a blob-only source" scenario.
+        import report.db as _db
+        _db._checkin_snapshots_backfill_done = False
 
         conn = get_connection(db_path)
         try:

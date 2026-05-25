@@ -15,13 +15,40 @@ from report.source_registry import analyze_import_delta, import_uploaded_source,
 import report.web as web_module
 
 
+# Current Hostify check-in export format (Birth Date based; the 14-col Nationality/
+# Guest-Age format was removed in 0dd6072 "only Birth Date supported"). Age is derived
+# from Birth Date at check-in, so fixtures provide a birth date for a desired age.
+_CHECKIN_HEADER = (
+    "Property Name;Full Name;Check-Out Date;Reservation ID;Check-In Date;"
+    "Name;Surname;Birth Date;Nights of Stay;Booking Reference;Reservation External ID"
+)
+
+
+def _birth_date_for_age(age, checkin_ddmmyyyy: str) -> str:
+    """Birth date (DD-MM-YYYY) that yields `age` at the given check-in; '' if age is None."""
+    if age is None:
+        return ""
+    checkin_year = int(checkin_ddmmyyyy.split("-")[2])
+    return f"01-01-{checkin_year - age}"
+
+
+def _checkin_row(prop, full, name, surname, checkout, reservation_id, checkin, age) -> str:
+    return ";".join([
+        prop, full, checkout, reservation_id, checkin, name, surname,
+        _birth_date_for_age(age, checkin), "", "", "",
+    ])
+
+
+def _checkin_csv(*rows: str) -> bytes:
+    return ("\n".join([_CHECKIN_HEADER, *rows]) + "\n").encode("utf-8")
+
+
 def _checkin_csv_bytes() -> bytes:
-    return (
-        "Property Name;Full Name;Nationality;ID Type;ID Number;Phone Number;Check-Out Date;Reservation ID;Check-In Date;Name;Surname;Birth Country;Residence Country;Guest Age\n"
-        "28. Pluku 58;John Adult;CZ;P;1;;12-03-2026;chk-002;10-03-2026;John;Adult;CZ;CZ;35\n"
-        "28. Pluku 58;Jane Minor;CZ;P;2;;12-03-2026;chk-002;10-03-2026;Jane;Minor;CZ;CZ;16\n"
-        "28. Pluku 58;Long Stay;CZ;P;3;;20-05-2026;chk-100;10-03-2026;Long;Stay;CZ;CZ;40\n"
-    ).encode("utf-8")
+    return _checkin_csv(
+        _checkin_row("28. Pluku 58", "John Adult", "John", "Adult", "12-03-2026", "chk-002", "10-03-2026", 35),
+        _checkin_row("28. Pluku 58", "Jane Minor", "Jane", "Minor", "12-03-2026", "chk-002", "10-03-2026", 16),
+        _checkin_row("28. Pluku 58", "Long Stay", "Long", "Stay", "20-05-2026", "chk-100", "10-03-2026", 40),
+    )
 
 
 def test_validate_source_type_accepts_checkin():
@@ -219,10 +246,9 @@ def test_replace_and_list_checkin_match_audit_roundtrip():
 def test_cross_month_checkin_group_is_available_via_overlap_lookup():
     conn = get_connection(":memory:")
     try:
-        content = (
-            "Property Name;Full Name;Nationality;ID Type;ID Number;Phone Number;Check-Out Date;Reservation ID;Check-In Date;Name;Surname;Birth Country;Residence Country;Guest Age\n"
-            "28. Pluku 58;John Adult;CZ;P;1;;10-04-2026;chk-overlap;30-03-2026;John;Adult;CZ;CZ;35\n"
-        ).encode("utf-8")
+        content = _checkin_csv(
+            _checkin_row("28. Pluku 58", "John Adult", "John", "Adult", "10-04-2026", "chk-overlap", "30-03-2026", 35),
+        )
         import_uploaded_source(conn, "checkin", "Guest Report overlap.csv", content, imported_by="admin")
 
         april_rows = list_checkin_reservations(conn, active_only=True, overlap_year=2026, overlap_month=4, latest_only=True)
@@ -235,15 +261,13 @@ def test_cross_month_checkin_group_is_available_via_overlap_lookup():
 def test_latest_only_checkin_rows_prefer_newest_active_source():
     conn = get_connection(":memory:")
     try:
-        first = (
-            "Property Name;Full Name;Nationality;ID Type;ID Number;Phone Number;Check-Out Date;Reservation ID;Check-In Date;Name;Surname;Birth Country;Residence Country;Guest Age\n"
-            "28. Pluku 58;John Adult;CZ;P;1;;12-03-2026;chk-dup;10-03-2026;John;Adult;CZ;CZ;35\n"
-        ).encode("utf-8")
-        second = (
-            "Property Name;Full Name;Nationality;ID Type;ID Number;Phone Number;Check-Out Date;Reservation ID;Check-In Date;Name;Surname;Birth Country;Residence Country;Guest Age\n"
-            "28. Pluku 58;John Adult;CZ;P;1;;12-03-2026;chk-dup;10-03-2026;John;Adult;CZ;CZ;35\n"
-            "28. Pluku 58;Jane Minor;CZ;P;2;;12-03-2026;chk-dup;10-03-2026;Jane;Minor;CZ;CZ;16\n"
-        ).encode("utf-8")
+        first = _checkin_csv(
+            _checkin_row("28. Pluku 58", "John Adult", "John", "Adult", "12-03-2026", "chk-dup", "10-03-2026", 35),
+        )
+        second = _checkin_csv(
+            _checkin_row("28. Pluku 58", "John Adult", "John", "Adult", "12-03-2026", "chk-dup", "10-03-2026", 35),
+            _checkin_row("28. Pluku 58", "Jane Minor", "Jane", "Minor", "12-03-2026", "chk-dup", "10-03-2026", 16),
+        )
         import_uploaded_source(conn, "checkin", "dup-1.csv", first, imported_by="admin")
         import_uploaded_source(conn, "checkin", "dup-2.csv", second, imported_by="admin")
 
@@ -260,10 +284,9 @@ def test_missing_age_keeps_row_under_review():
     groups = load_checkin_groups(
         [{
             "original_name": "Guest Report.csv",
-            "content": (
-                "Property Name;Full Name;Nationality;ID Type;ID Number;Phone Number;Check-Out Date;Reservation ID;Check-In Date;Name;Surname;Birth Country;Residence Country;Guest Age\n"
-                "28. Pluku 58;Unknown Age;CZ;P;1;;12-03-2026;chk-missing;10-03-2026;Unknown;Age;CZ;CZ;\n"
-            ).encode("utf-8"),
+            "content": _checkin_csv(
+                _checkin_row("28. Pluku 58", "Unknown Age", "Unknown", "Age", "12-03-2026", "chk-missing", "10-03-2026", None),
+            ),
         }]
     )
     reservations = [

@@ -349,7 +349,10 @@ class TestVerifyReservation:
         assert res["verification_status"] == STATUS_CHYBI_CSV
         assert res["effective_payout_eur"] == pytest.approx(329.32, abs=0.001)
 
-    def test_booking_does_not_use_inferred_city_tax_for_matching(self):
+    def test_booking_inferred_city_tax_used_for_matching_when_hostify_zero(self):
+        # When Hostify reports no city tax, the inferred Booking city tax (flat
+        # 2 EUR/person/night) is used for matching: 2 × 1 guest × 3 nights = 6 EUR,
+        # so 213.38 − 6 = 207.38 matches the CSV net → MATCHED.
         res = verify_reservation(
             _hostify_res(
                 confirmation_code="BDC1",
@@ -362,8 +365,9 @@ class TestVerifyReservation:
             self._booking_index(code="BDC1", net=207.38, czk=5069.3),
             property_config={"city_tax_rate": 50},
         )
-        assert res["verification_status"] == STATUS_ROZDIL
+        assert res["verification_status"] == STATUS_MATCHED
         assert res["effective_payout_eur"] == pytest.approx(207.38, abs=0.001)
+        assert res["inferred_city_tax_eur"] == pytest.approx(6.0, abs=0.001)
 
     def test_booking_uses_hostify_city_tax_even_when_inferred_differs(self):
         res = verify_reservation(
@@ -381,7 +385,9 @@ class TestVerifyReservation:
         )
         assert res["verification_status"] == STATUS_ROZDIL
         assert res["effective_payout_eur"] == pytest.approx(207.38, abs=0.001)
-        assert res["inferred_city_tax_eur"] == pytest.approx(5.9524, abs=0.001)
+        # Inferred = flat 2 EUR/person/night × 1 guest × 3 nights = 6.0 (informational;
+        # not used here because Hostify's own city tax takes precedence when present).
+        assert res["inferred_city_tax_eur"] == pytest.approx(6.0, abs=0.001)
 
     def test_booking_matching_uses_hostify_city_tax_not_checkin_override(self):
         res = verify_reservation(
@@ -400,7 +406,8 @@ class TestVerifyReservation:
         )
         assert res["verification_status"] == STATUS_MATCHED
         assert res["effective_payout_eur"] == pytest.approx(212.0, abs=0.001)
-        assert res["inferred_city_tax_eur"] == pytest.approx(5.9524, abs=0.001)
+        # Inferred uses ALL guests (adults + children): 2 EUR × 2 adults × 3 nights = 12.0.
+        assert res["inferred_city_tax_eur"] == pytest.approx(12.0, abs=0.001)
 
     def test_booking_city_tax_inference_does_not_mask_unrelated_diff(self):
         res = verify_reservation(
@@ -455,8 +462,10 @@ class TestMonthAssignment:
         assert m == 3
 
     def test_airbnb_long_stay_checkout_in_next_month(self):
+        # Airbnb is ALWAYS assigned to the check-in month (loader rule), even for a
+        # long stay that checks out in the next month → February.
         y, m = self.assign(date(2026, 2, 8), date(2026, 3, 3), nights=23, source="Airbnb")
-        assert (y, m) == (2026, 3)
+        assert (y, m) == (2026, 2)
 
     # --- Booking ---
     def test_booking_default_checkin_month(self):

@@ -32,8 +32,9 @@ def test_create_and_get_month_assignment(conn):
         "actor": "admin",
     })
     assignments = get_reservation_month_assignments(conn, "obj1")
-    assert "HMA001" in assignments
-    a = assignments["HMA001"]
+    # get_reservation_month_assignments returns a flat list of assignment dicts.
+    a = next((x for x in assignments if x["confirmation_code"] == "HMA001"), None)
+    assert a is not None
     assert a["target_year"] == 2026
     assert a["target_month"] == 4
     assert a["original_year"] == 2026
@@ -54,7 +55,7 @@ def test_revert_month_assignment(conn):
     })
     revert_reservation_month_assignment(conn, "obj1", "HMA002", actor="admin")
     assignments = get_reservation_month_assignments(conn, "obj1")
-    assert "HMA002" not in assignments
+    assert all(a["confirmation_code"] != "HMA002" for a in assignments)
 
 
 def test_get_codes_assigned_to_month(conn):
@@ -66,9 +67,10 @@ def test_get_codes_assigned_to_month(conn):
         "reason": "test", "actor": "admin",
     })
     codes = get_codes_assigned_to_month(conn, "obj1", 2026, 4)
-    assert "HMA003" in codes
+    # get_codes_assigned_to_month returns a list of assignment dicts.
+    assert any(c["confirmation_code"] == "HMA003" for c in codes)
     codes_other = get_codes_assigned_to_month(conn, "obj1", 2026, 3)
-    assert "HMA003" not in codes_other
+    assert all(c["confirmation_code"] != "HMA003" for c in codes_other)
 
 
 # ── Move supersede (one active main move per reservation) ──────────────────
