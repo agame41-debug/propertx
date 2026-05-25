@@ -421,6 +421,36 @@ def _prepare_rows_for_display(rows: list[dict]) -> list[dict]:
     return prepared
 
 
+def _resolve_dashboard_profile_overlay(conn, slugs: list[str], year: int, month: int) -> dict[str, dict]:
+    """Month-resolve object type/owner from report_object_profiles.
+
+    The dashboard's per-row client_type and owner_name are month-agnostic when
+    read from report_objects/clients, so they go stale after an Objekty import
+    (which writes a versioned segment to report_object_profiles, NOT to the base
+    tables). Returns {slug: {"client_type": str|None, "owner_name": str|None}} for
+    the single segment covering (year, month); callers overlay these onto the base
+    maps. Only slugs with a covering segment appear in the result.
+    """
+    if not slugs:
+        return {}
+    ym = f"{int(year):04d}-{int(month):02d}"
+    placeholders = ",".join("?" * len(slugs))
+    overlay: dict[str, dict] = {}
+    for row in conn.execute(
+        f"""SELECT slug, client_type, owner_name
+            FROM report_object_profiles
+            WHERE slug IN ({placeholders})
+              AND (valid_from_ym IS NULL OR valid_from_ym <= ?)
+              AND (valid_to_ym IS NULL OR valid_to_ym >= ?)""",
+        [*slugs, ym, ym],
+    ).fetchall():
+        overlay[row["slug"]] = {
+            "client_type": row["client_type"],
+            "owner_name": row["owner_name"],
+        }
+    return overlay
+
+
 def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, int]]) -> tuple[dict, dict, dict, dict]:
     slugs = [p["slug"] for p in properties]
     if not slugs or not months:

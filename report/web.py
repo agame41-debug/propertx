@@ -173,6 +173,7 @@ from report.web_support import (
     _prepare_rows_for_display,
     _property_listing_names,
     _render_property_template,
+    _resolve_dashboard_profile_overlay,
     _resolve_inventory_bulk_run,
     _set_flash,
     _source_type_label,

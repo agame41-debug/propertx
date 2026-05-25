@@ -337,10 +337,22 @@ def register(app, state) -> None:
             notification_map,
         )
 
-        # Build slug → client_type map
+        # Build slug → client_type map. Base values from report_objects are
+        # month-agnostic; overlay the versioned profile segment covering the
+        # SELECTED month so an Objekty import (which writes report_object_profiles,
+        # not report_objects/clients) is reflected in the displayed type AND the
+        # owner name (which drives the rentero/klient grouping below).
         client_type_map = {}
         for obj in conn.execute("SELECT slug, client_type FROM report_objects").fetchall():
             client_type_map[obj["slug"]] = obj["client_type"] or "rentero"
+        _profile_overlay = state["_resolve_dashboard_profile_overlay"](
+            conn, [p["slug"] for p in properties], selected_year, selected_month
+        )
+        for _slug, _seg in _profile_overlay.items():
+            if _seg.get("client_type"):
+                client_type_map[_slug] = _seg["client_type"]
+            if (_seg.get("owner_name") or "").strip():
+                client_map[_slug] = _seg["owner_name"]
 
         # Rentero-owned heuristic — same definition the property page uses
         # in property_kpi.html / property_intro.html. Some properties are

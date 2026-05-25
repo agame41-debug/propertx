@@ -1,8 +1,8 @@
 import json
 
 from report.db import get_connection
-from report.db_object_profiles import insert_segment
-from report.web_support import _build_dashboard_maps
+from report.db_object_profiles import insert_segment, set_profile_from_month_onward
+from report.web_support import _build_dashboard_maps, _resolve_dashboard_profile_overlay
 
 
 def _add_row(conn, slug, y, m, payout, cena):
@@ -33,4 +33,33 @@ def test_dashboard_uses_month_profile_for_fee():
     assert round(history_map["x"][(2026, 4)]["rentero_fee_sum_czk"]) == 120
     # May: z_klient fee = payout * 0.03 = 30
     assert round(history_map["x"][(2026, 5)]["rentero_fee_sum_czk"]) == 30
+    conn.close()
+
+
+def test_overlay_month_resolves_displayed_type_and_owner():
+    """Regression: the dashboard's displayed client_type/owner must follow the
+    month-versioned profile, not the stale base report_objects.client_type. An
+    Objekty import that flips an object rentero->klient from April onward must
+    show as 'klient' for April+ and stay 'rentero' for March."""
+    conn = get_connection(":memory:")
+    # Base object stays 'rentero' (Objekty import never touches report_objects).
+    conn.execute(
+        "INSERT INTO report_objects (slug, display_name, client_type, created_at, updated_at) "
+        "VALUES ('Opletalova_45_Leva','Opletalova 45 - levá','rentero','t','t')"
+    )
+    insert_segment(conn, "Opletalova_45_Leva", None, None,
+                   {"client_type": "rentero", "owner_name": ""})
+    # Import writes a klient segment from 2026-04 onward.
+    set_profile_from_month_onward(conn, "Opletalova_45_Leva", 2026, 4,
+                                  {"client_type": "klient",
+                                   "owner_name": "D-Corp Property A s.r.o."}, source="tsv")
+    slugs = ["Opletalova_45_Leva"]
+
+    march = _resolve_dashboard_profile_overlay(conn, slugs, 2026, 3)
+    assert march["Opletalova_45_Leva"]["client_type"] == "rentero"
+
+    for mth in (4, 5):
+        ov = _resolve_dashboard_profile_overlay(conn, slugs, 2026, mth)
+        assert ov["Opletalova_45_Leva"]["client_type"] == "klient"
+        assert ov["Opletalova_45_Leva"]["owner_name"] == "D-Corp Property A s.r.o."
     conn.close()
