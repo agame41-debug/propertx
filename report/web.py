@@ -63,6 +63,14 @@ from report.db_object_profiles import (
     list_object_profile_segments,
     get_object_profile,
 )
+from report.db_expense_templates import (
+    create_expense_template,
+    update_expense_template,
+    delete_expense_template,
+    list_expense_templates,
+    materialize_templates_for_month,
+    add_template_skip,
+)
 from report.routes import register_all as register_route_modules
 from report.db import (
     get_connection,

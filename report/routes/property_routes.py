@@ -314,6 +314,10 @@ def register(app, state) -> None:
         exp_year = expense["year"]
         exp_month = expense["month"]
         state["_ensure_month_open"](conn, prop_slug, exp_year, exp_month)
+        # If this row came from a recurring template, tombstone the month so
+        # re-materialization (incl. the regen just below) won't recreate it.
+        if expense.get("template_id"):
+            state["add_template_skip"](conn, int(expense["template_id"]), exp_year, exp_month)
         state["delete_expense"](conn, expense_id)
         try:
             state["generate_report_in_process"](conn, prop_slug, exp_year, exp_month, config)
@@ -321,6 +325,82 @@ def register(app, state) -> None:
             state["mark_report_month_stale"](conn, prop_slug, exp_year, exp_month)
         referer = request.headers.get("referer", "/expenses")
         return RedirectResponse(referer, status_code=303)
+
+    @app.post("/expense-templates/add")
+    async def expense_template_add(
+        request: Request,
+        property_slug: str = Form(...),
+        year: int = Form(...),
+        month: int = Form(...),
+        description: str = Form(...),
+        category_id: str = Form(""),
+        amount_czk: str = Form(""),
+        amount_net_czk: str = Form(""),
+        amount_dph_czk: str = Form(""),
+        vat_rate: str = Form(""),
+        start_ym: str = Form(""),
+        end_ym: str = Form(""),
+        _csrf=Depends(require_csrf),
+        _=Depends(require_auth),
+        _w=Depends(require_write_access),
+        conn=Depends(get_db),
+        config=Depends(get_config),
+    ):
+        from report.expenses_validation import validate_and_canonicalize, ExpenseValidationError
+        raw_rate = _parse_decimal(vat_rate)
+        if raw_rate is None:
+            raw_rate = 0.0
+        try:
+            gross, net, dph, rate = validate_and_canonicalize(
+                gross=_parse_decimal(amount_czk),
+                net=_parse_decimal(amount_net_czk),
+                dph=_parse_decimal(amount_dph_czk),
+                vat_rate=round(raw_rate / 100.0, 4),
+            )
+        except ExpenseValidationError as e:
+            state["_set_flash"](request, "error", str(e))
+            return RedirectResponse(request.headers.get("referer", "/expenses"), status_code=303)
+
+        start = (start_ym or "").strip() or f"{int(year):04d}-{int(month):02d}"
+        end = (end_ym or "").strip() or None
+        state["create_expense_template"](conn, {
+            "property_slug": property_slug,
+            "category_id": int(category_id) if category_id else None,
+            "description": description,
+            "amount_czk": gross, "amount_net_czk": net, "amount_dph_czk": dph,
+            "vat_rate": rate, "start_ym": start, "end_ym": end, "source": "ui",
+        })
+        # Materialize into the current page month so the row appears immediately.
+        state["_ensure_month_open"](conn, property_slug, year, month)
+        try:
+            state["materialize_templates_for_month"](conn, property_slug, year, month)
+            state["generate_report_in_process"](conn, property_slug, year, month, config)
+        except Exception:
+            state["mark_report_month_stale"](conn, property_slug, year, month)
+        state["_set_flash"](request, "success", "Pravidelný výdaj byl uložen.")
+        return RedirectResponse(request.headers.get("referer", "/expenses"), status_code=303)
+
+    @app.post("/expense-templates/{template_id}/delete")
+    async def expense_template_delete(
+        request: Request,
+        template_id: int,
+        property_slug: str = Form(""),
+        year: int = Form(0),
+        month: int = Form(0),
+        _csrf=Depends(require_csrf),
+        _=Depends(require_auth),
+        _w=Depends(require_write_access),
+        conn=Depends(get_db),
+        config=Depends(get_config),
+    ):
+        state["delete_expense_template"](conn, template_id)
+        if property_slug and year and month:
+            try:
+                state["generate_report_in_process"](conn, property_slug, year, month, config)
+            except Exception:
+                pass
+        state["_set_flash"](request, "success", "Pravidelný výdaj byl smazán.")
+        return RedirectResponse(request.headers.get("referer", "/expenses"), status_code=303)
 
     @app.post("/months/generate-all")
     async def generate_all_for_month(

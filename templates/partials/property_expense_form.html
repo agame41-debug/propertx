@@ -77,6 +77,24 @@
   {# vat_rate as percent integer; default 21 to match the active tab. JS keeps in sync. #}
   <input type="hidden" name="vat_rate" value="21" data-calc-rate-input>
 
+  {# Recurring toggle (add-mode only). When on, submit posts to /expense-templates/add. #}
+  <div class="ae-row" data-recurring-wrap style="align-items:center;gap:16px;">
+    <label class="ae-k" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+      <input type="checkbox" data-recurring-toggle style="width:14px;height:14px;accent-color:var(--color-primary);">
+      Pravidelný (každý měsíc)
+    </label>
+    <div data-recurring-period hidden style="display:flex;gap:12px;align-items:flex-end;">
+      <div class="ae-field">
+        <label class="ae-k">Od měsíce</label>
+        <input class="ae-in" type="month" name="start_ym" value="{{ year }}-{{ '%02d'|format(month) }}">
+      </div>
+      <div class="ae-field">
+        <label class="ae-k">Do měsíce <span style="color:var(--text-300);">(prázdné = bez konce)</span></label>
+        <input class="ae-in" type="month" name="end_ym" value="">
+      </div>
+    </div>
+  </div>
+
   <div class="ae-actions-row">
     <button type="button" class="btn-link" data-form-cancel>Zrušit</button>
     <button type="submit" class="btn-add btn-add-solid">

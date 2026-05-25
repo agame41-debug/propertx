@@ -985,6 +985,8 @@ def _render_property_template(
     attach_mock_status(rows)
     counts = compute_status_counts(rows)
     expenses_by_cat = group_expenses_by_category(expenses)
+    from report.db_expense_templates import list_expense_templates
+    expense_templates = list_expense_templates(conn, slug, active_only=True)
     prev_year, prev_month = get_adjacent_month(year, month, "prev")
     next_year, next_month = get_adjacent_month(year, month, "next")
     totals = {
@@ -1033,6 +1035,7 @@ def _render_property_template(
             "bank_txns_by_code": bank_txns_by_code,
             "counts": counts,
             "expenses_by_cat": expenses_by_cat,
+            "expense_templates": expense_templates,
             "prev_month_target": {"year": prev_year, "month": prev_month},
             "next_month_target": {"year": next_year, "month": next_month},
             "totals": totals,

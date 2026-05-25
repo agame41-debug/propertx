@@ -31,6 +31,32 @@
     {% include "partials/property_expense_form.html" %}
   {% endif %}
 
+  {% if expense_templates %}
+  <div class="exp-templates" style="padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:8px;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-300);margin-bottom:6px;">Pravidelné výdaje</div>
+    {% for t in expense_templates %}
+      <div style="display:flex;align-items:center;gap:10px;font-size:13px;padding:3px 0;">
+        <span class="badge" style="background:var(--color-primary-50,#eef);color:var(--color-primary);">pravidelný</span>
+        <span style="color:var(--text-100);flex:1;">{{ t.description }}</span>
+        <span class="num">{{ t.start_ym }} → {{ t.end_ym or '…' }}</span>
+        <span class="num strong">{{ fmt_czk(t.amount_czk) }}</span>
+        {% if month_state.status != 'LOCKED' and _user and _user.role != 'client' %}
+        <form method="post" action="/expense-templates/{{ t.id }}/delete" style="display:inline"
+              onsubmit="return confirm('Smazat pravidelný výdaj «{{ t.description|e }}»? (existující měsíce zůstanou)');">
+          {{ csrf_input(request) }}
+          <input type="hidden" name="property_slug" value="{{ slug }}">
+          <input type="hidden" name="year" value="{{ year }}">
+          <input type="hidden" name="month" value="{{ month }}">
+          <button class="exp-edit" type="submit" title="Smazat pravidelný" style="color:var(--err)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <table class="t exp-table">
     <thead>
       <tr>
@@ -64,7 +90,10 @@
             {% set rate_pct = (rate * 100)|int if rate is not none else None %}
             <tr class="exp-row" data-expense-id="{{ e.id }}">
               <td class="num">{{ e.date or '—' }}</td>
-              <td style="color:var(--text-100)">{{ e.description }}</td>
+              <td style="color:var(--text-100)">
+                {{ e.description }}
+                {% if e.template_id %}<span class="badge" style="background:var(--color-primary-50,#eef);color:var(--color-primary);font-size:10px;">pravidelný</span>{% endif %}
+              </td>
               <td class="c">
                 {% if rate_pct is not none %}
                   <span class="badge vat-{{ rate_pct }}">DPH {{ rate_pct }}%</span>

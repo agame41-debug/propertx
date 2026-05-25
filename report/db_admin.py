@@ -297,7 +297,7 @@ def get_expenses(
 ) -> list[dict]:
     sql = """SELECT e.id, e.property_slug, e.year, e.month, e.date,
                     e.description, e.amount_czk, e.amount_net_czk, e.amount_dph_czk,
-                    e.vat_rate, e.created_at,
+                    e.vat_rate, e.created_at, e.template_id,
                     c.name AS category_name, e.category_id
              FROM expenses e
              LEFT JOIN expense_categories c ON c.id = e.category_id"""
@@ -322,7 +322,7 @@ def get_expense(conn: sqlite3.Connection, expense_id: int) -> dict | None:
     row = conn.execute(
         """SELECT e.id, e.property_slug, e.year, e.month, e.date,
                   e.description, e.amount_czk, e.amount_net_czk, e.amount_dph_czk,
-                  e.vat_rate, e.created_at,
+                  e.vat_rate, e.created_at, e.template_id,
                   c.name AS category_name, e.category_id
            FROM expenses e
            LEFT JOIN expense_categories c ON c.id = e.category_id

@@ -296,6 +296,20 @@
       });
     }
 
+    // Recurring toggle (add mode only) — switches the POST target to the
+    // template route and reveals the period inputs.
+    var recurringToggle = expForm.querySelector('[data-recurring-toggle]');
+    var recurringPeriod = expForm.querySelector('[data-recurring-period]');
+    var recurringWrap = expForm.querySelector('[data-recurring-wrap]');
+    function _setRecurring(on) {
+      if (recurringToggle) recurringToggle.checked = on;
+      if (recurringPeriod) recurringPeriod.hidden = !on;
+      expForm.action = on ? '/expense-templates/add' : '/expenses/add';
+    }
+    if (recurringToggle) {
+      recurringToggle.addEventListener('change', function() { _setRecurring(recurringToggle.checked); });
+    }
+
     // Toggle (add mode)
     if (expToggleBtn) {
       expToggleBtn.addEventListener('click', function() {
@@ -313,6 +327,8 @@
               b.classList.toggle('active', b.getAttribute('data-rate') === '21');
             });
           }
+          if (recurringWrap) recurringWrap.style.display = '';
+          _setRecurring(false);
           expForm.hidden = false;
           expToggleBtn.setAttribute('aria-expanded', 'true');
           expForm.querySelector('input[name="description"]').focus();
@@ -337,6 +353,10 @@
       btn.addEventListener('click', function() {
         var id = btn.getAttribute('data-expense-id');
         expForm.action = '/expenses/' + id + '/edit';
+        // Recurring is add-only: hide its controls when editing a single row.
+        if (recurringWrap) recurringWrap.style.display = 'none';
+        if (recurringToggle) recurringToggle.checked = false;
+        if (recurringPeriod) recurringPeriod.hidden = true;
         expForm.querySelector('[data-form-title]').textContent = 'Upravit výdaj #' + id;
         expForm.querySelector('[data-form-submit-label]').textContent = 'Uložit změny';
         expForm.querySelector('input[name="date_str"]').value = btn.getAttribute('data-expense-date') || '';
