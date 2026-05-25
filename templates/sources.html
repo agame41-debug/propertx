@@ -33,7 +33,7 @@
       {{ csrf_input(request) }}
       <div>
         <label class="form-label">Typ zdroje</label>
-        <select name="source_type" class="form-input" style="width:180px;">
+        <select name="source_type" id="src-type-select" class="form-input" style="width:180px;">
           {% for source_type in source_types %}
           <option value="{{ source_type }}" {% if source_type == selected_type %}selected{% endif %}>
             {{ source_type_label(source_type) }}
@@ -41,10 +41,10 @@
           {% endfor %}
         </select>
       </div>
-      <div>
-        <label class="form-label">Platí od měsíce <span style="color:var(--text-300);font-weight:400;">(Objekty)</span></label>
+      <div id="objekty-month-field" {% if selected_type != 'objekty' %}style="display:none;"{% endif %}>
+        <label class="form-label">Platí od měsíce</label>
         <input type="month" name="effective_ym" class="form-input" style="width:160px;"
-               title="Použije se jen pro import typu Objekty. Prázdné = aktuální měsíc.">
+               title="Prázdné = aktuální měsíc.">
       </div>
       <div style="flex:1;min-width:200px;">
         <label class="form-label">Soubor</label>
@@ -54,6 +54,18 @@
     </form>
   </div>
 </div>
+
+<script>
+  /* Show the "Platí od měsíce" field only when source type = objekty. */
+  (function () {
+    var sel = document.getElementById('src-type-select');
+    var field = document.getElementById('objekty-month-field');
+    if (!sel || !field) return;
+    function sync() { field.style.display = (sel.value === 'objekty') ? '' : 'none'; }
+    sel.addEventListener('change', sync);
+    sync();
+  })();
+</script>
 
 {# Type filter tabs #}
 <div style="margin-bottom:16px;display:flex;align-items:center;gap:8px;">
