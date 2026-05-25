@@ -392,6 +392,35 @@ def get_property_config(listing_id: int | str, config: dict) -> dict:
     raise KeyError(f"No property configured for listing_id={listing_id}")
 
 
+def resolve_property_config(conn, slug: str, year: int, month: int, config: dict) -> dict:
+    """Return the property config for a slug as of (year, month).
+
+    Starts from the base config (channels / aliases / identity) and overlays the
+    month-resolved profile segment (owner + client_type + rates + active + středisko).
+    Falls back to base values when no segment exists (legacy DBs).
+    """
+    from report.db_object_profiles import get_object_profile
+
+    prop = dict((config.get("properties") or {}).get(slug) or {})
+    prop["slug"] = slug
+    seg = get_object_profile(conn, slug, year, month)
+    if seg:
+        for f in ("client_type", "city_tax_rate", "balicky_per_person",
+                  "vat_rate", "rentero_commission"):
+            if seg.get(f) is not None:
+                prop[f] = seg[f]
+        prop["active"] = bool(seg.get("active", prop.get("active", True)))
+        prop["stredisko"] = seg.get("stredisko") or prop.get("stredisko", "")
+        prop["owner"] = {
+            "name": seg.get("owner_name", ""), "ico": seg.get("ico", ""),
+            "dic": seg.get("dic", ""), "platce_dph": seg.get("platce_dph", 0),
+            "adresa": seg.get("adresa", ""), "bank_account": seg.get("bank_account", ""),
+            "email": seg.get("email", ""), "phone": seg.get("phone", ""),
+            "notes": seg.get("notes", ""),
+        }
+    return prop
+
+
 def get_all_slugs(config: dict, *, active_only: bool = False) -> list[str]:
     """Return all property slug keys."""
     return [
