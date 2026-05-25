@@ -272,7 +272,14 @@
         <div style="font-size:var(--text-sm);font-weight:600;color:var(--color-green);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(payout) }}">{{ "{:,.2f}".format(payout).replace(",", "X").replace(".", ",").replace("X", " ") }} Kč</div>
         {% if row.is_rentero %}
           <div style="font-size:10px;color:var(--brand);font-variant-numeric:tabular-nums;" data-copy="{{ "%.2f"|format(zisk) }}">rentero {{ "{:,.2f}".format(zisk).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
-          {% if model_fee > 0 %}
+          {# Rentero-owned objects that are billed under a real fee (z_režim 3 % or
+             a klient commission — e.g. objects owned by Rentero Investments /
+             Rentero Home A) earn an ACTUAL odměna, not just the notional model
+             one. Show the real fee when present (it is already in the KPI), and
+             fall back to the modelová odměna for pure Rentero objects. #}
+          {% if rentero_fee > 0 %}
+          <div style="font-size:10px;color:var(--color-red);font-variant-numeric:tabular-nums;" title="Reálná odměna Rentero z tohoto objektu (z_režim 3 % / provize)" data-copy="{{ "%.2f"|format(rentero_fee) }}">odměna {{ "{:,.2f}".format(rentero_fee).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
+          {% elif model_fee > 0 %}
           <div style="font-size:10px;color:var(--color-red);font-variant-numeric:tabular-nums;opacity:.85;" title="Modelová odměna — kolik by Rentero vydělalo, kdyby objekt byl klientský" data-copy="{{ "%.2f"|format(model_fee) }}">odměna {{ "{:,.2f}".format(model_fee).replace(",", "X").replace(".", ",").replace("X", " ") }}</div>
           {% endif %}
         {% elif client_payout > 0 %}
