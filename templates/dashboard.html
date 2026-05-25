@@ -357,13 +357,14 @@ function _applyFilters() {
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
     var show = true;
     var ct = row.dataset.clientType || 'rentero';
-    // Rentero tab = everything on Rentero's side (is_rentero, owner-name heuristic).
-    // Z Klienti groups strictly by client_type, so Rentero-owned z_klient objects
-    // (Opletalova_10, Ostrovni_4) appear here AND under Rentero. Klienti stays
-    // external-klient only (excludes Rentero-owned).
+    // All three tabs group STRICTLY by client_type. Rentero-owned z_klient
+    // objects (Opletalova_10, Ostrovni_4) therefore show only under Z Klienti,
+    // not under Rentero — so the Rentero "Odměna Rentero" KPI stays pure modelová
+    // (0 real fee); their real 3 % counts under Z Klienti / Vše. is_rentero is
+    // still used below for the client-payout aggregation, not for tab membership.
     var isRent = row.dataset.isRentero === '1';
-    if (_activeTab === 'rentero') show = isRent;
-    else if (_activeTab === 'clients') show = !isRent && ct === 'klient';
+    if (_activeTab === 'rentero') show = ct === 'rentero';
+    else if (_activeTab === 'clients') show = ct === 'klient';
     else if (_activeTab === 'z_clients') show = ct === 'z_klient';
     if (show && _searchQuery) show = row.textContent.toLowerCase().includes(_searchQuery);
     if (show) { row.removeAttribute('hidden'); row.style.cssText = row.style.cssText.replace(/display\s*:\s*none\s*!important;?/g, ''); }
