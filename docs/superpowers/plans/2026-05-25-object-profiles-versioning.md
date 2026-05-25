@@ -1028,3 +1028,17 @@ git commit -m "feat(profiles): edit UI scope selector writes month segment + his
   `_build_dashboard_maps` return arity/agg key names (Task 7 Step 1 note); exact GET
   handler that renders `client.html` (Task 8 Step 4 note). Both are "verify then apply the
   shown edit", with the concrete edit provided.
+
+## Known gaps (post-audit, 2026-05-25)
+
+- **Dashboard `active` filter is not month-resolved.** The dashboard overlays the
+  selected month's `client_type` and `owner_name` from the profile, but the *visible-
+  object set* still comes from the base config's `active` flag (`get_accessible_properties`
+  / `_get_active_properties`), not the per-month segment's `active`. An object deactivated
+  from month M onward in its profile therefore still appears on the dashboard for M (and a
+  profile that reactivates a historically-inactive object for a past month won't show it).
+  `resolve_property_config` *does* month-resolve `active`, so the property page and engine
+  are correct; only the dashboard's row-visibility filter is month-agnostic. Deferred
+  intentionally — wiring month-aware visibility changes which objects appear on the board,
+  which is a UX decision to make deliberately rather than silently. To close: add `active`
+  to `_resolve_dashboard_profile_overlay`'s SELECT and apply it to the visible set.

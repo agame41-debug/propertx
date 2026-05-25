@@ -82,6 +82,33 @@ def test_no_overlap_invariant_holds():
     conn.close()
 
 
+def test_no_overlap_invariant_after_random_op_sequences():
+    """Integrity: after arbitrary onward/this-month-only sequences from a full-
+    coverage seed, every month must resolve to EXACTLY one covering segment (the
+    dashboard JOIN double-counts revenue on overlap, with no error)."""
+    import random
+    conn = get_connection(":memory:")
+    _seed_open(conn)  # [NULL, NULL] full coverage
+    rnd = random.Random(20260525)
+    for _ in range(60):
+        mth = rnd.randint(1, 12)
+        if rnd.random() < 0.5:
+            set_profile_from_month_onward(conn, "x", 2026, mth, {"owner_name": f"o{mth}"})
+        else:
+            set_profile_this_month_only(conn, "x", 2026, mth, {"owner_name": f"m{mth}"})
+    for mth in range(1, 13):
+        m = ym(2026, mth)
+        c = conn.execute(
+            """SELECT COUNT(*) AS c FROM report_object_profiles
+               WHERE slug='x'
+                 AND (valid_from_ym IS NULL OR valid_from_ym <= ?)
+                 AND (valid_to_ym IS NULL OR valid_to_ym >= ?)""",
+            (m, m),
+        ).fetchone()["c"]
+        assert c == 1, f"month {m} resolved to {c} segments (expected exactly 1)"
+    conn.close()
+
+
 from report.db_object_profiles import backfill_object_profiles
 
 
