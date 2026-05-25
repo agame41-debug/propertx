@@ -30,6 +30,7 @@ from report.bank import (
     resolve_pending_against_bank,
 )
 from report.calculator import calculate_all_rows
+from report.db_expense_templates import materialize_templates_for_month
 from report.checkin import apply_checkin_city_tax_overrides, hydrate_checkin_groups_from_db
 from report.cnb import CnbRateError, get_rate_for_reservation, preload_rates_for_month
 from report.config import get_booking_config, get_hostify_listing_names, get_all_properties, resolve_property_config
@@ -468,6 +469,13 @@ def generate_report_in_process(
         "DELETE FROM report_rows WHERE slug = ? AND year = ? AND month = ?",
         (slug, year, month),
     )
+
+    # ── Materialize recurring expense templates into this (open) month so the
+    #    expense table / summary include them. Idempotent; never fails generation.
+    try:
+        materialize_templates_for_month(conn, slug, year, month)
+    except Exception:
+        log.warning("Template materialization failed for %s %d/%d", slug, month, year, exc_info=True)
 
     # ── Cutoff date ─────────────────────────────────────────────────────────
     if month == 12:

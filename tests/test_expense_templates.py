@@ -92,6 +92,28 @@ def test_materialize_skips_locked_month():
     conn.close()
 
 
+def test_engine_triggers_materialization(monkeypatch):
+    import pytest
+    import report.engine as engine
+    conn = get_connection(":memory:")
+    conn.execute("INSERT INTO report_objects (slug, created_at, updated_at) VALUES ('x','t','t')")
+    conn.commit()
+    seen = {}
+
+    def spy(c, slug, y, m):
+        seen["args"] = (slug, y, m)
+        return 0
+
+    monkeypatch.setattr("report.engine.materialize_templates_for_month", spy, raising=True)
+    config = {"properties": {"x": {"channels": {}, "client_type": "rentero"}}}
+    try:
+        engine.generate_report_in_process(conn, "x", 2026, 5, config)
+    except Exception:
+        pass  # downstream generation steps are irrelevant to this test
+    assert seen["args"] == ("x", 2026, 5)
+    conn.close()
+
+
 def test_upsert_tsv_template_is_idempotent_by_source():
     conn = get_connection(":memory:")
     _seed_object(conn)
