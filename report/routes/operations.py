@@ -217,6 +217,8 @@ def register(app, state) -> None:
         prop = props[slug]
         client = state["get_client"](conn, slug)
         aliases = state["get_report_object_aliases"](conn, slug, include_inactive=True)
+        from datetime import date as _date
+        _today = _date.today()
         return state["templates"].TemplateResponse(
             request,
             "client.html",
@@ -225,6 +227,8 @@ def register(app, state) -> None:
                 "slug": slug,
                 "client": client,
                 "aliases": aliases,
+                "profile_segments": state["list_object_profile_segments"](conn, slug),
+                "profile_anchor_ym": f"{_today.year:04d}-{_today.month:02d}",
                 "flash": state["_pop_flash"](request),
             },
         )
@@ -257,6 +261,8 @@ def register(app, state) -> None:
         config_effective_from: str = Form(""),
         rentero_commission: str = Form(""),
         client_type: str = Form(""),
+        profile_scope: str = Form("onward"),
+        profile_anchor_ym: str = Form(""),
         _csrf=Depends(require_csrf),
         _=Depends(require_auth),
         _w=Depends(require_write_access),
@@ -282,6 +288,45 @@ def register(app, state) -> None:
                 "notes": notes,
             },
         )
+
+        # ── Write the month-versioned object profile segment ──────────────
+        # Resolve the anchor month: explicit "YYYY-MM" input, else current month.
+        from datetime import date as _date
+        _anchor = (profile_anchor_ym or "").strip()
+        if len(_anchor) == 7 and _anchor[4] == "-":
+            anchor_y, anchor_m = int(_anchor[:4]), int(_anchor[5:7])
+        else:
+            _today = _date.today()
+            anchor_y, anchor_m = _today.year, _today.month
+
+        profile_changes = {
+            "owner_name": name, "ico": ico, "dic": dic,
+            "platce_dph": 1 if platce_dph else 0,
+            "adresa": adresa or address, "bank_account": bank_account,
+            "email": email, "phone": phone, "notes": notes,
+            "active": 1 if active else 0,
+        }
+        if client_type in ("rentero", "klient", "z_klient"):
+            profile_changes["client_type"] = client_type
+        for _fld, _raw in (("city_tax_rate", city_tax_rate),
+                           ("balicky_per_person", balicky_per_person),
+                           ("vat_rate", vat_rate)):
+            if _raw.strip():
+                try:
+                    profile_changes[_fld] = float(_raw.replace(",", ".").strip())
+                except ValueError:
+                    pass
+        if rentero_commission.strip():
+            try:
+                profile_changes["rentero_commission"] = float(
+                    rentero_commission.replace(",", ".").replace("%", "").strip()) / 100
+            except ValueError:
+                pass
+
+        if profile_scope == "month_only":
+            state["set_profile_this_month_only"](conn, slug, anchor_y, anchor_m, profile_changes)
+        else:
+            state["set_profile_from_month_onward"](conn, slug, anchor_y, anchor_m, profile_changes)
 
         updated_prop = dict(props[slug])
         updated_prop["display_name"] = display_name.strip() or updated_prop.get("display_name") or updated_prop.get("listing_nickname", "")

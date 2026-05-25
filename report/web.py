@@ -57,6 +57,12 @@ from report.source_registry import SOURCE_TYPES, import_uploaded_source, validat
 from report.summary import build_report_summary
 from report import web_support as _web_support
 from report.engine import run_generation_background
+from report.db_object_profiles import (
+    set_profile_from_month_onward,
+    set_profile_this_month_only,
+    list_object_profile_segments,
+    get_object_profile,
+)
 from report.routes import register_all as register_route_modules
 from report.db import (
     get_connection,

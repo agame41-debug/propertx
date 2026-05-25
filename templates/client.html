@@ -112,9 +112,17 @@
           <input type="text" name="rentero_commission" value="{{ "%.2f"|format((prop.rentero_commission or 0) * 100) }}" class="form-input">
         </div>
         <div>
-          <label class="form-label">Config effective from</label>
-          <input type="date" name="config_effective_from" value="" class="form-input">
+          <label class="form-label">Rozsah změny</label>
+          <select name="profile_scope" class="form-input">
+            <option value="onward">Od tohoto měsíce dál</option>
+            <option value="month_only">Jen tento měsíc</option>
+          </select>
         </div>
+        <div>
+          <label class="form-label">Měsíc změny</label>
+          <input type="month" name="profile_anchor_ym" value="{{ profile_anchor_ym or '' }}" class="form-input">
+        </div>
+        <input type="hidden" name="config_effective_from" value="">
         <div style="grid-column:1/-1;">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
             <input type="checkbox" name="active" value="1" {% if prop.active %}checked{% endif %}
@@ -124,6 +132,27 @@
         </div>
       </div>
     </div>
+
+    {% if profile_segments %}
+    <div class="card">
+      <div class="card-header"><span class="card-title">Historie profilu</span></div>
+      <div style="padding:12px 20px;">
+        <table class="t"><thead><tr>
+          <th>Od</th><th>Do</th><th>Vlastník</th><th>Typ</th><th>Provize</th>
+        </tr></thead><tbody>
+        {% for s in profile_segments %}
+          <tr>
+            <td class="num">{{ s.valid_from_ym or '—' }}</td>
+            <td class="num">{{ s.valid_to_ym or '…' }}</td>
+            <td>{{ s.owner_name or '—' }}</td>
+            <td>{{ s.client_type }}</td>
+            <td class="num">{{ "%.0f"|format((s.rentero_commission or 0) * 100) }}%</td>
+          </tr>
+        {% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+    {% endif %}
 
     <div class="card">
       <div class="card-header"><span class="card-title">Source Mapping</span></div>

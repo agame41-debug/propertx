@@ -110,6 +110,20 @@ def test_backfill_collapses_legacy_into_open_segment():
     conn.close()
 
 
+def test_client_save_payload_writes_segment_from_month_onward():
+    """The save handler's profile write path: 'from month onward' creates a segment
+    starting at the anchor month and leaves earlier months on the old owner."""
+    conn = get_connection(":memory:")
+    conn.execute("INSERT INTO report_objects (slug, created_at, updated_at) VALUES ('x','t','t')")
+    insert_segment(conn, "x", None, None, {"owner_name": "Old", "client_type": "klient"})
+    set_profile_from_month_onward(conn, "x", 2026, 5,
+                                  {"owner_name": "New s.r.o.", "ico": "999", "client_type": "z_klient"})
+    assert get_object_profile(conn, "x", 2026, 4)["owner_name"] == "Old"
+    assert get_object_profile(conn, "x", 2026, 5)["client_type"] == "z_klient"
+    assert get_object_profile(conn, "x", 2026, 5)["ico"] == "999"
+    conn.close()
+
+
 def test_report_object_profiles_table_exists():
     conn = get_connection(":memory:")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(report_object_profiles)")}
