@@ -350,13 +350,14 @@ function _applyFilters() {
   document.querySelectorAll('#property-grid .prop-row').forEach(function(row) {
     var show = true;
     var ct = row.dataset.clientType || 'rentero';
-    // is_rentero uses the owner-name heuristic (matches the backend),
-    // so Rentero-as-z_klient objects (Opletalova_10, Ostrovni_4) appear
-    // under the Rentero tab and not under Z Klienti.
+    // Rentero tab = everything on Rentero's side (is_rentero, owner-name heuristic).
+    // Z Klienti groups strictly by client_type, so Rentero-owned z_klient objects
+    // (Opletalova_10, Ostrovni_4) appear here AND under Rentero. Klienti stays
+    // external-klient only (excludes Rentero-owned).
     var isRent = row.dataset.isRentero === '1';
     if (_activeTab === 'rentero') show = isRent;
     else if (_activeTab === 'clients') show = !isRent && ct === 'klient';
-    else if (_activeTab === 'z_clients') show = !isRent && ct === 'z_klient';
+    else if (_activeTab === 'z_clients') show = ct === 'z_klient';
     if (show && _searchQuery) show = row.textContent.toLowerCase().includes(_searchQuery);
     if (show) { row.removeAttribute('hidden'); row.style.cssText = row.style.cssText.replace(/display\s*:\s*none\s*!important;?/g, ''); }
     else { row.style.setProperty('display', 'none', 'important'); }
