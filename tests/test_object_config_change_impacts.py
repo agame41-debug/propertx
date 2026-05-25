@@ -120,6 +120,10 @@ def test_client_save_triggers_impacts_on_alias_change(monkeypatch):
         lambda conn, slug, **kw: (calls.__setitem__("impact_slug", slug)
                                   or {"auto_started": [("Obj_A", 2026, 4)], "locked_notified": []}),
     )
+    # Profile-segment writes are real DB collaborators of client_save; stub them
+    # like the other DB collaborators so this test stays isolated to impact firing.
+    monkeypatch.setattr(web_module, "set_profile_from_month_onward", lambda *a, **kw: None)
+    monkeypatch.setattr(web_module, "set_profile_this_month_only", lambda *a, **kw: None)
     monkeypatch.setattr(
         web_module, "_set_flash",
         lambda req, level, message, detail=None: req.session.update(

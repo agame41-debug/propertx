@@ -289,45 +289,6 @@ def register(app, state) -> None:
             },
         )
 
-        # ── Write the month-versioned object profile segment ──────────────
-        # Resolve the anchor month: explicit "YYYY-MM" input, else current month.
-        from datetime import date as _date
-        _anchor = (profile_anchor_ym or "").strip()
-        if len(_anchor) == 7 and _anchor[4] == "-":
-            anchor_y, anchor_m = int(_anchor[:4]), int(_anchor[5:7])
-        else:
-            _today = _date.today()
-            anchor_y, anchor_m = _today.year, _today.month
-
-        profile_changes = {
-            "owner_name": name, "ico": ico, "dic": dic,
-            "platce_dph": 1 if platce_dph else 0,
-            "adresa": adresa or address, "bank_account": bank_account,
-            "email": email, "phone": phone, "notes": notes,
-            "active": 1 if active else 0,
-        }
-        if client_type in ("rentero", "klient", "z_klient"):
-            profile_changes["client_type"] = client_type
-        for _fld, _raw in (("city_tax_rate", city_tax_rate),
-                           ("balicky_per_person", balicky_per_person),
-                           ("vat_rate", vat_rate)):
-            if _raw.strip():
-                try:
-                    profile_changes[_fld] = float(_raw.replace(",", ".").strip())
-                except ValueError:
-                    pass
-        if rentero_commission.strip():
-            try:
-                profile_changes["rentero_commission"] = float(
-                    rentero_commission.replace(",", ".").replace("%", "").strip()) / 100
-            except ValueError:
-                pass
-
-        if profile_scope == "month_only":
-            state["set_profile_this_month_only"](conn, slug, anchor_y, anchor_m, profile_changes)
-        else:
-            state["set_profile_from_month_onward"](conn, slug, anchor_y, anchor_m, profile_changes)
-
         updated_prop = dict(props[slug])
         updated_prop["display_name"] = display_name.strip() or updated_prop.get("display_name") or updated_prop.get("listing_nickname", "")
         updated_prop["listing_nickname"] = listing_nickname.strip() or updated_prop.get("listing_nickname", "")
@@ -396,6 +357,50 @@ def register(app, state) -> None:
             replace_aliases=True,
             alias_valid_from=effective_from,
         )
+
+        # ── Write the month-versioned object profile segment ──────────────
+        # Runs AFTER sync_property_to_db so report_objects(slug) exists (FK)
+        # and BEFORE the regen impacts below so regeneration sees the new
+        # profile. Anchor month: explicit "YYYY-MM", else current month.
+        # profile_scope/profile_anchor_ym are optional new fields; coerce
+        # defensively so direct (non-HTTP) callers that omit them still work.
+        from datetime import date as _date
+        _scope = profile_scope if isinstance(profile_scope, str) else "onward"
+        _anchor = (profile_anchor_ym if isinstance(profile_anchor_ym, str) else "").strip()
+        if len(_anchor) == 7 and _anchor[4] == "-":
+            anchor_y, anchor_m = int(_anchor[:4]), int(_anchor[5:7])
+        else:
+            _today = _date.today()
+            anchor_y, anchor_m = _today.year, _today.month
+
+        profile_changes = {
+            "owner_name": name, "ico": ico, "dic": dic,
+            "platce_dph": 1 if platce_dph else 0,
+            "adresa": adresa or address, "bank_account": bank_account,
+            "email": email, "phone": phone, "notes": notes,
+            "active": 1 if active else 0,
+        }
+        if client_type in ("rentero", "klient", "z_klient"):
+            profile_changes["client_type"] = client_type
+        for _fld, _raw in (("city_tax_rate", city_tax_rate),
+                           ("balicky_per_person", balicky_per_person),
+                           ("vat_rate", vat_rate)):
+            if _raw.strip():
+                try:
+                    profile_changes[_fld] = float(_raw.replace(",", ".").strip())
+                except ValueError:
+                    pass
+        if rentero_commission.strip():
+            try:
+                profile_changes["rentero_commission"] = float(
+                    rentero_commission.replace(",", ".").replace("%", "").strip()) / 100
+            except ValueError:
+                pass
+
+        if _scope == "month_only":
+            state["set_profile_this_month_only"](conn, slug, anchor_y, anchor_m, profile_changes)
+        else:
+            state["set_profile_from_month_onward"](conn, slug, anchor_y, anchor_m, profile_changes)
 
         aliases_after = _object_alias_signature(
             state["get_report_object_aliases"](conn, slug, include_inactive=False)
