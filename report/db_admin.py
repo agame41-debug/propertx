@@ -79,7 +79,7 @@ def upsert_report_object(conn: sqlite3.Connection, data: dict) -> None:
             "display_name": data.get("display_name", ""),
             "hostify_listing_id": data.get("hostify_listing_id"),
             "listing_nickname": data.get("listing_nickname", ""),
-            "balicky_per_person": data.get("balicky_per_person", 0),
+            "balicky_per_person": data.get("balicky_per_person", 249),
             "city_tax_rate": data.get("city_tax_rate", 0),
             "vat_rate": data.get("vat_rate", 0.21),
             "rentero_commission": data.get("rentero_commission", 0.15),

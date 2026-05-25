@@ -124,6 +124,17 @@ def test_client_save_payload_writes_segment_from_month_onward():
     conn.close()
 
 
+def test_new_segment_defaults_balicky_249_commission_015():
+    """New objects default to 15% commission and 249 Kč/person bundle."""
+    conn = get_connection(":memory:")
+    conn.execute("INSERT INTO report_objects (slug, created_at, updated_at) VALUES ('n','t','t')")
+    insert_segment(conn, "n", None, None, {"owner_name": "X"})  # bundle/commission omitted
+    seg = get_object_profile(conn, "n", 2026, 5)
+    assert seg["balicky_per_person"] == 249
+    assert seg["rentero_commission"] == 0.15
+    conn.close()
+
+
 def test_report_object_profiles_table_exists():
     conn = get_connection(":memory:")
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(report_object_profiles)")}

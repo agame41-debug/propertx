@@ -22,7 +22,7 @@ PROFILE_FIELDS = (
 _DEFAULTS = {
     "owner_name": "", "ico": "", "dic": "", "platce_dph": 0, "adresa": "",
     "bank_account": "", "email": "", "phone": "", "notes": "",
-    "client_type": "rentero", "city_tax_rate": 0, "balicky_per_person": 0,
+    "client_type": "rentero", "city_tax_rate": 0, "balicky_per_person": 249,
     "vat_rate": 0.21, "rentero_commission": 0.15, "stredisko": "", "active": 1,
 }
 
