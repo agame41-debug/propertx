@@ -233,7 +233,35 @@ CREATE TABLE IF NOT EXISTS expenses (
     amount_net_czk  REAL,
     amount_dph_czk  REAL,
     vat_rate        REAL,
+    template_id     INTEGER,
     created_at      TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS expense_templates (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    property_slug   TEXT NOT NULL,
+    category_id     INTEGER REFERENCES expense_categories(id) ON DELETE SET NULL,
+    description     TEXT NOT NULL,
+    amount_czk      REAL NOT NULL DEFAULT 0,
+    amount_net_czk  REAL,
+    amount_dph_czk  REAL,
+    vat_rate        REAL,
+    start_ym        TEXT NOT NULL,            -- "YYYY-MM"
+    end_ym          TEXT,                     -- "YYYY-MM" inclusive; NULL = ongoing
+    source          TEXT NOT NULL DEFAULT 'ui',
+    active          INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_expense_templates_slug
+    ON expense_templates(property_slug, active);
+
+CREATE TABLE IF NOT EXISTS expense_template_skips (
+    template_id     INTEGER NOT NULL REFERENCES expense_templates(id) ON DELETE CASCADE,
+    year            INTEGER NOT NULL,
+    month           INTEGER NOT NULL,
+    PRIMARY KEY (template_id, year, month)
 );
 
 CREATE TABLE IF NOT EXISTS cnb_rates (
@@ -835,6 +863,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "expenses", "amount_net_czk", "amount_net_czk REAL")
     _ensure_column(conn, "expenses", "amount_dph_czk", "amount_dph_czk REAL")
     _ensure_column(conn, "expenses", "vat_rate", "vat_rate REAL")
+    _ensure_column(conn, "expenses", "template_id", "template_id INTEGER")
     _seed_default_expense_categories(conn)
     _dedupe_source_files_by_type_sha256(conn)
     conn.execute(
