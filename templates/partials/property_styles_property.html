@@ -901,6 +901,22 @@
 }
 [data-theme="light"] .exp-edit:hover { background: oklch(0 0 0 / .04); }
 
+/* Recurring marker — replaces the old "pravidelný" badge.
+   As a <button> (editable months) it deletes the whole series on click;
+   as a <span> (locked / client) it is a read-only marker. Tooltip carries
+   the period. */
+.exp-recur-form { display: inline; }
+.exp-recur {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0; margin-right: 6px;
+  vertical-align: -3px;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-400); border-radius: var(--radius-sm);
+  transition: color var(--t-fast) var(--ease);
+}
+button.exp-recur:hover { color: var(--text-100); }
+span.exp-recur { cursor: default; }
+
 /* ───────── add buttons — naked, mono CAPS ─────────
    Used for primary actions inside cards (Přidat výdaj, etc).
    Same family as .badge — text-only, hue carries semantic. */

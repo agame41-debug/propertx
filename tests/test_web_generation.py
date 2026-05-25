@@ -1104,3 +1104,70 @@ def test_styles_define_ae_recurring():
     assert ".ae-recurring-period:not([hidden])" in css
 
 
+def _expenses_ctx(**over):
+    recurring = {
+        "id": 101, "date": "2026-05-10", "description": "Internet",
+        "category_id": 9, "vat_rate": 0.21,
+        "amount_net_czk": 1560.33, "amount_dph_czk": 327.67, "amount_czk": 1888.0,
+        "template_id": 7,
+    }
+    oneoff = {
+        "id": 102, "date": "2026-05-12", "description": "Elektřina",
+        "category_id": 9, "vat_rate": 0.21,
+        "amount_net_czk": 100.0, "amount_dph_czk": 21.0, "amount_czk": 121.0,
+        "template_id": None,
+    }
+    ctx = {
+        "request": _admin_request(),
+        "slug": "x", "year": 2026, "month": 5,
+        "categories": [{"id": 9, "name": "Ostatní"}],
+        "expenses": [recurring, oneoff],
+        "expenses_by_cat": {"Ostatní": [recurring, oneoff]},
+        "expense_templates": [{
+            "id": 7, "description": "Internet",
+            "start_ym": "2026-04", "end_ym": None, "amount_czk": 1222.5,
+        }],
+        "cat_dot_class": {},
+        "month_state": {"status": "OPEN"},
+        "_show_dph": True,
+        "summary": {
+            "expenses_total_czk": 2009.0, "vat_input_czk": 348.67,
+            "expenses_net_total_czk": 1660.33,
+        },
+    }
+    ctx.update(over)
+    return ctx
+
+
+def _render_expenses(**over):
+    return web_module.templates.get_template(
+        "partials/property_expenses.html"
+    ).render(**_expenses_ctx(**over))
+
+
+def test_expenses_table_drops_recurring_block():
+    html = _render_expenses()
+    assert "Pravidelné výdaje" not in html      # block heading gone
+    assert "exp-templates" not in html          # block markup gone
+    assert ">pravidelný<" not in html           # old per-row badge text gone
+
+
+def test_expenses_recurring_row_has_series_delete_control():
+    html = _render_expenses()
+    assert 'action="/expense-templates/7/delete"' in html  # series delete
+    assert "exp-recur" in html                             # the marker class
+    assert "2026-04" in html                               # period in tooltip
+
+
+def test_expenses_oneoff_row_has_no_series_control():
+    html = _render_expenses()
+    # Exactly one series-delete form total → the one-off row got no marker.
+    assert html.count("/expense-templates/") == 1
+
+
+def test_expenses_recurring_marker_readonly_when_locked():
+    html = _render_expenses(month_state={"status": "LOCKED"})
+    assert "/expense-templates/7/delete" not in html  # no delete form when locked
+    assert "exp-recur" in html                         # marker still shown
+
+
