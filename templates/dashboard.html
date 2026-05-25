@@ -342,6 +342,17 @@
 var _activeTab = 'all';
 var _searchQuery = '';
 
+// Complete server-computed DPH totals across ALL objects (incl. expense-only
+// objects with no reservations, whose input VAT is still deductible). The per-row
+// JS recompute below only sees rendered rows (rez_count>0), so for the default
+// unfiltered view we keep this complete figure — otherwise the DPH card would
+// silently change the moment the user first clicks a tab or searches. (audit H1)
+var _srvVat = {
+  output:  {{ dashboard_summary.rentero_vat_output_czk or 0 }},
+  input:   {{ dashboard_summary.rentero_vat_input_czk or 0 }},
+  balance: {{ dashboard_summary.rentero_vat_balance_czk or 0 }}
+};
+
 function _formatNumber(n) {
   var parts = n.toFixed(2).split('.');
   var intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -405,19 +416,24 @@ function _applyFilters() {
   var kpiClientPayout = document.getElementById('kpi-client-payout');
   if (kpiClientPayout) kpiClientPayout.innerHTML = _formatNumber(totalClientPayout) + ' Kč';
 
-  // Bilance DPH — standalone card, recomputed over the visible rows.
-  // refund (balance < 0) → green "+"; owed (balance >= 0) → red "−".
+  // Bilance DPH — standalone card. On the default unfiltered view ("Vše", no
+  // search) keep the complete server total; for any active filter recompute over
+  // the visible rows of that segment. refund (balance < 0) → green "+"; owed → red "−".
+  var _unfiltered = (_activeTab === 'all' && !_searchQuery);
+  var vatOut = _unfiltered ? _srvVat.output  : totalVatOutput;
+  var vatIn  = _unfiltered ? _srvVat.input   : totalVatInput;
+  var vatBal = _unfiltered ? _srvVat.balance : totalVatBalance;
   var kpiVatBalance = document.getElementById('kpi-vat-balance');
   var kpiVatOutput  = document.getElementById('kpi-vat-output');
   var kpiVatInput   = document.getElementById('kpi-vat-input');
   if (kpiVatBalance) {
-    var vatRefund = totalVatBalance < 0;
+    var vatRefund = vatBal < 0;
     kpiVatBalance.innerHTML = (vatRefund ? '+' : '−') + ' '
-      + _formatNumber(Math.abs(totalVatBalance)) + ' Kč';
+      + _formatNumber(Math.abs(vatBal)) + ' Kč';
     kpiVatBalance.style.color = vatRefund ? 'var(--color-green)' : 'var(--color-red)';
   }
-  if (kpiVatOutput) kpiVatOutput.textContent = '−' + _formatNumber(totalVatOutput);
-  if (kpiVatInput)  kpiVatInput.textContent  = '+' + _formatNumber(totalVatInput);
+  if (kpiVatOutput) kpiVatOutput.textContent = '−' + _formatNumber(vatOut);
+  if (kpiVatInput)  kpiVatInput.textContent  = '+' + _formatNumber(vatIn);
 
   // Rentero fee per visible row. The backend SQL already encodes 0 for
   // client_type='rentero', so data-rentero-fee carries 0 for rentero-owned
