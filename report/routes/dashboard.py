@@ -354,16 +354,21 @@ def register(app, state) -> None:
             if (_seg.get("owner_name") or "").strip():
                 client_map[_slug] = _seg["owner_name"]
 
-        # Rentero-owned heuristic — same definition the property page uses
-        # in property_kpi.html / property_intro.html. Some properties are
-        # owned by a Rentero entity (Rentero Investments, Rentero Home A)
-        # but tagged as 'z_klient' in report_objects for fee-calculation
-        # reasons; those still belong on Rentero's side of the ledger.
+        # Real owner = month-resolved profile owner, else a real client name.
+        # Deliberately NOT defaulted to the RENTERO_LABEL placeholder: a klient
+        # with no owner entered (e.g. Opletalova_45/1 Kenji) must NOT look
+        # Rentero-owned, or the row shows the (zero) model fee instead of the
+        # real klient odměna.
+        _real_owner = {c["property_slug"]: c["name"] for c in all_clients if c.get("name")}
+        for _slug, _seg in _profile_overlay.items():
+            if (_seg.get("owner_name") or "").strip():
+                _real_owner[_slug] = _seg["owner_name"]
+
+        # Rentero-owned heuristic: client_type 'rentero', or klient/z_klient owned
+        # by a Rentero entity (Rentero Investments / Rentero Home A → still
+        # Rentero-side). See web_support._is_rentero_side.
         def _is_rentero_owned_slug(slug: str) -> bool:
-            owner = client_map.get(slug, RENTERO_LABEL)
-            if not owner:
-                return True
-            return owner.lower().startswith("rentero")
+            return state["_is_rentero_side"](client_type_map.get(slug, "rentero"), _real_owner.get(slug))
 
         # Attach owner_name, client_type and is_rentero flag to each dashboard row
         for row in dashboard_rows:

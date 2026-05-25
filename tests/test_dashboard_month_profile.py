@@ -2,7 +2,25 @@ import json
 
 from report.db import get_connection
 from report.db_object_profiles import insert_segment, set_profile_from_month_onward
-from report.web_support import _build_dashboard_maps, _resolve_dashboard_profile_overlay
+from report.web_support import (
+    _build_dashboard_maps, _resolve_dashboard_profile_overlay, _is_rentero_side,
+)
+
+
+def test_is_rentero_side_classification():
+    # Rentero-owned: always Rentero-side, regardless of owner.
+    assert _is_rentero_side("rentero", "") is True
+    assert _is_rentero_side("rentero", None) is True
+    assert _is_rentero_side(None, "") is True  # default type = rentero
+    # klient/z_klient with NO owner → client side (the Kenji empty-owner bug).
+    assert _is_rentero_side("klient", "") is False
+    assert _is_rentero_side("klient", None) is False
+    assert _is_rentero_side("z_klient", "  ") is False
+    # klient/z_klient with a real (non-Rentero) owner → client side.
+    assert _is_rentero_side("klient", "BND Pyramid Group s.r.o.") is False
+    # z_klient owned by a Rentero entity → still Rentero-side.
+    assert _is_rentero_side("z_klient", "Rentero Investments") is True
+    assert _is_rentero_side("klient", "Rentero Home A") is True
 
 
 def _add_row(conn, slug, y, m, payout, cena):

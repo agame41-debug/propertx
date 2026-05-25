@@ -164,6 +164,7 @@ from report.web_support import (
     _get_active_properties,
     _import_change_lines,
     _inventory_redirect_path,
+    _is_rentero_side,
     _latest_report_for_month,
     _load_all_bank_transactions_for_codes,
     _load_bank_rows_with_drilldown,

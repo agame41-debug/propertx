@@ -214,11 +214,22 @@ def register(app, state) -> None:
         if slug not in props:
             raise HTTPException(404, "Objekt nenalezen")
         state["check_property_access"](request, slug, conn)
-        prop = props[slug]
-        client = state["get_client"](conn, slug)
-        aliases = state["get_report_object_aliases"](conn, slug, include_inactive=True)
         from datetime import date as _date
         _today = _date.today()
+        # Show client_type/rates as of the current month from the versioned
+        # profile. Base report_objects is month-agnostic and goes stale after an
+        # Objekty import (which writes only profile segments) — otherwise the
+        # "Typ klienta" dropdown shows the old type (e.g. z_klient) even though
+        # the current profile is klient.
+        prop = dict(props[slug])
+        _seg = state["get_object_profile"](conn, slug, _today.year, _today.month)
+        if _seg:
+            for _f in ("client_type", "rentero_commission", "balicky_per_person",
+                       "city_tax_rate", "vat_rate"):
+                if _seg.get(_f) is not None:
+                    prop[_f] = _seg[_f]
+        client = state["get_client"](conn, slug)
+        aliases = state["get_report_object_aliases"](conn, slug, include_inactive=True)
         return state["templates"].TemplateResponse(
             request,
             "client.html",

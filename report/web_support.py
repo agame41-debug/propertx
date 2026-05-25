@@ -421,6 +421,21 @@ def _prepare_rows_for_display(rows: list[dict]) -> list[dict]:
     return prepared
 
 
+def _is_rentero_side(client_type: str | None, real_owner: str | None) -> bool:
+    """True if an object belongs on Rentero's side of the ledger.
+
+    Rentero-side = the object is Rentero-owned (client_type 'rentero'), OR it's a
+    klient/z_klient explicitly owned by a Rentero entity (owner name starts with
+    'Rentero' — e.g. Opletalova_10/Ostrovni_4 tagged z_klient but Rentero-owned).
+    A klient/z_klient with NO owner name is a client object, NOT Rentero — pass the
+    real owner here (the profile owner or a real client name), never the
+    "Rentero Property s.r.o." placeholder, or empty-owner clients get misclassified.
+    """
+    if (client_type or "rentero") == "rentero":
+        return True
+    return (real_owner or "").strip().lower().startswith("rentero")
+
+
 def _resolve_dashboard_profile_overlay(conn, slugs: list[str], year: int, month: int) -> dict[str, dict]:
     """Month-resolve object type/owner from report_object_profiles.
 
