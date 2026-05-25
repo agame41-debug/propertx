@@ -146,3 +146,21 @@ def test_upsert_tsv_template_is_idempotent_by_source():
     rows = [t for t in list_expense_templates(conn, "x") if t["source"] == "tsv:internet"]
     assert len(rows) == 1 and rows[0]["amount_net_czk"] == 900.0
     conn.close()
+
+
+def test_upsert_tsv_template_preserves_original_start_ym():
+    """Re-importing the TSV for a later month must keep the template's original
+    start_ym so the intermediate months still materialize the recurring expense."""
+    conn = get_connection(":memory:")
+    _seed_object(conn)
+    upsert_tsv_template(conn, "x", "tsv:internet", {
+        "description": "Internet", "amount_net_czk": 800.0, "amount_dph_czk": 168.0,
+        "amount_czk": 968.0, "vat_rate": 0.21, "start_ym": "2026-05",
+    })
+    upsert_tsv_template(conn, "x", "tsv:internet", {
+        "description": "Internet", "amount_net_czk": 800.0, "amount_dph_czk": 168.0,
+        "amount_czk": 968.0, "vat_rate": 0.21, "start_ym": "2026-08",  # later month
+    })
+    t = [t for t in list_expense_templates(conn, "x") if t["source"] == "tsv:internet"][0]
+    assert t["start_ym"] == "2026-05"  # original preserved, not moved to 2026-08
+    conn.close()

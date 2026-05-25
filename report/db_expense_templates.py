@@ -20,7 +20,7 @@ def _ym(year: int, month: int) -> str:
     return f"{int(year):04d}-{int(month):02d}"
 
 
-def create_expense_template(conn: sqlite3.Connection, data: dict) -> int:
+def create_expense_template(conn: sqlite3.Connection, data: dict, *, commit: bool = True) -> int:
     now = _now()
     cur = conn.execute(
         """INSERT INTO expense_templates
@@ -43,7 +43,8 @@ def create_expense_template(conn: sqlite3.Connection, data: dict) -> int:
             "updated_at": now,
         },
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return int(cur.lastrowid)
 
 
@@ -64,7 +65,7 @@ _UPDATABLE = ("category_id", "description", "amount_czk", "amount_net_czk",
               "amount_dph_czk", "vat_rate", "start_ym", "end_ym", "active")
 
 
-def update_expense_template(conn: sqlite3.Connection, template_id: int, data: dict) -> None:
+def update_expense_template(conn: sqlite3.Connection, template_id: int, data: dict, *, commit: bool = True) -> None:
     sets = [f"{f} = ?" for f in _UPDATABLE if f in data]
     if not sets:
         return
@@ -75,7 +76,8 @@ def update_expense_template(conn: sqlite3.Connection, template_id: int, data: di
         f"UPDATE expense_templates SET {', '.join(sets)}, updated_at = ? WHERE id = ?",
         params,
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def delete_expense_template(conn: sqlite3.Connection, template_id: int) -> None:
@@ -86,7 +88,7 @@ def delete_expense_template(conn: sqlite3.Connection, template_id: int) -> None:
     conn.commit()
 
 
-def upsert_tsv_template(conn: sqlite3.Connection, property_slug: str, source: str, data: dict) -> int:
+def upsert_tsv_template(conn: sqlite3.Connection, property_slug: str, source: str, data: dict, *, commit: bool = True) -> int:
     """Create or update the single template identified by (property_slug, source).
     Used for TSV-derived recurring expenses (e.g. source='tsv:internet')."""
     existing = conn.execute(
@@ -94,9 +96,13 @@ def upsert_tsv_template(conn: sqlite3.Connection, property_slug: str, source: st
         (property_slug, source),
     ).fetchone()
     if existing:
-        update_expense_template(conn, int(existing["id"]), {**data, "active": 1})
+        # Preserve the original start_ym: re-importing the same TSV for a later month
+        # must not move the template's start forward and orphan the months in between
+        # from recurring materialization.
+        payload = {k: v for k, v in data.items() if k != "start_ym"}
+        update_expense_template(conn, int(existing["id"]), {**payload, "active": 1}, commit=commit)
         return int(existing["id"])
-    return create_expense_template(conn, {**data, "property_slug": property_slug, "source": source})
+    return create_expense_template(conn, {**data, "property_slug": property_slug, "source": source}, commit=commit)
 
 
 def add_template_skip(conn: sqlite3.Connection, template_id: int, year: int, month: int) -> None:

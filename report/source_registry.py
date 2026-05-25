@@ -660,7 +660,9 @@ def import_uploaded_source(
             # writes new profile segments. The apply result is the source of
             # truth for the summary (updated_count, affected_month_keys).
             from report.objekty_import import apply_objekty_import
-            applied = apply_objekty_import(conn, content, effective_ym)
+            # commit=False: the outer BEGIN/commit in this function owns the
+            # transaction so the whole objekty import is atomic.
+            applied = apply_objekty_import(conn, content, effective_ym, commit=False)
             summary.update(applied)
             # Let downstream impacts run even on a byte-duplicate re-import.
             summary["is_duplicate"] = False

@@ -214,9 +214,19 @@ def _net_dph_gross(net: float) -> tuple[float, float, float]:
     return net, dph, round(net + dph, 2)
 
 
-def _apply_tsv_expenses(conn, slug: str, row: dict, year: int, month: int) -> None:
+def _is_month_locked(conn, slug: str, year: int, month: int) -> bool:
+    st = conn.execute(
+        "SELECT status FROM report_month_state WHERE slug=? AND year=? AND month=?",
+        (slug, year, month),
+    ).fetchone()
+    return bool(st and str(st["status"]) == "LOCKED")
+
+
+def _apply_tsv_expenses(conn, slug: str, row: dict, year: int, month: int,
+                        *, commit: bool = True, locked_notices: list | None = None) -> None:
     """internet → recurring 'tsv:internet' template; ost_sluzby(2) → one-off expense
-    for this month (deduped). All amounts net + 21 % DPH."""
+    for this month (deduped). All amounts net + 21 % DPH. Writes are deferred when
+    commit=False so the caller can wrap the whole import in one transaction."""
     from report.db_admin import add_expense
     from report.db_expense_templates import upsert_tsv_template
 
@@ -227,13 +237,22 @@ def _apply_tsv_expenses(conn, slug: str, row: dict, year: int, month: int) -> No
             "description": "Internet", "category_id": None,
             "amount_net_czk": net, "amount_dph_czk": dph, "amount_czk": gross,
             "vat_rate": 0.21, "start_ym": _ym_to_str(year, month), "end_ym": None,
-        })
+        }, commit=commit)
     else:
         # internet removed from TSV → deactivate any existing tsv:internet template.
         conn.execute(
             "UPDATE expense_templates SET active = 0 WHERE property_slug = ? AND source = 'tsv:internet'",
             (slug,),
         )
+
+    has_oneoffs = any(_parse_amount(row.get(k, "")) for k in ("ost_sluzby", "ost_sluzby2"))
+    # One-off expenses mutate the report month directly → never write into a LOCKED
+    # month; record a notice instead of letting add_expense raise and abort the whole
+    # import. (The internet template is safe: materialization is lock-aware.)
+    if has_oneoffs and _is_month_locked(conn, slug, year, month):
+        if locked_notices is not None:
+            locked_notices.append((slug, year, month))
+        return
 
     for amount_key, popis_key, default_desc in (
         ("ost_sluzby", "ost_sluzby_popis", "Ostatní služby"),
@@ -244,12 +263,12 @@ def _apply_tsv_expenses(conn, slug: str, row: dict, year: int, month: int) -> No
             continue
         net, dph, gross = _net_dph_gross(amt)
         desc = (row.get(popis_key) or "").strip() or default_desc
-        # Dedup: same description + gross already present this month → skip.
+        # Dedup by (slug, month, description): re-importing must not duplicate a
+        # one-off even if its amount was edited in the UI after the first import.
         if conn.execute(
             """SELECT 1 FROM expenses
-               WHERE property_slug=? AND year=? AND month=? AND description=?
-                 AND ROUND(amount_czk, 2)=ROUND(?, 2) LIMIT 1""",
-            (slug, year, month, desc, gross),
+               WHERE property_slug=? AND year=? AND month=? AND description=? LIMIT 1""",
+            (slug, year, month, desc),
         ).fetchone():
             continue
         add_expense(conn, {
@@ -257,7 +276,7 @@ def _apply_tsv_expenses(conn, slug: str, row: dict, year: int, month: int) -> No
             "category_id": None, "description": desc,
             "amount_czk": gross, "amount_net_czk": net, "amount_dph_czk": dph,
             "vat_rate": 0.21,
-        })
+        }, commit=commit)
 
 
 def _ym_to_str(year: int, month: int) -> str:
@@ -288,19 +307,34 @@ def objekty_delta_summary(conn, content: bytes, effective_ym: str) -> dict:
     }
 
 
-def apply_objekty_import(conn, content: bytes, effective_ym: str) -> dict:
-    """Write profile segments for changed objects, effective from effective_ym."""
+def apply_objekty_import(conn, content: bytes, effective_ym: str, *, commit: bool = True) -> dict:
+    """Write profile segments for changed objects, effective from effective_ym.
+
+    All writes are deferred (commit=False) and flushed once at the end; pass
+    commit=False when the caller (import_uploaded_source) owns the surrounding
+    transaction so the whole import is atomic — a mid-import failure rolls back
+    cleanly instead of leaving partially-applied segments/expenses.
+    """
     year, month, changed, unchanged, unmatched, skipped, matched = _scan(conn, content, effective_ym)
     updated_slugs: list[str] = []
     affected_month_keys: list[tuple[str, int, int]] = []
+    locked_notices: list[tuple[str, int, int]] = []
     for slug, row, changes in changed:
-        set_profile_from_month_onward(conn, slug, year, month, changes, source="tsv")
+        set_profile_from_month_onward(conn, slug, year, month, changes, source="tsv", commit=False)
         updated_slugs.append(slug)
         affected_month_keys.extend(_affected_month_keys(conn, slug, year, month))
     # TSV auto-expenses run for ALL matched rows (internet template + ost_sluzby
     # one-offs), regardless of whether the profile changed.
     for slug, row in matched:
-        _apply_tsv_expenses(conn, slug, row, year, month)
+        _apply_tsv_expenses(conn, slug, row, year, month, commit=False, locked_notices=locked_notices)
+    if commit:
+        conn.commit()
+    message = (
+        f"Objekty {effective_ym}: {len(updated_slugs)} objektů aktualizováno, "
+        f"{len(unmatched)} nespárováno, {len(skipped)} todo přeskočeno"
+    )
+    if locked_notices:
+        message += f", {len(locked_notices)} zamčených měsíců přeskočeno (ost. služby)"
     return {
         "duplicate": False,
         "effective_ym": effective_ym,
@@ -310,14 +344,12 @@ def apply_objekty_import(conn, content: bytes, effective_ym: str) -> dict:
         "unmatched_count": len(unmatched),
         "unmatched": unmatched,
         "skipped_todo_count": len(skipped),
+        "locked_skipped": locked_notices,
         "detected_rows_count": len(changed) + len(unchanged) + len(unmatched) + len(skipped),
         "new_rows_count": len(updated_slugs),
         "new_transactions_count": 0,
         "new_reservations_count": 0,
         "affected_months": sorted({(y, m) for _s, y, m in affected_month_keys}),
         "affected_month_keys": affected_month_keys,
-        "message": (
-            f"Objekty {effective_ym}: {len(updated_slugs)} objektů aktualizováno, "
-            f"{len(unmatched)} nespárováno, {len(skipped)} todo přeskočeno"
-        ),
+        "message": message,
     }

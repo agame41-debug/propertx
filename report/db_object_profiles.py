@@ -57,6 +57,7 @@ def insert_segment(
     fields: dict,
     *,
     source: str = "ui",
+    commit: bool = True,
 ) -> int:
     now = _now()
     # Coalesce present-but-None values to defaults: every profile column is NOT NULL,
@@ -70,7 +71,8 @@ def insert_segment(
         f"INSERT INTO report_object_profiles ({','.join(cols)}) VALUES ({placeholders})",
         vals,
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return int(cur.lastrowid)
 
 
@@ -124,7 +126,7 @@ def _merged_fields(base_row: dict | None, changes: dict) -> dict:
     return base
 
 
-def set_profile_from_month_onward(conn, slug: str, year: int, month: int, changes: dict, *, source: str = "ui") -> int:
+def set_profile_from_month_onward(conn, slug: str, year: int, month: int, changes: dict, *, source: str = "ui", commit: bool = True) -> int:
     m = ym(year, month)
     covering = _covering_segment_row(conn, slug, m)
     cov = dict(covering) if covering else None
@@ -141,17 +143,17 @@ def set_profile_from_month_onward(conn, slug: str, year: int, month: int, change
                 "UPDATE report_object_profiles SET valid_to_ym = ?, updated_at = ? WHERE id = ?",
                 (prev_ym(m), _now(), cov["id"]),
             )
-    return insert_segment(conn, slug, m, new_to, _merged_fields(cov, changes), source=source)
+    return insert_segment(conn, slug, m, new_to, _merged_fields(cov, changes), source=source, commit=commit)
 
 
-def set_profile_this_month_only(conn, slug: str, year: int, month: int, changes: dict, *, source: str = "ui") -> int:
+def set_profile_this_month_only(conn, slug: str, year: int, month: int, changes: dict, *, source: str = "ui", commit: bool = True) -> int:
     m = ym(year, month)
     covering = _covering_segment_row(conn, slug, m)
     cov = dict(covering) if covering else None
 
     # Single-month covering segment already at M → edit in place.
     if cov is not None and cov["valid_from_ym"] == m and cov["valid_to_ym"] == m:
-        update_profile_segment(conn, cov["id"], changes)
+        update_profile_segment(conn, cov["id"], changes, commit=commit)
         return cov["id"]
 
     orig_from = cov["valid_from_ym"] if cov else None
@@ -169,9 +171,9 @@ def set_profile_this_month_only(conn, slug: str, year: int, month: int, changes:
             conn.execute("DELETE FROM report_object_profiles WHERE id = ?", (cov["id"],))
         # right part [M+1, orig_to] with ORIGINAL values
         if orig_to is None or orig_to > m:
-            insert_segment(conn, slug, next_ym(m), orig_to, _merged_fields(cov, {}), source=cov["source"])
+            insert_segment(conn, slug, next_ym(m), orig_to, _merged_fields(cov, {}), source=cov["source"], commit=False)
 
-    return insert_segment(conn, slug, m, m, _merged_fields(cov, changes), source=source)
+    return insert_segment(conn, slug, m, m, _merged_fields(cov, changes), source=source, commit=commit)
 
 
 def backfill_object_profiles(conn: sqlite3.Connection) -> int:
@@ -213,7 +215,7 @@ def backfill_object_profiles(conn: sqlite3.Connection) -> int:
     return inserted
 
 
-def update_profile_segment(conn, segment_id: int, changes: dict) -> None:
+def update_profile_segment(conn, segment_id: int, changes: dict, *, commit: bool = True) -> None:
     sets = [f"{f} = ?" for f in PROFILE_FIELDS if f in changes]
     if not sets:
         return
@@ -224,4 +226,5 @@ def update_profile_segment(conn, segment_id: int, changes: dict) -> None:
         f"UPDATE report_object_profiles SET {', '.join(sets)}, updated_at = ? WHERE id = ?",
         params,
     )
-    conn.commit()
+    if commit:
+        conn.commit()

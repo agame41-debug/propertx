@@ -193,3 +193,62 @@ def test_delta_summary_counts_without_writing():
     # delta must not write anything
     assert len(list_object_profile_segments(conn, "Francouzska_50")) == 1
     conn.close()
+
+
+def test_apply_objekty_import_commit_false_rolls_back_atomically():
+    """With commit=False the whole apply is a single uncommitted unit — a rollback
+    undoes every profile segment AND expense it wrote (import atomicity)."""
+    from report.db_admin import get_expenses
+    conn = get_connection(":memory:")
+    _seed(conn, "Francouzska_50", "Francouzská 50")
+    content = _tsv(_row(category="standard", stredisko="FRAN_50",
+                        canonical_name="Francouzská 50", owner_name="New Owner",
+                        ico="1", ost_sluzby="826.45", ost_sluzby_popis="Test"))
+    conn.execute("BEGIN")
+    apply_objekty_import(conn, content, "2026-05", commit=False)
+    assert get_object_profile(conn, "Francouzska_50", 2026, 5)["owner_name"] == "New Owner"
+    assert len(get_expenses(conn, "Francouzska_50", 2026, 5)) == 1
+    conn.rollback()
+    assert get_object_profile(conn, "Francouzska_50", 2026, 5)["owner_name"] == "OldOwner"
+    assert get_expenses(conn, "Francouzska_50", 2026, 5) == []
+    conn.close()
+
+
+def test_import_skips_oneoff_in_locked_month_with_notice():
+    """A LOCKED month must not get a one-off ost_sluzby expense; the row is skipped
+    with a notice and the import still succeeds (no abort)."""
+    from report.db_admin import get_expenses
+    conn = get_connection(":memory:")
+    _seed(conn, "Francouzska_50", "Francouzská 50")
+    conn.execute(
+        "INSERT INTO report_month_state (slug, year, month, status) "
+        "VALUES ('Francouzska_50', 2026, 5, 'LOCKED')"
+    )
+    conn.commit()
+    content = _tsv(_row(category="standard", stredisko="FRAN_50",
+                        canonical_name="Francouzská 50", owner_name="New Owner",
+                        ico="1", ost_sluzby="826.45", ost_sluzby_popis="Test"))
+    summary = apply_objekty_import(conn, content, "2026-05")
+    assert get_expenses(conn, "Francouzska_50", 2026, 5) == []
+    assert ("Francouzska_50", 2026, 5) in summary["locked_skipped"]
+    conn.close()
+
+
+def test_oneoff_dedup_survives_manual_amount_edit():
+    """Re-importing the same TSV must not duplicate a one-off even after its amount
+    was edited in the UI (dedup is by slug+month+description, not amount)."""
+    from report.db_admin import get_expenses
+    conn = get_connection(":memory:")
+    _seed(conn, "Francouzska_50", "Francouzská 50")
+    content = _tsv(_row(category="standard", stredisko="FRAN_50",
+                        canonical_name="Francouzská 50", owner_name="X", ico="1",
+                        ost_sluzby="826.45", ost_sluzby_popis="Výměna"))
+    apply_objekty_import(conn, content, "2026-05")
+    assert len([e for e in get_expenses(conn, "Francouzska_50", 2026, 5)
+                if e["description"] == "Výměna"]) == 1
+    conn.execute("UPDATE expenses SET amount_czk = 999 WHERE description = 'Výměna'")
+    conn.commit()
+    apply_objekty_import(conn, content, "2026-05")  # same TSV again
+    assert len([e for e in get_expenses(conn, "Francouzska_50", 2026, 5)
+                if e["description"] == "Výměna"]) == 1
+    conn.close()

@@ -332,7 +332,7 @@ def get_expense(conn: sqlite3.Connection, expense_id: int) -> dict | None:
     return dict(row) if row else None
 
 
-def add_expense(conn: sqlite3.Connection, data: dict) -> int:
+def add_expense(conn: sqlite3.Connection, data: dict, *, commit: bool = True) -> int:
     _assert_report_month_mutable(
         conn,
         str(data["property_slug"]),
@@ -360,7 +360,8 @@ def add_expense(conn: sqlite3.Connection, data: dict) -> int:
                    :amount_czk, :amount_net_czk, :amount_dph_czk, :vat_rate, :created_at)""",
         payload,
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return int(cur.lastrowid)
 
 
