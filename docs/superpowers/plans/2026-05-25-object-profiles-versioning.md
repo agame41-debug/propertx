@@ -1029,16 +1029,14 @@ git commit -m "feat(profiles): edit UI scope selector writes month segment + his
   handler that renders `client.html` (Task 8 Step 4 note). Both are "verify then apply the
   shown edit", with the concrete edit provided.
 
-## Known gaps (post-audit, 2026-05-25)
+## Post-audit notes (2026-05-25)
 
-- **Dashboard `active` filter is not month-resolved.** The dashboard overlays the
-  selected month's `client_type` and `owner_name` from the profile, but the *visible-
-  object set* still comes from the base config's `active` flag (`get_accessible_properties`
-  / `_get_active_properties`), not the per-month segment's `active`. An object deactivated
-  from month M onward in its profile therefore still appears on the dashboard for M (and a
-  profile that reactivates a historically-inactive object for a past month won't show it).
-  `resolve_property_config` *does* month-resolve `active`, so the property page and engine
-  are correct; only the dashboard's row-visibility filter is month-agnostic. Deferred
-  intentionally — wiring month-aware visibility changes which objects appear on the board,
-  which is a UX decision to make deliberately rather than silently. To close: add `active`
-  to `_resolve_dashboard_profile_overlay`'s SELECT and apply it to the visible set.
+- **Dashboard `active` IS now month-resolved (resolved 2026-05-25).** `_resolve_dashboard_profile_overlay`
+  now returns the covering segment's `active`, and the dashboard route drops any object the
+  profile marks inactive as of the selected month — so an object deactivated from month M
+  disappears from the board for M onward (even though base `report_objects.active` stays 1).
+  Objects with no covering segment keep their base active (already filtered by
+  `get_accessible_properties`). **Residual edge (not handled):** an object that is
+  base-inactive but reactivated for a past month *only* in its profile still won't appear,
+  because `get_accessible_properties` excludes it before the overlay runs; closing that
+  would require making the property fetch itself month-aware (larger change, deferred).

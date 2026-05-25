@@ -81,3 +81,20 @@ def test_overlay_month_resolves_displayed_type_and_owner():
         assert ov["Opletalova_45_Leva"]["client_type"] == "klient"
         assert ov["Opletalova_45_Leva"]["owner_name"] == "D-Corp Property A s.r.o."
     conn.close()
+
+
+def test_overlay_exposes_month_resolved_active():
+    """The dashboard overlay returns the segment's `active` for the covering month,
+    so the route can hide an object that the profile deactivates from month M onward
+    (even while base report_objects.active stays 1)."""
+    conn = get_connection(":memory:")
+    conn.execute(
+        "INSERT INTO report_objects (slug, display_name, client_type, active, created_at, updated_at) "
+        "VALUES ('x','X','rentero',1,'t','t')"
+    )
+    insert_segment(conn, "x", None, None, {"client_type": "rentero", "active": 1})
+    set_profile_from_month_onward(conn, "x", 2026, 6, {"active": 0})  # deactivate from June
+    assert _resolve_dashboard_profile_overlay(conn, ["x"], 2026, 5)["x"]["active"] == 1
+    assert _resolve_dashboard_profile_overlay(conn, ["x"], 2026, 6)["x"]["active"] == 0
+    assert _resolve_dashboard_profile_overlay(conn, ["x"], 2026, 7)["x"]["active"] == 0
+    conn.close()

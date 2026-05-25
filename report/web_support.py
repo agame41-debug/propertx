@@ -442,9 +442,9 @@ def _resolve_dashboard_profile_overlay(conn, slugs: list[str], year: int, month:
     The dashboard's per-row client_type and owner_name are month-agnostic when
     read from report_objects/clients, so they go stale after an Objekty import
     (which writes a versioned segment to report_object_profiles, NOT to the base
-    tables). Returns {slug: {"client_type": str|None, "owner_name": str|None}} for
-    the single segment covering (year, month); callers overlay these onto the base
-    maps. Only slugs with a covering segment appear in the result.
+    tables). Returns {slug: {"client_type": str|None, "owner_name": str|None,
+    "active": int}} for the single segment covering (year, month); callers overlay
+    these onto the base maps. Only slugs with a covering segment appear in the result.
     """
     if not slugs:
         return {}
@@ -452,7 +452,7 @@ def _resolve_dashboard_profile_overlay(conn, slugs: list[str], year: int, month:
     placeholders = ",".join("?" * len(slugs))
     overlay: dict[str, dict] = {}
     for row in conn.execute(
-        f"""SELECT slug, client_type, owner_name
+        f"""SELECT slug, client_type, owner_name, active
             FROM report_object_profiles
             WHERE slug IN ({placeholders})
               AND (valid_from_ym IS NULL OR valid_from_ym <= ?)
@@ -462,6 +462,7 @@ def _resolve_dashboard_profile_overlay(conn, slugs: list[str], year: int, month:
         overlay[row["slug"]] = {
             "client_type": row["client_type"],
             "owner_name": row["owner_name"],
+            "active": row["active"],
         }
     return overlay
 

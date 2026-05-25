@@ -306,6 +306,20 @@ def register(app, state) -> None:
         selected_year = int(year) if int(year or 0) > 0 else today.year
         selected_month = int(month) if 1 <= int(month or 0) <= 12 else today.month
 
+        # Month-resolve the profile segment covering the SELECTED month (reused below
+        # for the client_type/owner overlay too). Drop objects the profile marks
+        # inactive as of that month: a deactivated-from-month-M object must disappear
+        # from the board for M onward even though base report_objects.active stays 1.
+        # Objects with no covering segment keep their base active (already filtered by
+        # get_accessible_properties).
+        _profile_overlay = state["_resolve_dashboard_profile_overlay"](
+            conn, [p["slug"] for p in properties], selected_year, selected_month
+        )
+        properties = [
+            p for p in properties
+            if _profile_overlay.get(p["slug"], {}).get("active", 1) != 0
+        ]
+
         # Build slug → owner_name map for owner filter
         all_clients = state["get_all_clients"](conn)
         client_map = {c["property_slug"]: c["name"] for c in all_clients if c.get("name")}
@@ -345,9 +359,7 @@ def register(app, state) -> None:
         client_type_map = {}
         for obj in conn.execute("SELECT slug, client_type FROM report_objects").fetchall():
             client_type_map[obj["slug"]] = obj["client_type"] or "rentero"
-        _profile_overlay = state["_resolve_dashboard_profile_overlay"](
-            conn, [p["slug"] for p in properties], selected_year, selected_month
-        )
+        # _profile_overlay already month-resolved above (and used for the active filter).
         for _slug, _seg in _profile_overlay.items():
             if _seg.get("client_type"):
                 client_type_map[_slug] = _seg["client_type"]
