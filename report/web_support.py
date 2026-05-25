@@ -134,6 +134,7 @@ def _source_type_label(source_type: str) -> str:
         "bank": "Banka",
         "accounting": "Účetnictví",
         "checkin": "Checkin report",
+        "objekty": "Objekty",
     }
     return labels.get(str(source_type or "").strip().lower(), str(source_type or ""))
 

@@ -45,6 +45,7 @@ def register(app, state) -> None:
         source_type: str = Form(...),
         upload: UploadFile | None = File(None),
         file: UploadFile | None = File(None),
+        effective_ym: str = Form(""),
         _csrf=Depends(require_csrf),
         _=Depends(require_admin_or_manager),
         conn=Depends(get_db),
@@ -75,6 +76,7 @@ def register(app, state) -> None:
                 content,
                 imported_by=state["_get_actor_username"](request),
                 active=True,
+                effective_ym=(effective_ym or "").strip() or None,
             )
         except Exception as exc:
             state["_set_flash"](request, "error", f"Import souboru '{original_name}' selhal.", str(exc))

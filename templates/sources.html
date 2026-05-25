@@ -41,6 +41,11 @@
           {% endfor %}
         </select>
       </div>
+      <div>
+        <label class="form-label">Platí od měsíce <span style="color:var(--text-300);font-weight:400;">(Objekty)</span></label>
+        <input type="month" name="effective_ym" class="form-input" style="width:160px;"
+               title="Použije se jen pro import typu Objekty. Prázdné = aktuální měsíc.">
+      </div>
       <div style="flex:1;min-width:200px;">
         <label class="form-label">Soubor</label>
         <input type="file" name="upload" required class="form-input" style="cursor:pointer;">
