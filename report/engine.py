@@ -32,7 +32,7 @@ from report.bank import (
 from report.calculator import calculate_all_rows
 from report.checkin import apply_checkin_city_tax_overrides, hydrate_checkin_groups_from_db
 from report.cnb import CnbRateError, get_rate_for_reservation, preload_rates_for_month
-from report.config import get_booking_config, get_hostify_listing_names, get_all_properties
+from report.config import get_booking_config, get_hostify_listing_names, get_all_properties, resolve_property_config
 from report.db import (
     MONTH_STATUS_LOCKED,
     apply_overrides_to_rows,
@@ -450,7 +450,9 @@ def generate_report_in_process(
     props = {p["slug"]: p for p in get_all_properties(config)}
     if slug not in props:
         raise ValueError(f"Unknown property slug: {slug}")
-    prop = props[slug]
+    # Overlay the month-versioned object profile (owner/type/rates/active as of
+    # this report month). Past months keep their own segment's values.
+    prop = resolve_property_config(conn, slug, year, month, config)
 
     # ── Check month lock ────────────────────────────────────────────────────
     month_state = get_report_month_state(conn, slug, year, month)
