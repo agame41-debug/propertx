@@ -106,6 +106,43 @@ def test_import_uploaded_source_objekty_applies_and_reimports_for_new_month():
     conn.close()
 
 
+def test_tsv_auto_expenses_internet_template_and_ost_sluzby_oneoff():
+    from report.db_admin import get_expenses
+    from report.db_expense_templates import list_expense_templates, materialize_templates_for_month
+    conn = get_connection(":memory:")
+    _seed(conn, "Francouzska_50", "Francouzská 50")
+    # internet=739.26 (net), ost_sluzby=826.45 "Výměna vložky", ost_sluzby2 empty
+    content = _tsv(
+        "standard\tFRAN_50\tFrancouzská 50\tBuild with us\t1\t0\t\tFrancouzska 50\t\t\t\t\t\t\t\t\t739.26\t826.45\tVýměna vložky\t0\t",
+    )
+    apply_objekty_import(conn, content, "2026-05")
+
+    # internet → recurring template (net + 21%)
+    tpl = [t for t in list_expense_templates(conn, "Francouzska_50") if t["source"] == "tsv:internet"]
+    assert len(tpl) == 1
+    assert tpl[0]["amount_net_czk"] == 739.26
+    assert tpl[0]["vat_rate"] == 0.21
+    assert round(tpl[0]["amount_czk"], 2) == round(739.26 * 1.21, 2)
+
+    # ost_sluzby → one-off expense in May (net + 21%)
+    exp = get_expenses(conn, "Francouzska_50", 2026, 5)
+    one_offs = [e for e in exp if e["description"] == "Výměna vložky"]
+    assert len(one_offs) == 1
+    assert one_offs[0]["amount_net_czk"] == 826.45
+    assert round(one_offs[0]["amount_dph_czk"], 2) == round(826.45 * 0.21, 2)
+
+    # materialization expands the internet template into May
+    materialize_templates_for_month(conn, "Francouzska_50", 2026, 5)
+    internet_rows = [e for e in get_expenses(conn, "Francouzska_50", 2026, 5) if e["description"] == "Internet"]
+    assert len(internet_rows) == 1
+
+    # Re-import same month → no duplicate one-off
+    apply_objekty_import(conn, content, "2026-05")
+    one_offs2 = [e for e in get_expenses(conn, "Francouzska_50", 2026, 5) if e["description"] == "Výměna vložky"]
+    assert len(one_offs2) == 1
+    conn.close()
+
+
 def test_delta_summary_counts_without_writing():
     conn = get_connection(":memory:")
     _seed(conn, "Francouzska_50", "Francouzská 50")

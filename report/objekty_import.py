@@ -161,12 +161,13 @@ def _affected_month_keys(conn, slug: str, year: int, month: int) -> list[tuple[s
 
 
 def _scan(conn, content: bytes, effective_ym: str):
-    """Shared scan: returns (index, parsed rows partitioned into matched-changed,
-    matched-unchanged, unmatched, skipped_todo)."""
+    """Shared scan: returns (year, month, changed, unchanged, unmatched, skipped, matched).
+    `matched` is every (slug, row) whose object exists (changed + unchanged), used for
+    TSV expense materialization which must run regardless of profile change."""
     year, month = _ym_to_int(effective_ym)
     index = _build_slug_index(conn)
     rows = parse_objekty_tsv(content)
-    changed, unchanged, unmatched, skipped = [], [], [], []
+    changed, unchanged, unmatched, skipped, matched = [], [], [], [], []
     for row in rows:
         cat = row["category"]
         if cat == "todo" or cat not in CATEGORY_TO_CLIENT_TYPE:
@@ -176,18 +177,86 @@ def _scan(conn, content: bytes, effective_ym: str):
         if not slug:
             unmatched.append(row["canonical_name"])
             continue
+        matched.append((slug, row))
         seg = get_object_profile(conn, slug, year, month)
         changes = _desired_changes(row)
         if _segment_differs(changes, seg):
             changed.append((slug, row, changes))
         else:
             unchanged.append(slug)
-    return year, month, changed, unchanged, unmatched, skipped
+    return year, month, changed, unchanged, unmatched, skipped, matched
+
+
+def _parse_amount(s: str) -> float:
+    s = (s or "").strip().replace(" ", "").replace(",", ".")
+    if not s:
+        return 0.0
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
+def _net_dph_gross(net: float) -> tuple[float, float, float]:
+    """TSV amounts are net (bez DPH); always add 21 %."""
+    net = round(net, 2)
+    dph = round(net * 0.21, 2)
+    return net, dph, round(net + dph, 2)
+
+
+def _apply_tsv_expenses(conn, slug: str, row: dict, year: int, month: int) -> None:
+    """internet → recurring 'tsv:internet' template; ost_sluzby(2) → one-off expense
+    for this month (deduped). All amounts net + 21 % DPH."""
+    from report.db_admin import add_expense
+    from report.db_expense_templates import upsert_tsv_template
+
+    internet = _parse_amount(row.get("internet", ""))
+    if internet:
+        net, dph, gross = _net_dph_gross(internet)
+        upsert_tsv_template(conn, slug, "tsv:internet", {
+            "description": "Internet", "category_id": None,
+            "amount_net_czk": net, "amount_dph_czk": dph, "amount_czk": gross,
+            "vat_rate": 0.21, "start_ym": _ym_to_str(year, month), "end_ym": None,
+        })
+    else:
+        # internet removed from TSV → deactivate any existing tsv:internet template.
+        conn.execute(
+            "UPDATE expense_templates SET active = 0 WHERE property_slug = ? AND source = 'tsv:internet'",
+            (slug,),
+        )
+
+    for amount_key, popis_key, default_desc in (
+        ("ost_sluzby", "ost_sluzby_popis", "Ostatní služby"),
+        ("ost_sluzby2", "ost_sluzby2_popis", "Ostatní služby 2"),
+    ):
+        amt = _parse_amount(row.get(amount_key, ""))
+        if not amt:
+            continue
+        net, dph, gross = _net_dph_gross(amt)
+        desc = (row.get(popis_key) or "").strip() or default_desc
+        # Dedup: same description + gross already present this month → skip.
+        if conn.execute(
+            """SELECT 1 FROM expenses
+               WHERE property_slug=? AND year=? AND month=? AND description=?
+                 AND ROUND(amount_czk, 2)=ROUND(?, 2) LIMIT 1""",
+            (slug, year, month, desc, gross),
+        ).fetchone():
+            continue
+        add_expense(conn, {
+            "property_slug": slug, "year": year, "month": month, "date": None,
+            "category_id": None, "description": desc,
+            "amount_czk": gross, "amount_net_czk": net, "amount_dph_czk": dph,
+            "vat_rate": 0.21,
+        })
+
+
+def _ym_to_str(year: int, month: int) -> str:
+    return f"{int(year):04d}-{int(month):02d}"
 
 
 def objekty_delta_summary(conn, content: bytes, effective_ym: str) -> dict:
     """Read-only: what an import for effective_ym WOULD change. Writes nothing."""
-    year, month, changed, unchanged, unmatched, skipped = _scan(conn, content, effective_ym)
+    year, month, changed, unchanged, unmatched, skipped, _matched = _scan(conn, content, effective_ym)
     return {
         "duplicate": False,
         "effective_ym": effective_ym,
@@ -211,13 +280,17 @@ def objekty_delta_summary(conn, content: bytes, effective_ym: str) -> dict:
 
 def apply_objekty_import(conn, content: bytes, effective_ym: str) -> dict:
     """Write profile segments for changed objects, effective from effective_ym."""
-    year, month, changed, unchanged, unmatched, skipped = _scan(conn, content, effective_ym)
+    year, month, changed, unchanged, unmatched, skipped, matched = _scan(conn, content, effective_ym)
     updated_slugs: list[str] = []
     affected_month_keys: list[tuple[str, int, int]] = []
     for slug, row, changes in changed:
         set_profile_from_month_onward(conn, slug, year, month, changes, source="tsv")
         updated_slugs.append(slug)
         affected_month_keys.extend(_affected_month_keys(conn, slug, year, month))
+    # TSV auto-expenses run for ALL matched rows (internet template + ost_sluzby
+    # one-offs), regardless of whether the profile changed.
+    for slug, row in matched:
+        _apply_tsv_expenses(conn, slug, row, year, month)
     return {
         "duplicate": False,
         "effective_ym": effective_ym,
