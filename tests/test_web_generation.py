@@ -1076,3 +1076,31 @@ def test_engine_is_called_on_override_save(monkeypatch):
     assert ("test", 2026, 3) in generated
 
 
+# ───────────────────── Výdaje card cleanup ─────────────────────
+
+def test_expense_form_recurring_uses_flex_not_grid_row():
+    # The recurring section must use the dedicated .ae-recurring flex layout,
+    # NOT the .ae-row 3-column grid (140/180/1fr) that squashed the month inputs.
+    tmpl = web_module.templates.get_template("partials/property_expense_form.html")
+    html = tmpl.render(
+        request=_admin_request(),
+        slug="x", year=2026, month=5,
+        categories=[{"id": 1, "name": "Energie"}],
+    )
+    assert 'class="ae-recurring" data-recurring-wrap' in html
+    assert 'class="ae-row" data-recurring-wrap' not in html
+    # Period block keeps both month inputs and starts hidden...
+    assert 'name="start_ym"' in html and 'name="end_ym"' in html
+    assert re.search(r'data-recurring-period[^>]*\bhidden\b', html)
+    # ...and no inline display:flex (the bug that kept it visible while unchecked)
+    assert 'display:flex' not in html
+
+
+def test_styles_define_ae_recurring():
+    css = web_module.templates.get_template(
+        "partials/property_styles_property.html"
+    ).render()
+    assert ".ae-recurring" in css
+    assert ".ae-recurring-period:not([hidden])" in css
+
+

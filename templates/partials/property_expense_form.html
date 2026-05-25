@@ -78,19 +78,19 @@
   <input type="hidden" name="vat_rate" value="21" data-calc-rate-input>
 
   {# Recurring toggle (add-mode only). When on, submit posts to /expense-templates/add. #}
-  <div class="ae-row" data-recurring-wrap style="align-items:center;gap:16px;">
-    <label class="ae-k" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-      <input type="checkbox" data-recurring-toggle style="width:14px;height:14px;accent-color:var(--color-primary);">
-      Pravidelný (každý měsíc)
+  <div class="ae-recurring" data-recurring-wrap>
+    <label class="ae-check">
+      <input type="checkbox" data-recurring-toggle>
+      <span>Pravidelný <span class="ae-check-sub">(každý měsíc)</span></span>
     </label>
-    <div data-recurring-period hidden style="display:flex;gap:12px;align-items:flex-end;">
-      <div class="ae-field">
+    <div class="ae-recurring-period" data-recurring-period hidden>
+      <div class="ae-field ae-field-month">
         <label class="ae-k">Od měsíce</label>
         <input class="ae-in" type="month" name="start_ym" value="{{ year }}-{{ '%02d'|format(month) }}">
       </div>
-      <div class="ae-field">
-        <label class="ae-k">Do měsíce <span style="color:var(--text-300);">(prázdné = bez konce)</span></label>
-        <input class="ae-in" type="month" name="end_ym" value="">
+      <div class="ae-field ae-field-month">
+        <label class="ae-k">Do měsíce</label>
+        <input class="ae-in" type="month" name="end_ym" value="" title="Prázdné = bez konce">
       </div>
     </div>
   </div>

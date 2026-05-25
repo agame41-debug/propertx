@@ -979,6 +979,31 @@
 }
 
 .ae-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+/* Recurring toggle row — its own flex layout, NOT the .ae-row grid.
+   The grid's 140/180px columns squashed the month inputs; flex lets them
+   size naturally. `:not([hidden])` re-asserts hiding so the period block
+   actually collapses when the checkbox is off (author display:flex would
+   otherwise beat the UA [hidden] rule). */
+.ae-recurring {
+  display: flex; flex-wrap: wrap; align-items: flex-end;
+  gap: 14px 28px; margin-bottom: 18px;
+}
+.ae-check {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 34px; cursor: pointer; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--text-200);
+}
+.ae-check input[type="checkbox"] {
+  width: 14px; height: 14px; accent-color: var(--color-primary);
+}
+.ae-check-sub { color: var(--text-400); }
+.ae-recurring-period:not([hidden]) {
+  display: flex; gap: 16px; align-items: flex-end;
+}
+.ae-field-month { width: 160px; }
+
 .ae-k {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--font-mono); font-size: 10px; font-weight: 600;
