@@ -76,7 +76,7 @@ def register(app, state) -> None:
                 content,
                 imported_by=state["_get_actor_username"](request),
                 active=True,
-                effective_ym=(effective_ym or "").strip() or None,
+                effective_ym=((effective_ym.strip() if isinstance(effective_ym, str) else "") or None),
             )
         except Exception as exc:
             state["_set_flash"](request, "error", f"Import souboru '{original_name}' selhal.", str(exc))
