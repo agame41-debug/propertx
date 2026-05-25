@@ -38,7 +38,7 @@ from report.db import (
 from report.loader import assign_report_month
 from report.verifier import build_airbnb_payout_data, build_booking_payout_data, load_airbnb_csv, load_booking_csv
 
-SOURCE_TYPES = {"airbnb", "booking", "bank", "accounting", "checkin"}
+SOURCE_TYPES = {"airbnb", "booking", "bank", "accounting", "checkin", "objekty"}
 
 
 def _get_active_properties(config: dict) -> list[dict]:
@@ -514,7 +514,13 @@ def _checkin_delta_summary(conn, source_name: str, content: bytes) -> dict:
     }
 
 
-def analyze_import_delta(conn, source_type: str, original_name: str, content: bytes) -> dict:
+def _default_effective_ym() -> str:
+    today = date.today()
+    return f"{today.year:04d}-{today.month:02d}"
+
+
+def analyze_import_delta(conn, source_type: str, original_name: str, content: bytes,
+                         *, effective_ym: str | None = None) -> dict:
     source_type = validate_source_type(source_type)
     if source_type == "airbnb":
         return _airbnb_delta_summary(conn, original_name, content)
@@ -524,6 +530,9 @@ def analyze_import_delta(conn, source_type: str, original_name: str, content: by
         return _bank_delta_summary(conn, original_name, content)
     if source_type == "checkin":
         return _checkin_delta_summary(conn, original_name, content)
+    if source_type == "objekty":
+        from report.objekty_import import objekty_delta_summary
+        return objekty_delta_summary(conn, content, effective_ym or _default_effective_ym())
     return _accounting_delta_summary(conn, original_name, content)
 
 
@@ -535,11 +544,15 @@ def import_uploaded_source(
     *,
     imported_by: str = "",
     active: bool = True,
+    effective_ym: str | None = None,
 ) -> dict:
     source_type = validate_source_type(source_type)
+    if source_type == "objekty":
+        effective_ym = effective_ym or _default_effective_ym()
     conn.execute("BEGIN")
     try:
-        delta = analyze_import_delta(conn, source_type, original_name, content)
+        delta = analyze_import_delta(conn, source_type, original_name, content,
+                                     effective_ym=effective_ym)
         stored = import_source_file_with_result(
             conn,
             source_type,
@@ -640,6 +653,17 @@ def import_uploaded_source(
             summary["new_rows_count"] = 0
             summary["new_transactions_count"] = 0
             summary["new_reservations_count"] = 0
+
+        if source_type == "objekty":
+            # Idempotent apply: runs regardless of byte-level duplicate, because
+            # the same TSV re-imported for a new effective month legitimately
+            # writes new profile segments. The apply result is the source of
+            # truth for the summary (updated_count, affected_month_keys).
+            from report.objekty_import import apply_objekty_import
+            applied = apply_objekty_import(conn, content, effective_ym)
+            summary.update(applied)
+            # Let downstream impacts run even on a byte-duplicate re-import.
+            summary["is_duplicate"] = False
 
         import_run = log_import_run(
             conn,

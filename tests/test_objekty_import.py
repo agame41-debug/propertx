@@ -84,6 +84,28 @@ def test_reimport_same_data_is_idempotent_no_new_segment():
     assert segs_after_first == segs_after_second  # no duplicate segment
 
 
+def test_import_uploaded_source_objekty_applies_and_reimports_for_new_month():
+    from report.source_registry import import_uploaded_source, SOURCE_TYPES
+    assert "objekty" in SOURCE_TYPES
+    conn = get_connection(":memory:")
+    _seed(conn, "Francouzska_50", "Francouzská 50")
+    content = _tsv(
+        "standard\tFRAN_50\tFrancouzská 50\tBuild with us\t1\t0\t\tFrancouzska 50\t\t\t\t\t\t\t\t\t0\t0\t\t0\t",
+    )
+    s1 = import_uploaded_source(conn, "objekty", "Objekty.tsv", content,
+                               imported_by="t", effective_ym="2026-05")
+    assert s1["updated_count"] == 1
+    assert get_object_profile(conn, "Francouzska_50", 2026, 5)["owner_name"] == "Build with us"
+    # Same bytes, new month → not blocked by SHA dedup; applies again forward.
+    s2 = import_uploaded_source(conn, "objekty", "Objekty.tsv", content,
+                               imported_by="t", effective_ym="2026-07")
+    assert s2["is_duplicate"] is False
+    # April still old owner, May+ new owner (unchanged), July+ still new owner.
+    assert get_object_profile(conn, "Francouzska_50", 2026, 4)["owner_name"] == "OldOwner"
+    assert get_object_profile(conn, "Francouzska_50", 2026, 8)["owner_name"] == "Build with us"
+    conn.close()
+
+
 def test_delta_summary_counts_without_writing():
     conn = get_connection(":memory:")
     _seed(conn, "Francouzska_50", "Francouzská 50")
