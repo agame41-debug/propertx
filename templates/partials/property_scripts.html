@@ -316,7 +316,8 @@
         if (expForm.hidden) {
           // Open in add mode: reset, switch action
           expForm.action = '/expenses/add';
-          expForm.querySelector('[data-form-title]').textContent = 'Nový výdaj';
+          var _addTitle = expForm.querySelector('[data-form-title]');
+          if (_addTitle) _addTitle.textContent = 'Nový výdaj';
           expForm.querySelector('[data-form-submit-label]').textContent = 'Uložit výdaj';
           expForm.querySelector('input[name="date_str"]').value = new Date().toISOString().slice(0, 10);
           expForm.querySelector('input[name="description"]').value = '';
@@ -357,7 +358,8 @@
         if (recurringWrap) recurringWrap.style.display = 'none';
         if (recurringToggle) recurringToggle.checked = false;
         if (recurringPeriod) recurringPeriod.hidden = true;
-        expForm.querySelector('[data-form-title]').textContent = 'Upravit výdaj #' + id;
+        var _editTitle = expForm.querySelector('[data-form-title]');
+        if (_editTitle) _editTitle.textContent = 'Upravit výdaj #' + id;
         expForm.querySelector('[data-form-submit-label]').textContent = 'Uložit změny';
         expForm.querySelector('input[name="date_str"]').value = btn.getAttribute('data-expense-date') || '';
         var catSel = expForm.querySelector('select[name="category_id"]');

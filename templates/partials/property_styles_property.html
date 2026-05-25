@@ -971,30 +971,19 @@ span.exp-recur { cursor: default; }
 }
 [data-theme="light"] .ae-form { background: oklch(0 0 0 / .015); }
 
-.ae-h {
-  display: flex; align-items: baseline; gap: 12px;
-  margin-bottom: 14px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line-hair);
-}
-.ae-h-title {
-  font-size: 12.5px; font-weight: 600; color: var(--text-100);
-  letter-spacing: -0.005em;
-}
-.ae-h-hint {
-  font-family: var(--font-mono); font-size: 10.5px;
-  color: var(--text-400); letter-spacing: .02em;
-}
-
 /* Row 1 only: metadata grid (Datum · Kategorie · Popis) */
 .ae-row {
   display: grid;
   gap: 14px;
   margin-bottom: 18px;
-  grid-template-columns: 140px 180px 1fr;
+  grid-template-columns: 150px 200px 1fr;
 }
 
 .ae-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+/* Native <select> needs room for its dropdown chevron so the category name
+   (e.g. "Sub-nájem") never crowds or clips against it. */
+select.ae-in { padding-right: 30px; }
 
 /* Recurring toggle row — its own flex layout, NOT the .ae-row grid.
    The grid's 140/180px columns squashed the month inputs; flex lets them

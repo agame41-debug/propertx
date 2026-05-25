@@ -1096,6 +1096,19 @@ def test_expense_form_recurring_uses_flex_not_grid_row():
     assert 'display:flex' not in html
 
 
+def test_expense_form_has_no_header_line():
+    # The "Nový výdaj — Vyplňte libovolné pole…" header line was removed as
+    # redundant clutter; the form opens straight into the Datum/Kategorie/Popis row.
+    tmpl = web_module.templates.get_template("partials/property_expense_form.html")
+    html = tmpl.render(
+        request=_admin_request(),
+        slug="x", year=2026, month=5,
+        categories=[{"id": 1, "name": "Energie"}],
+    )
+    assert "Vyplňte libovolné pole" not in html
+    assert 'class="ae-h"' not in html
+
+
 def test_styles_define_ae_recurring():
     css = web_module.templates.get_template(
         "partials/property_styles_property.html"
