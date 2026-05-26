@@ -4,13 +4,16 @@
 {% block content %}
 {% include "partials/property_styles_property.html" %}
 
-{# Rentero-owned heuristic — single source of truth, available to every
-   partial below via Jinja's inherited scope. Rentero (the company) is
-   itself a VAT payer, so DPH applies on every Rentero-owned object
-   regardless of whether a client row exists. For external clients we
-   defer to client.platce_dph as before. #}
-{% set _is_rentero_owned = (not client) or (not client.name) or (client.name|lower).startswith('rentero') %}
-{% set _is_dph_applicable = _is_rentero_owned or (client and client.platce_dph) %}
+{# Rentero-side ownership + owner identity — month-resolved from the object
+   profile (prop.owner / prop.client_type via resolve_property_config), computed
+   in _render_property_template (_resolve_owner_badge → _is_rentero_side) and
+   exposed here as the single source of truth for every partial below via Jinja's
+   inherited scope. An empty owner on a klient/z_klient object is NOT Rentero —
+   we no longer infer ownership from the (stale) clients table. Rentero itself is
+   a VAT payer, so DPH applies on every Rentero-owned object. #}
+{% set _is_rentero_owned = is_rentero_owned %}
+{% set _is_dph_applicable = is_dph_applicable %}
+{% set _owner_name = owner_name %}
 {# Rentero is itself a VAT payer and settles DPH on every managed object (its
    odměna, reverse-charged platform commission, expense input VAT), so the DPH
    settlement is shown for all objects. The "Plátce DPH" badge stays tied to

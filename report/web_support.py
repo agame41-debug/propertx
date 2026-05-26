@@ -436,6 +436,29 @@ def _is_rentero_side(client_type: str | None, real_owner: str | None) -> bool:
     return (real_owner or "").strip().lower().startswith("rentero")
 
 
+def _resolve_owner_badge(prop: dict) -> dict:
+    """Month-resolved owner identity + Rentero-side classification for the
+    property page header.
+
+    `prop` is the resolve_property_config output: its `owner` sub-dict and
+    `client_type` are already resolved to the requested month's profile segment.
+    Using these (not the stale `clients` table) fixes the "empty owner → RENTERO"
+    misclassification — a klient/z_klient object with no owner name is a client
+    object, never Rentero-owned. The rule itself is delegated to _is_rentero_side.
+    """
+    owner = prop.get("owner") or {}
+    owner_name = (owner.get("name") or "").strip()
+    client_type = prop.get("client_type") or "rentero"
+    is_rentero_owned = _is_rentero_side(client_type, owner_name)
+    return {
+        "owner_name": owner_name,
+        "is_rentero_owned": is_rentero_owned,
+        # Rentero is itself a VAT payer (settles DPH on every managed object);
+        # external clients only when their profile marks platce_dph.
+        "is_dph_applicable": is_rentero_owned or bool(owner.get("platce_dph")),
+    }
+
+
 def _resolve_dashboard_profile_overlay(conn, slugs: list[str], year: int, month: int) -> dict[str, dict]:
     """Month-resolve object type/owner from report_object_profiles.
 
@@ -1019,6 +1042,9 @@ def _render_property_template(
     )
     latest_change_note = month_notifications[0] if month_notifications else None
     client = get_client(conn, slug)
+    # Header owner badge — month-resolved from the object profile (prop.owner /
+    # prop.client_type), NOT the stale `clients` table. Empty owner ≠ Rentero.
+    owner_badge = _resolve_owner_badge(prop)
     categories = get_expense_categories(conn)
     override_events = get_override_events(conn, slug, year, month)
     row_breakdown = _compute_row_breakdown(rows)
@@ -1059,6 +1085,9 @@ def _render_property_template(
             "expenses": expenses,
             "categories": categories,
             "client": client,
+            "is_rentero_owned": owner_badge["is_rentero_owned"],
+            "is_dph_applicable": owner_badge["is_dph_applicable"],
+            "owner_name": owner_badge["owner_name"],
             "summary": summary,
             "row_breakdown": row_breakdown,
             "month_state": month_state,

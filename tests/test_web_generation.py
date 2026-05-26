@@ -17,6 +17,7 @@ from report.db import (
     get_latest_bulk_generation_run,
 )
 import report.web as web_module
+from report.web_support import _resolve_owner_badge
 from tests.test_config_db import BASE_CONFIG
 
 
@@ -1182,5 +1183,106 @@ def test_expenses_recurring_marker_readonly_when_locked():
     html = _render_expenses(month_state={"status": "LOCKED"})
     assert "/expense-templates/7/delete" not in html  # no delete form when locked
     assert "exp-recur" in html                         # marker still shown
+
+
+# ── Property header owner badge: month-resolved, empty-owner ≠ Rentero ──
+# Regression for the "Opletalova 45/1 – byt Kenji" bug: the header showed a
+# RENTERO + Plátce DPH badge because it classified ownership from the stale
+# `clients` table ("no client row → Rentero"). The fix month-resolves owner
+# identity from the object profile (already on `prop.owner`/`prop.client_type`
+# via resolve_property_config) and uses _is_rentero_side, so an empty owner on
+# a klient/z_klient object is NOT treated as Rentero.
+
+def test_owner_badge_klient_empty_owner_not_rentero():
+    """Kenji case: klient object, no owner name → client-side, no DPH badge."""
+    badge = _resolve_owner_badge(
+        {"client_type": "klient", "owner": {"name": "", "platce_dph": 0}}
+    )
+    assert badge["is_rentero_owned"] is False
+    assert badge["is_dph_applicable"] is False
+    assert badge["owner_name"] == ""
+
+
+def test_owner_badge_rentero_type_is_rentero_owned():
+    badge = _resolve_owner_badge(
+        {"client_type": "rentero", "owner": {"name": "", "platce_dph": 0}}
+    )
+    assert badge["is_rentero_owned"] is True
+    assert badge["is_dph_applicable"] is True  # Rentero is itself a VAT payer
+
+
+def test_owner_badge_klient_with_owner_keeps_name():
+    badge = _resolve_owner_badge(
+        {"client_type": "klient",
+         "owner": {"name": "D-Corp Property A s.r.o.", "platce_dph": 0}}
+    )
+    assert badge["is_rentero_owned"] is False
+    assert badge["owner_name"] == "D-Corp Property A s.r.o."
+
+
+def test_owner_badge_zklient_owned_by_rentero_entity_is_rentero():
+    badge = _resolve_owner_badge(
+        {"client_type": "z_klient", "owner": {"name": "Rentero Investments"}}
+    )
+    assert badge["is_rentero_owned"] is True
+
+
+def test_owner_badge_klient_platce_dph_applies():
+    badge = _resolve_owner_badge(
+        {"client_type": "klient", "owner": {"name": "X s.r.o.", "platce_dph": 1}}
+    )
+    assert badge["is_rentero_owned"] is False
+    assert badge["is_dph_applicable"] is True
+
+
+def test_owner_badge_missing_owner_key_no_crash():
+    badge = _resolve_owner_badge({"client_type": "rentero"})
+    assert badge["owner_name"] == ""
+    assert badge["is_rentero_owned"] is True
+
+
+def _render_property_intro(*, is_rentero_owned, owner_name, prop, is_dph=False, month_state=None):
+    tmpl = web_module.templates.get_template("partials/property_intro.html")
+    return tmpl.render(
+        request=_admin_request(),
+        _is_rentero_owned=is_rentero_owned,
+        _is_dph_applicable=is_dph,
+        _owner_name=owner_name,
+        prop=prop,
+        slug=prop.get("slug", "Test_Slug"),
+        year=2026,
+        month=5,
+        month_state={"status": "OPEN"} if month_state is None else month_state,
+    )
+
+
+def test_property_intro_klient_empty_owner_hides_rentero_and_dph():
+    html = _render_property_intro(
+        is_rentero_owned=False, is_dph=False, owner_name="",
+        prop={"display_name": "Opletalova 45/1 – byt Kenji",
+              "client_type": "klient", "slug": "Opletalova_45_1_Byt_Kenji"},
+    )
+    assert "RENTERO" not in html
+    assert "Plátce DPH" not in html
+
+
+def test_property_intro_klient_with_owner_shows_owner_name():
+    html = _render_property_intro(
+        is_rentero_owned=False, owner_name="D-Corp Property A s.r.o.",
+        prop={"display_name": "Opletalova 45 levá",
+              "client_type": "klient", "slug": "Opletalova_45_Leva"},
+    )
+    assert "D-Corp Property A s.r.o." in html
+    assert "RENTERO" not in html
+
+
+def test_property_intro_rentero_shows_rentero_badge():
+    html = _render_property_intro(
+        is_rentero_owned=True, owner_name="", is_dph=True,
+        prop={"display_name": "Vaclavske namesti 2001",
+              "client_type": "rentero", "slug": "Vaclavske_Namesti_2001"},
+    )
+    assert "RENTERO" in html
+    assert "Plátce DPH" in html
 
 

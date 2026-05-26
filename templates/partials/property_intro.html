@@ -19,12 +19,14 @@
         <span class="badge badge-ok"><span class="badge-dot"></span>Otevřeno</span>
       {% endif %}
 
-      {# 2. Owner badge + role-color dot.
-         External clients: show client.name (with role color). Rentero objects
-         (no client row, empty name, OR name starts with "Rentero"): show a
-         RENTERO / RENTERO INVESTMENTS / RENTERO HOME badge based on sub-entity.
-         Reuses _is_rentero_owned from property.html for consistency. #}
-      {% set _name_lower = (client.name|lower) if client and client.name else '' %}
+      {# 2. Owner badge + role-color dot. Owner identity is month-resolved
+         (_owner_name from the object profile, not the stale clients table).
+         External clients: show _owner_name (with role color). Rentero-side
+         objects (client_type 'rentero', OR owner name starts with "Rentero"):
+         show a RENTERO / RENTERO INVESTMENTS / RENTERO HOME badge by sub-entity.
+         An empty owner on a klient/z_klient object shows no badge — it is NOT
+         Rentero. Reuses _is_rentero_owned from property.html for consistency. #}
+      {% set _name_lower = (_owner_name|lower) if _owner_name else '' %}
       {% if _is_rentero_owned %}
         {% set _rentero_label = 'RENTERO INVESTMENTS' if 'investments' in _name_lower
                                 else ('RENTERO HOME' if 'home' in _name_lower
@@ -33,12 +35,12 @@
           <span class="badge-dot" style="background:var(--brand);box-shadow:0 0 6px var(--brand)"></span>
           {{ _rentero_label }}
         </span>
-      {% elif client and client.name %}
+      {% elif _owner_name %}
         {% set _role_color = 'var(--info)' if prop.client_type == 'klient'
                                             else 'var(--text-300)' %}
         <span class="badge badge-mute" title="{{ prop.client_type|default('rentero')|upper }}">
           <span class="badge-dot" style="background:{{ _role_color }};box-shadow:0 0 6px {{ _role_color }}"></span>
-          {{ client.name }}
+          {{ _owner_name }}
         </span>
       {% endif %}
 
