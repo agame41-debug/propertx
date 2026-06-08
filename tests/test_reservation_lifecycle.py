@@ -145,8 +145,8 @@ def _make_snapshot_db(tmp_path):
     conn.execute(
         """
         CREATE TABLE hostify_reservations (
-            confirmation_code TEXT PRIMARY KEY,
-            reservation_id    TEXT,
+            reservation_id    TEXT PRIMARY KEY,
+            confirmation_code TEXT NOT NULL,
             source            TEXT,
             status            TEXT,
             guest_name        TEXT,
@@ -197,8 +197,10 @@ def test_upsert_overwrites_stale_accepted_with_cancelled(tmp_path):
         )
         conn.commit()
 
-        # Fresh sync now brings it as cancelled+payout=0.
+        # Fresh sync now brings the SAME reservation (same reservation_id)
+        # as cancelled+payout=0. reservation_id is the snapshot key.
         fresh_raw = _raw(
+            id=4052592,
             channel_reservation_id="6333693395",
             status="cancelled",
             payout_price=0,

@@ -404,6 +404,10 @@ def _minimal_filter_for_snapshot(raw: dict) -> dict | None:
         "adults": int(raw.get("adults") or 0),
         "children": int(raw.get("children") or 0),
         "infants": int(raw.get("infants") or 0),
+        # base_price is the room rate before cleaning/tax. Stored so that
+        # multi-room Booking group bookings can be split per object by their
+        # (base + cleaning) share (see _split_group_booking_payouts).
+        "base_price_eur": float(raw.get("base_price") or raw.get("base_price_eur") or 0),
         "cleaning_fee_eur": float(raw.get("cleaning_fee") or raw.get("cleaning_fee_eur") or 0),
         "city_tax_eur": float(raw.get("city_tax") or raw.get("city_tax_eur") or 0),
         "channel_commission_eur": (

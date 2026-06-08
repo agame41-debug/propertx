@@ -635,8 +635,12 @@ CREATE TABLE IF NOT EXISTS stredisko_map (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_stredisko_zkratka ON stredisko_map(zkratka);
 
 CREATE TABLE IF NOT EXISTS hostify_reservations (
-    confirmation_code TEXT PRIMARY KEY,
-    reservation_id    TEXT,
+    -- Keyed by reservation_id (unique per room). A multi-room Booking.com
+    -- group booking arrives as several reservations that SHARE one
+    -- confirmation_code, so confirmation_code must NOT be the primary key —
+    -- doing so collapsed the sibling rooms and dropped them from reports.
+    reservation_id    TEXT PRIMARY KEY,
+    confirmation_code TEXT NOT NULL,
     source            TEXT,
     status            TEXT,
     guest_name        TEXT,
@@ -649,6 +653,10 @@ CREATE TABLE IF NOT EXISTS hostify_reservations (
     first_seen_at     TEXT NOT NULL,
     last_seen_at      TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_hostify_reservations_code
+    ON hostify_reservations(confirmation_code);
+CREATE INDEX IF NOT EXISTS idx_hostify_reservations_listing_month
+    ON hostify_reservations(listing_nickname, assigned_year, assigned_month);
 
 CREATE TABLE IF NOT EXISTS override_events (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -894,6 +902,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _backfill_checkin_source_snapshots(conn)
     _backfill_booking_payout_item_guest_names(conn)
     _migrate_month_assignments_scope(conn)
+    _migrate_hostify_reservations_pk(conn)
     # split_transactions table (added 2026-04)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS split_transactions (
@@ -2037,6 +2046,64 @@ def _backfill_booking_payout_item_guest_names(conn: sqlite3.Connection) -> None:
         conn.rollback()
 
 
+def _migrate_hostify_reservations_pk(conn: sqlite3.Connection) -> None:
+    """Re-key hostify_reservations from confirmation_code to reservation_id.
+
+    Multi-room Booking.com group bookings arrive as separate Hostify
+    reservations (distinct reservation_id, distinct listing) that SHARE one
+    confirmation_code. With confirmation_code as the primary key the sibling
+    rooms collided on save and all but one were dropped, so those objects'
+    reports were missing the booking entirely. reservation_id is unique per
+    room, so it is the correct key.
+
+    Idempotent: returns immediately once reservation_id is already the PK.
+    The snapshot is rebuildable from the Hostify API, so any legacy rows with
+    an empty reservation_id (none in practice) are dropped rather than kept
+    under a degenerate key.
+    """
+    info = conn.execute("PRAGMA table_info(hostify_reservations)").fetchall()
+    if not info:
+        return  # table not created yet (fresh schema handles it directly)
+    pk_cols = [r["name"] for r in info if r["pk"]]
+    if pk_cols == ["reservation_id"]:
+        return  # already migrated
+    conn.executescript("""
+        DROP TABLE IF EXISTS hostify_reservations__new;
+        CREATE TABLE hostify_reservations__new (
+            reservation_id    TEXT PRIMARY KEY,
+            confirmation_code TEXT NOT NULL,
+            source            TEXT,
+            status            TEXT,
+            guest_name        TEXT,
+            check_in          TEXT,
+            check_out         TEXT,
+            assigned_year     INTEGER,
+            assigned_month    INTEGER,
+            listing_nickname  TEXT,
+            payload_json      TEXT NOT NULL,
+            first_seen_at     TEXT NOT NULL,
+            last_seen_at      TEXT NOT NULL
+        );
+        INSERT OR REPLACE INTO hostify_reservations__new
+            (reservation_id, confirmation_code, source, status, guest_name,
+             check_in, check_out, assigned_year, assigned_month, listing_nickname,
+             payload_json, first_seen_at, last_seen_at)
+        SELECT reservation_id, confirmation_code, source, status, guest_name,
+               check_in, check_out, assigned_year, assigned_month, listing_nickname,
+               payload_json, first_seen_at, last_seen_at
+        FROM hostify_reservations
+        WHERE COALESCE(TRIM(reservation_id), '') <> ''
+        ORDER BY last_seen_at;
+        DROP TABLE hostify_reservations;
+        ALTER TABLE hostify_reservations__new RENAME TO hostify_reservations;
+        CREATE INDEX IF NOT EXISTS idx_hostify_reservations_code
+            ON hostify_reservations(confirmation_code);
+        CREATE INDEX IF NOT EXISTS idx_hostify_reservations_listing_month
+            ON hostify_reservations(listing_nickname, assigned_year, assigned_month);
+    """)
+    conn.commit()
+
+
 def _migrate_month_assignments_scope(conn: sqlite3.Connection) -> None:
     """Migrate reservation_month_assignments to month-scoped unique constraint.
 
@@ -2984,8 +3051,8 @@ def save_hostify_reservations(
             check_in, check_out, assigned_year, assigned_month, listing_nickname,
             payload_json, first_seen_at, last_seen_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(confirmation_code) DO UPDATE SET
-             reservation_id=excluded.reservation_id,
+           ON CONFLICT(reservation_id) DO UPDATE SET
+             confirmation_code=excluded.confirmation_code,
              source=excluded.source,
              status=excluded.status,
              guest_name=excluded.guest_name,
@@ -2999,7 +3066,11 @@ def save_hostify_reservations(
         [
             (
                 r.get("confirmation_code", ""),
-                r.get("reservation_id", ""),
+                # reservation_id is the unique-per-room key. Real Hostify rows
+                # always carry it; fall back to confirmation_code only for
+                # degenerate rows missing it (keeps legacy one-row-per-code
+                # behaviour rather than dropping the row).
+                r.get("reservation_id") or r.get("confirmation_code", ""),
                 r.get("source", ""),
                 r.get("status", ""),
                 r.get("guest_name", ""),

@@ -428,6 +428,105 @@ def build_csv_cache(conn) -> dict:
     }
 
 
+def _group_room_breakdown(conn, code: str) -> dict[str, dict]:
+    """Per-room economics for a Booking confirmation_code, from the
+    hostify_reservations snapshot, keyed by listing_nickname.
+
+    A multi-room Booking.com group booking shares one confirmation_code across
+    several rooms (distinct listings). Returns {nickname: {base, cleaning,
+    commission}} when the code spans 2+ rooms AND base prices are populated in
+    the snapshot (needed to weight the split); otherwise returns {} so callers
+    leave the row untouched.
+    """
+    if not code:
+        return {}
+    rows = conn.execute(
+        "SELECT listing_nickname, payload_json FROM hostify_reservations "
+        "WHERE confirmation_code = ?",
+        (code,),
+    ).fetchall()
+    if len(rows) < 2:
+        return {}
+    out: dict[str, dict] = {}
+    for r in rows:
+        try:
+            p = json.loads(r["payload_json"])
+        except (TypeError, ValueError):
+            continue
+        nick = r["listing_nickname"] or ""
+        out[nick] = {
+            "base": float(p.get("base_price_eur") or 0),
+            "cleaning": float(p.get("cleaning_fee_eur") or 0),
+            "commission": float(p.get("channel_commission_eur") or 0),
+        }
+    # Only split once base prices are known (post-resync). Without them the
+    # weights would collapse to equal cleaning-only shares — wrong.
+    if sum(v["base"] for v in out.values()) <= 0:
+        return {}
+    return out
+
+
+def _split_group_booking_payouts(conn, all_verified: list[dict], booking_batch_map: dict) -> None:
+    """Split multi-room Booking group payouts back to each object in place.
+
+    Booking pays one lump sum under the shared confirmation_code, so the batch
+    attribution put the GROUP total payout/commission on every room. Re-divide
+    by each room's (base + cleaning) share — the same reconciliation done by
+    hand in the per-object payout spreadsheet. CZK is split from the group's
+    czk_booked so the per-object amounts still sum to the bank payout exactly.
+    """
+    for row in all_verified:
+        if (
+            row.get("is_payout_adjustment")
+            or row.get("is_aircover")
+            or row.get("is_split_transaction")
+            or row.get("is_cancelled")
+        ):
+            continue
+        if "booking" not in (row.get("source") or "").lower():
+            continue
+        code = row.get("confirmation_code", "")
+        pinfo = booking_batch_map.get(code)
+        if not pinfo:
+            continue  # no Booking payout batch → row keeps its own room payout
+        breakdown = _group_room_breakdown(conn, code)
+        if not breakdown:
+            continue
+        room = breakdown.get(row.get("listing_nickname", ""))
+        if room is None:
+            continue
+        total_weight = sum(v["base"] + v["cleaning"] for v in breakdown.values())
+        if total_weight <= 0:
+            continue
+        share = (room["base"] + room["cleaning"]) / total_weight
+        group_eur = pinfo.get("total_amount_eur", pinfo.get("item_amount_eur"))
+        group_czk = pinfo.get("total_amount_czk", pinfo.get("item_amount_czk"))
+        group_commission = sum(v["commission"] for v in breakdown.values())
+        if group_eur is not None:
+            row["effective_payout_eur"] = float(group_eur) * share
+        if group_czk is not None:
+            row["czk_booked"] = float(group_czk) * share
+        row["channel_commission_eur"] = group_commission * share
+        row["group_split_share"] = share
+        row["is_group_split"] = True
+        # The Booking CSV carries one net payout under the shared
+        # confirmation_code, so the per-room verify_reservation compared this
+        # room's Hostify payout against the WHOLE group's CSV total — a bogus
+        # ROZDÍL. The split above IS the reconciliation (the room's share of the
+        # actual Booking bank payout), so mark the row matched and clear the diff.
+        row["csv_payout_eur"] = row.get("effective_payout_eur")
+        row["verification_diff"] = None
+        row["verification_status"] = STATUS_MATCHED
+        prev_comment = (row.get("verification_comment") or "").strip()
+        split_note = "Skupinová Booking rezervace – výplata rozúčtována dle podílu (base+úklid)."
+        row["verification_comment"] = f"{prev_comment} | {split_note}" if prev_comment else split_note
+        log.info(
+            "Group payout split %s room %s: share=%.4f payout_eur=%.2f comm_eur=%.2f",
+            code, row.get("listing_nickname", ""), share,
+            row.get("effective_payout_eur") or 0.0, row["channel_commission_eur"],
+        )
+
+
 def generate_report_in_process(
     conn,
     slug: str,
@@ -632,11 +731,25 @@ def generate_report_in_process(
             adj_codes_in.add(base_code)
             adj_grefs_in.add((base_code, asgn.get("batch_ref", "")))
         elif code not in current_codes:
-            # Pull main reservation from hostify_reservations
-            row = conn.execute(
-                "SELECT payload_json FROM hostify_reservations WHERE confirmation_code = ?",
-                (code,),
-            ).fetchone()
+            # Pull main reservation from hostify_reservations. Scope by this
+            # object's listing nicknames: a multi-room Booking group shares one
+            # confirmation_code across sibling rooms, so an unscoped lookup
+            # could grab another object's room.
+            nick_filter = [n for n in listing_nicknames_all if n]
+            if nick_filter:
+                row = conn.execute(
+                    "SELECT payload_json FROM hostify_reservations "
+                    "WHERE confirmation_code = ? "
+                    f"AND listing_nickname IN ({','.join('?' for _ in nick_filter)}) "
+                    "LIMIT 1",
+                    (code, *nick_filter),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT payload_json FROM hostify_reservations "
+                    "WHERE confirmation_code = ? LIMIT 1",
+                    (code,),
+                ).fetchone()
             if row:
                 raw = json.loads(row["payload_json"])
                 normalized = _normalize_reservation(raw)
@@ -1050,6 +1163,9 @@ def generate_report_in_process(
                 "Split deduction for %s: -%.2f EUR (new effective: %.2f EUR)",
                 code, split_eur, row["effective_payout_eur"],
             )
+
+    # ── Split multi-room Booking group payouts per object ──────────────────
+    _split_group_booking_payouts(conn, all_verified, booking_batch_map)
 
     # ── CNB rates per reservation ───────────────────────────────────────────
     rate_cache: dict = {}
