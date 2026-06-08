@@ -925,7 +925,7 @@ def _deactivate_legacy_checkin_source_files(conn: sqlite3.Connection) -> None:
     only has a legacy file, with no warning surfaced to the operator.
     Deactivate them so the Sources UI shows the issue clearly.
     """
-    from report.checkin import _EXPECTED_HEADER, _decode_source_content
+    from report.checkin import checkin_header_is_supported, _decode_source_content
 
     rows = conn.execute(
         "SELECT id, original_name, content FROM source_files "
@@ -941,8 +941,7 @@ def _deactivate_legacy_checkin_source_files(conn: sqlite3.Connection) -> None:
             (line.strip("﻿") for line in text.splitlines() if line.strip()),
             "",
         )
-        header = [part.strip() for part in first_line.split(";")]
-        if header[: len(_EXPECTED_HEADER)] != _EXPECTED_HEADER:
+        if not checkin_header_is_supported(first_line):
             deactivated_ids.append(int(row["id"]))
     if not deactivated_ids:
         return

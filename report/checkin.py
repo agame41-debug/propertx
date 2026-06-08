@@ -4,6 +4,7 @@ report/checkin.py — Checkin guest report parsing and city-tax overrides.
 
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import unicodedata
@@ -15,19 +16,45 @@ from report.config import get_booking_config, get_hostify_listing_names
 
 logger = logging.getLogger(__name__)
 
-_EXPECTED_HEADER = [
-    "Property Name",
-    "Full Name",
-    "Check-Out Date",
-    "Reservation ID",
-    "Check-In Date",
-    "Name",
-    "Surname",
-    "Birth Date",
-    "Nights of Stay",
-    "Booking Reference",
-    "Reservation External ID",
-]
+# The Hostify "Guest Report" check-in export has shipped both ';'- and
+# ','-delimited, and with columns in different orders (e.g. Birth Date moved
+# from last to second). We therefore map columns by NAME, not position, and
+# sniff the delimiter per file. "Birth Date" is the column that distinguishes
+# the current format from the pre-Birth-Date legacy export (see db.py
+# _deactivate_legacy_checkin_source_files); requiring it keeps that migration
+# deactivating genuinely-legacy files while accepting any current variant.
+_REQUIRED_COLUMNS = (
+    "property name",
+    "reservation id",
+    "check-in date",
+    "check-out date",
+    "birth date",
+)
+
+
+def _sniff_delimiter(header_line: str) -> str:
+    # ';' wins ties for backward compatibility with older exports/fixtures.
+    return ";" if header_line.count(";") >= header_line.count(",") else ","
+
+
+def _header_index(header: list[str]) -> dict[str, int]:
+    index: dict[str, int] = {}
+    for pos, name in enumerate(header):
+        key = str(name or "").strip().lstrip("﻿").casefold()
+        if key and key not in index:
+            index[key] = pos
+    return index
+
+
+def checkin_header_is_supported(first_line: str) -> bool:
+    """True if a check-in export header (',' or ';' delimited, any column order)
+    carries the columns the parser needs to produce guest rows."""
+    line = (first_line or "").lstrip("﻿")
+    if not line.strip():
+        return False
+    header = next(csv.reader([line], delimiter=_sniff_delimiter(line)), [])
+    col = _header_index(header)
+    return all(name in col for name in _REQUIRED_COLUMNS)
 
 
 def _normalize_text(value: str) -> str:
@@ -87,29 +114,38 @@ def _iter_checkin_guest_rows(sources: list) -> list[dict]:
     rows: list[dict] = []
     for source in sources:
         source_name, text = _load_source_text(source)
-        lines = [line.strip("\ufeff") for line in text.splitlines() if line.strip()]
+        text = text.lstrip("\ufeff")
+        lines = [line for line in text.splitlines() if line.strip()]
         if not lines:
             continue
-        header = [part.strip() for part in lines[0].split(";")]
-        if header[: len(_EXPECTED_HEADER)] != _EXPECTED_HEADER:
-            logger.warning("Checkin file %s has unexpected header: %s", source_name, header)
+        # csv.reader (not str.split) so quoted commas survive \u2014 property names
+        # like "Lublanska 13, prava" embed the delimiter in the comma variant.
+        records = list(csv.reader(lines, delimiter=_sniff_delimiter(lines[0])))
+        if not records:
             continue
-        for lineno, raw_line in enumerate(lines[1:], start=2):
-            parts = [part.strip() for part in raw_line.split(";")]
-            if len(parts) < len(_EXPECTED_HEADER):
-                parts.extend([""] * (len(_EXPECTED_HEADER) - len(parts)))
-            elif len(parts) > len(_EXPECTED_HEADER):
-                parts = parts[: len(_EXPECTED_HEADER)]
-            row = dict(zip(_EXPECTED_HEADER, parts))
-            check_in = _parse_checkin_date(row["Check-In Date"])
-            check_out = _parse_checkin_date(row["Check-Out Date"])
-            reservation_id = row["Reservation ID"].strip()
-            property_name = row["Property Name"].strip()
+        col = _header_index(records[0])
+        if not all(name in col for name in _REQUIRED_COLUMNS):
+            logger.warning("Checkin file %s has unexpected header: %s", source_name, records[0])
+            continue
+
+        def _cell(parts: list[str], name: str, _col=col) -> str:
+            pos = _col.get(name)
+            if pos is None or pos >= len(parts):
+                return ""
+            return parts[pos].strip()
+
+        for parts in records[1:]:
+            if not parts:
+                continue
+            check_in = _parse_checkin_date(_cell(parts, "check-in date"))
+            check_out = _parse_checkin_date(_cell(parts, "check-out date"))
+            reservation_id = _cell(parts, "reservation id")
+            property_name = _cell(parts, "property name")
             if not reservation_id or not property_name or not check_in or not check_out:
                 continue
-            guest_age = _age_from_birth_date(row.get("Birth Date", ""), check_in)
-            full_name = row["Full Name"].strip() or " ".join(
-                part for part in (row["Name"].strip(), row["Surname"].strip()) if part
+            guest_age = _age_from_birth_date(_cell(parts, "birth date"), check_in)
+            full_name = _cell(parts, "full name") or " ".join(
+                part for part in (_cell(parts, "name"), _cell(parts, "surname")) if part
             ).strip()
             rows.append(
                 {
