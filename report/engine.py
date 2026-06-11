@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import re
+import threading
 from calendar import monthrange
 from collections import Counter
 from datetime import date as date_cls, datetime as datetime_cls
@@ -546,7 +547,107 @@ def generate_report_in_process(
     Returns:
         {"rows_count": int, "status_counts": dict}           on success
         {"skipped": True, "reason": "locked"}                if month is locked
+
+    Serialized process-wide via _generation_serial_lock: exactly one
+    generation at a time, regardless of which caller (route handler thread,
+    import daemon thread, BackgroundTasks, Hostify sync) initiated it. The
+    bulk runner is a separate process and is serialized internally + by
+    SQLite's busy_timeout.
     """
+    with _generation_serial_lock:
+        # The pipeline below DELETEs this month's report_rows early, and later
+        # steps (template materialization, has-data marks) commit that delete.
+        # Snapshot the previous rows first so a mid-generation failure (CSV
+        # format drift, CNB outage, "database is locked") doesn't leave the
+        # month showing an empty report until the next successful regen.
+        backup_rows = conn.execute(
+            "SELECT confirmation_code, data, generated_at FROM report_rows "
+            "WHERE slug = ? AND year = ? AND month = ?",
+            (slug, year, month),
+        ).fetchall()
+        try:
+            return _generate_report_unguarded(
+                conn, slug, year, month, config,
+                cutoff_day=cutoff_day, csv_cache=csv_cache,
+            )
+        except Exception:
+            _restore_report_rows_after_failure(conn, slug, year, month, backup_rows)
+            raise
+
+
+_generation_serial_lock = threading.Lock()
+
+
+def _restore_report_rows_after_failure(
+    conn, slug: str, year: int, month: int, backup_rows: list
+) -> None:
+    """Re-insert the pre-generation report_rows snapshot after a failed run.
+
+    Fires only when the month ended up empty (save_report_rows never ran);
+    a failure after a successful save keeps the new snapshot.
+    """
+    if not backup_rows:
+        return
+    try:
+        conn.rollback()  # discard uncommitted partial writes of the failed run
+        existing = conn.execute(
+            "SELECT 1 FROM report_rows WHERE slug = ? AND year = ? AND month = ? LIMIT 1",
+            (slug, year, month),
+        ).fetchone()
+        if existing:
+            return
+        # A PENDING/RUNNING generation job for this month owned by ANOTHER
+        # process (bulk_generation_runner — the serial lock is per-process)
+        # means fresh rows are coming; restoring the old snapshot now could
+        # interleave with its early DELETE and leave a mix of old and new
+        # rows. Let the running job win — it produces a complete snapshot.
+        # Our own pid is excluded: the runner registers its job BEFORE
+        # generating, and must not skip restoring its own failed run.
+        job = conn.execute(
+            "SELECT 1 FROM report_generation_jobs "
+            "WHERE slug = ? AND year = ? AND month = ? "
+            "  AND status IN ('PENDING', 'RUNNING') "
+            "  AND COALESCE(pid, -1) != ? LIMIT 1",
+            (slug, year, month, os.getpid()),
+        ).fetchone()
+        if job:
+            log.warning(
+                "Generation failed for %s %d/%d — skipping row restore, an "
+                "active generation job for the month exists",
+                slug, month, year,
+            )
+            return
+        conn.executemany(
+            """INSERT OR REPLACE INTO report_rows
+               (slug, year, month, confirmation_code, data, generated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            [
+                (slug, year, month, r["confirmation_code"], r["data"], r["generated_at"])
+                for r in backup_rows
+            ],
+        )
+        conn.commit()
+        log.warning(
+            "Generation failed for %s %d/%d — restored %d previous report rows",
+            slug, month, year, len(backup_rows),
+        )
+    except Exception:
+        log.exception(
+            "Could not restore previous report rows for %s %d/%d after failed generation",
+            slug, month, year,
+        )
+
+
+def _generate_report_unguarded(
+    conn,
+    slug: str,
+    year: int,
+    month: int,
+    config: dict,
+    *,
+    cutoff_day: int = 7,
+    csv_cache: dict | None = None,
+) -> dict:
     props = {p["slug"]: p for p in get_all_properties(config)}
     if slug not in props:
         raise ValueError(f"Unknown property slug: {slug}")

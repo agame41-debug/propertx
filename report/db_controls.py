@@ -10,6 +10,8 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 
+from report.db_months import _assert_report_month_mutable
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -43,6 +45,12 @@ def create_reservation_month_assignment(
     original_year = int(data["original_year"])
     original_month = int(data["original_month"])
     is_adjustment = 1 if data.get("is_adjustment") else 0
+
+    # DB-level backstop (routes check too): the engine silently skips locked
+    # months, so an assignment touching one would make the reservation vanish
+    # from the open month without appearing in the locked one.
+    _assert_report_month_mutable(conn, slug, original_year, original_month)
+    _assert_report_month_mutable(conn, slug, target_year, target_month)
 
     if not is_adjustment:
         prior = conn.execute(

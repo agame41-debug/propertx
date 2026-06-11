@@ -117,8 +117,13 @@ def register(app, state) -> None:
         if not current_year and ref:
             from urllib.parse import urlparse, parse_qs
             rqs = parse_qs(urlparse(ref).query)
-            ry = int(rqs.get("year", [0])[0] or 0)
-            rm = int(rqs.get("month", [0])[0] or 0)
+            try:
+                ry = int(rqs.get("year", [0])[0] or 0)
+                rm = int(rqs.get("month", [0])[0] or 0)
+            except (TypeError, ValueError):
+                # Referer is attacker/browser-controlled — a malformed
+                # ?year=abc must not 500 the sidebar partial.
+                ry = rm = 0
             if ry and 1 <= rm <= 12:
                 current_year, current_month = ry, rm
         if not current_year:

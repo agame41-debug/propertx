@@ -99,6 +99,16 @@ def _record_login_attempt(
             "DELETE FROM login_attempts WHERE username = ? AND success = 0",
             (username,),
         )
+    # Retention: the throttle window is 15 minutes, so anything older than
+    # 30 days is dead weight — without this the table grew unboundedly
+    # (per-IP failures and success rows were never deleted).
+    retention_cutoff = (
+        datetime.now(timezone.utc) - timedelta(days=30)
+    ).isoformat()
+    conn.execute(
+        "DELETE FROM login_attempts WHERE attempted_at < ?",
+        (retention_cutoff,),
+    )
     conn.commit()
 
 

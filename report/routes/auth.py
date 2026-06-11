@@ -33,6 +33,9 @@ def register(app, state) -> None:
     ):
         user = state["authenticate_user"](conn, username, password, ip=_client_ip(request))
         if user:
+            # Rotate the session on privilege change: the pre-login CSRF token
+            # and any anonymous-session keys must not survive authentication.
+            request.session.clear()
             request.session["authenticated"] = True
             request.session["username"] = user["username"]
             request.session["user_id"] = user["id"]

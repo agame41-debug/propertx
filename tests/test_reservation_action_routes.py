@@ -261,3 +261,107 @@ def test_reservation_move_revert_calls_helper_and_regens_both_months(monkeypatch
         ("28_Pluku_58", 2026, 4),
         ("28_Pluku_58", 2026, 5),
     ])
+
+
+# ────────────────────────────────────────────────────────────────────────
+# Locked TARGET month must be rejected (the engine silently skips locked
+# months, so a move into one would vanish from the source report without
+# appearing in the target until a manual unlock+regen).
+# ────────────────────────────────────────────────────────────────────────
+
+def test_reservation_move_rejects_locked_target_month(monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+
+    created, regens = [], []
+
+    def fake_ensure(conn, slug, year, month):
+        if (year, month) == (2026, 5):
+            raise HTTPException(status_code=423, detail="locked")
+
+    monkeypatch.setattr(web_module, "_ensure_month_open", fake_ensure)
+    monkeypatch.setattr(
+        web_module, "get_report_rows",
+        lambda conn, slug, year, month: [
+            {"confirmation_code": "HMA-1", "is_payout_adjustment": False, "batch_ref": ""}
+        ],
+    )
+    monkeypatch.setattr(web_module, "create_reservation_month_assignment",
+                        lambda conn, p: created.append(p))
+    monkeypatch.setattr(web_module, "_get_actor_username", lambda req: "admin")
+    monkeypatch.setattr(web_module, "generate_report_in_process",
+                        lambda *a, **kw: regens.append(a))
+
+    request = _admin_request()
+    conn = get_connection(":memory:")
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(
+                web_module.reservation_move(
+                    request=request,
+                    slug="28_Pluku_58",
+                    year=2026,
+                    month=4,
+                    code="HMA-1",
+                    target_year=2026,
+                    target_month=5,
+                    reason="",
+                    conn=conn,
+                    config={},
+                )
+            )
+    finally:
+        conn.close()
+
+    assert exc_info.value.status_code == 423
+    assert created == []   # no assignment written
+    assert regens == []    # nothing regenerated
+
+
+def test_reservation_move_revert_rejects_locked_assignment_month(monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+
+    reverts, regens = [], []
+
+    def fake_ensure(conn, slug, year, month):
+        if (year, month) == (2026, 5):
+            raise HTTPException(status_code=423, detail="locked")
+
+    monkeypatch.setattr(web_module, "_ensure_month_open", fake_ensure)
+    monkeypatch.setattr(
+        web_module, "get_assignment_for_code",
+        lambda conn, slug, code, *, original_year, original_month: {
+            "original_year": original_year,
+            "original_month": original_month,
+            "target_year": 2026,
+            "target_month": 5,
+        },
+    )
+    monkeypatch.setattr(web_module, "revert_reservation_month_assignment",
+                        lambda *a, **kw: reverts.append(a))
+    monkeypatch.setattr(web_module, "_get_actor_username", lambda req: "admin")
+    monkeypatch.setattr(web_module, "generate_report_in_process",
+                        lambda *a, **kw: regens.append(a))
+
+    request = _admin_request()
+    conn = get_connection(":memory:")
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(
+                web_module.reservation_move_revert(
+                    request=request,
+                    slug="28_Pluku_58",
+                    year=2026,
+                    month=4,
+                    code="HMA-1",
+                    conn=conn,
+                    config={},
+                )
+            )
+    finally:
+        conn.close()
+
+    assert exc_info.value.status_code == 423
+    assert reverts == []
+    assert regens == []

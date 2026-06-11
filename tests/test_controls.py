@@ -204,3 +204,50 @@ def test_breakdown_skips_excluded_rows():
     breakdown = _compute_row_breakdown(rows)
     assert breakdown["airbnb"]["payout_czk"] == 5000.0
     assert breakdown["airbnb"]["count"] == 1
+
+
+# ── LOCKED month protection (DB-level backstop) ─────────────────────────────
+#
+# Routes check _ensure_month_open first, but the engine silently skips locked
+# months — an assignment touching one would make the reservation vanish from
+# the open month without ever appearing in the locked one. The DB layer must
+# refuse such writes outright.
+
+def _lock_month(conn, slug, year, month):
+    conn.execute(
+        """INSERT OR REPLACE INTO report_month_state
+           (slug, year, month, status, data_state)
+           VALUES (?, ?, ?, 'LOCKED', 'READY')""",
+        (slug, year, month),
+    )
+    conn.commit()
+
+
+def test_create_assignment_rejects_locked_target_month(conn):
+    from report.db_controls import create_reservation_month_assignment, get_reservation_month_assignments
+    from report.db_months import LockedReportMonthError
+    _lock_month(conn, "obj1", 2026, 5)
+    with pytest.raises(LockedReportMonthError):
+        create_reservation_month_assignment(conn, {
+            "slug": "obj1", "confirmation_code": "HMA-LCK1",
+            "target_year": 2026, "target_month": 5,
+            "original_year": 2026, "original_month": 3,
+            "reason": "", "actor": "admin",
+        })
+    assert all(
+        a["confirmation_code"] != "HMA-LCK1"
+        for a in get_reservation_month_assignments(conn, "obj1")
+    )
+
+
+def test_create_assignment_rejects_locked_original_month(conn):
+    from report.db_controls import create_reservation_month_assignment
+    from report.db_months import LockedReportMonthError
+    _lock_month(conn, "obj1", 2026, 3)
+    with pytest.raises(LockedReportMonthError):
+        create_reservation_month_assignment(conn, {
+            "slug": "obj1", "confirmation_code": "HMA-LCK2",
+            "target_year": 2026, "target_month": 5,
+            "original_year": 2026, "original_month": 3,
+            "reason": "", "actor": "admin",
+        })

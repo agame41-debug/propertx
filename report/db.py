@@ -862,6 +862,7 @@ def _seed_default_expense_categories(conn: sqlite3.Connection) -> None:
 
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Small additive migrations for existing local SQLite databases."""
+    global _source_files_dedupe_done, _legacy_checkin_deactivation_done
     _ensure_column(conn, "pending_payments", "batch_expected_czk", "batch_expected_czk REAL")
     _ensure_column(conn, "pending_payments", "batch_payout_date", "batch_payout_date TEXT")
     _ensure_column(conn, "report_history", "ke_kontrole", "ke_kontrole INTEGER DEFAULT 0")
@@ -873,7 +874,16 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "expenses", "vat_rate", "vat_rate REAL")
     _ensure_column(conn, "expenses", "template_id", "template_id INTEGER")
     _seed_default_expense_categories(conn)
-    _dedupe_source_files_by_type_sha256(conn)
+    # Once per process: the GROUP BY walks every source_files BLOB's overflow
+    # pages, and get_connection() runs migrations on every request. New
+    # duplicates can't appear mid-process — the unique index below plus the
+    # import-path dedupe prevent them.
+    # Guard is set AFTER success: the CREATE UNIQUE INDEX below depends on
+    # this dedupe — a transient failure (database is locked) must retry on
+    # the next connection, not leave every request failing on the index.
+    if not _source_files_dedupe_done:
+        _dedupe_source_files_by_type_sha256(conn)
+        _source_files_dedupe_done = True
     conn.execute(
         """CREATE INDEX IF NOT EXISTS idx_report_rows_code_lookup
            ON report_rows(confirmation_code, year DESC, month DESC)"""
@@ -917,7 +927,14 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     """)
     _ensure_column(conn, "report_objects", "client_type", "client_type TEXT NOT NULL DEFAULT 'rentero'")
     _drop_ownership_columns_from_payout_batch_bank_matches(conn)
-    _deactivate_legacy_checkin_source_files(conn)
+    # Once per process: this decodes every active checkin BLOB on each run
+    # (×2 per authenticated request via require_auth + get_db). Fresh checkin
+    # uploads are re-checked at import time in source_registry; re-activation
+    # of an archived file is re-checked in the /sources activate route.
+    # Guard set AFTER success so a transient failure retries next connection.
+    if not _legacy_checkin_deactivation_done:
+        _deactivate_legacy_checkin_source_files(conn)
+        _legacy_checkin_deactivation_done = True
     _backfill_payout_batches_from_active_sources(conn)
     from report.db_object_profiles import backfill_object_profiles
     backfill_object_profiles(conn)
@@ -965,6 +982,8 @@ def _deactivate_legacy_checkin_source_files(conn: sqlite3.Connection) -> None:
 _payout_batches_backfill_done = False
 _checkin_snapshots_backfill_done = False
 _booking_guest_names_backfill_done = False
+_source_files_dedupe_done = False
+_legacy_checkin_deactivation_done = False
 
 
 def _reset_payout_batches_backfill_guard_for_tests() -> None:
@@ -983,9 +1002,12 @@ def _reset_one_shot_migration_guards_for_tests() -> None:
     """
     global _payout_batches_backfill_done, _checkin_snapshots_backfill_done
     global _booking_guest_names_backfill_done
+    global _source_files_dedupe_done, _legacy_checkin_deactivation_done
     _payout_batches_backfill_done = False
     _checkin_snapshots_backfill_done = False
     _booking_guest_names_backfill_done = False
+    _source_files_dedupe_done = False
+    _legacy_checkin_deactivation_done = False
 
 
 def _backfill_payout_batches_from_active_sources(conn: sqlite3.Connection) -> None:

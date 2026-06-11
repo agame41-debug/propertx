@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 
 from report.config import get_hostify_listing_names, load_runtime_config, sync_json_config_to_db, sync_property_to_db
@@ -1286,3 +1287,120 @@ def test_property_intro_rentero_shows_rentero_badge():
     assert "Plátce DPH" in html
 
 
+
+
+def test_client_save_rejects_invalid_numeric_fields_without_saving():
+    """A typo in a rate must reject the WHOLE save with an error flash —
+    the old try/except-pass silently kept the previous value while the
+    user saw success (and the next regen used the rate they thought
+    they had changed)."""
+    conn = get_connection(":memory:")
+    try:
+        sync_json_config_to_db(conn, BASE_CONFIG)
+        config = load_runtime_config("/tmp/does-not-exist-properties.json", db_conn=conn)
+        before = dict(conn.execute(
+            "SELECT rentero_commission, city_tax_rate FROM report_objects WHERE slug = ?",
+            ("28_Pluku_58",),
+        ).fetchone())
+        request = _admin_request()
+
+        response = asyncio.run(
+            web_module.client_save(
+                request=request,
+                slug="28_Pluku_58",
+                name="Client Name",
+                ico="",
+                dic="",
+                platce_dph="",
+                adresa="",
+                address="",
+                bank_account="",
+                email="",
+                phone="",
+                notes="",
+                display_name="",
+                listing_id="",
+                listing_nickname="",
+                balicky_per_person="",
+                city_tax_rate="abc",
+                vat_rate="",
+                hostify_listing_names="",
+                airbnb_listing_names="",
+                booking_listing_nickname="",
+                booking_property_id="",
+                active="1",
+                config_effective_from="",
+                rentero_commission="0,1.5",
+                conn=conn,
+                config=config,
+            )
+        )
+
+        after = dict(conn.execute(
+            "SELECT rentero_commission, city_tax_rate FROM report_objects WHERE slug = ?",
+            ("28_Pluku_58",),
+        ).fetchone())
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/clients/28_Pluku_58"
+        assert request.session["_flash"]["level"] == "error"
+        assert "NEBYLA" in request.session["_flash"]["message"]
+        assert "City tax" in request.session["_flash"]["message"]
+        assert "Provize Rentero" in request.session["_flash"]["message"]
+        assert after == before  # nothing was written
+        client = get_client(conn, "28_Pluku_58")
+        assert not client or client.get("name") != "Client Name"  # save_client never ran
+    finally:
+        conn.close()
+
+
+def test_client_save_accepts_valid_numeric_fields():
+    conn = get_connection(":memory:")
+    try:
+        sync_json_config_to_db(conn, BASE_CONFIG)
+        config = load_runtime_config("/tmp/does-not-exist-properties.json", db_conn=conn)
+        request = _admin_request()
+
+        response = asyncio.run(
+            web_module.client_save(
+                request=request,
+                slug="28_Pluku_58",
+                name="Client Name",
+                ico="",
+                dic="",
+                platce_dph="",
+                adresa="",
+                address="",
+                bank_account="",
+                email="",
+                phone="",
+                notes="",
+                display_name="",
+                listing_id="",
+                listing_nickname="",
+                balicky_per_person="",
+                city_tax_rate="45",
+                vat_rate="",
+                hostify_listing_names="",
+                airbnb_listing_names="",
+                booking_listing_nickname="",
+                booking_property_id="",
+                active="1",
+                config_effective_from="",
+                rentero_commission="12",
+                conn=conn,
+                config=config,
+            )
+        )
+
+        row = conn.execute(
+            "SELECT rentero_commission, city_tax_rate FROM report_objects WHERE slug = ?",
+            ("28_Pluku_58",),
+        ).fetchone()
+
+        assert response.status_code == 303
+        assert request.session["_flash"]["level"] == "success"
+        assert row["rentero_commission"] == pytest.approx(0.12)
+        assert row["city_tax_rate"] == pytest.approx(45.0)
+    finally:
+        conn.close()

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import date
 
 from report.db import (
@@ -150,6 +151,10 @@ class HostifySyncTask:
                             conn, slug, year, month, config,
                             csv_cache=csv_cache,
                         )
+                        # Yield the engine's process-wide serial lock between
+                        # iterations so an interactive regen (user mutation in
+                        # a route handler) doesn't starve behind this batch.
+                        time.sleep(0.25)
                     except Exception as exc:
                         log.warning(
                             "Hostify sync regen failed %s %d/%d: %s",

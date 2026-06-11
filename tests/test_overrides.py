@@ -312,3 +312,38 @@ class TestNormalizePayoutCzk:
     def test_double_decimal_separator_rejected(self):
         with pytest.raises(ValueError, match="payout_czk"):
             normalize_override_value("payout_czk", "8 662,79.5")
+
+
+class TestLockedMonthGuard:
+    """DB-level backstop: overrides are applied to report_rows at READ time,
+    so a bypassing caller could silently change a locked month's displayed
+    numbers without a regen. The DB layer must refuse the write itself."""
+
+    def _lock(self, conn, slug, year, month):
+        conn.execute(
+            """INSERT OR REPLACE INTO report_month_state
+               (slug, year, month, status, data_state)
+               VALUES (?, ?, ?, 'LOCKED', 'READY')""",
+            (slug, year, month),
+        )
+        conn.commit()
+
+    def test_create_override_event_rejects_locked_month(self, conn):
+        from report.db_months import LockedReportMonthError
+        self._lock(conn, "test_prop", 2025, 3)
+        with pytest.raises(LockedReportMonthError):
+            _make_event(conn)
+        assert get_override_events(conn, "test_prop", 2025, 3) == []
+
+    def test_revert_override_event_rejects_locked_month(self, conn):
+        from report.db_months import LockedReportMonthError
+        ev = _make_event(conn)
+        self._lock(conn, "test_prop", 2025, 3)
+        with pytest.raises(LockedReportMonthError):
+            revert_override_event(conn, ev["id"], reverted_by="admin")
+        events = get_override_events(conn, "test_prop", 2025, 3)
+        assert events[0]["is_active"] == 1
+
+    def test_create_override_event_allows_open_month(self, conn):
+        ev = _make_event(conn)
+        assert ev["is_active"] == 1

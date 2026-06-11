@@ -381,9 +381,24 @@
       bar.classList.add('done');
       _timer = setTimeout(function() { bar.classList.remove('done'); bar.style.width = ''; }, 450);
     }
+    function navError() {
+      /* The skeleton already replaced #page-body and there is no history
+         cache to restore — without this the user stays on a skeleton
+         forever after a network error / 500 during navigation. */
+      if (_skeletonShown) {
+        var pb = document.getElementById('page-body');
+        if (pb) {
+          pb.innerHTML = '<div style="padding:48px 24px;text-align:center;">'
+            + '<div style="font-weight:600;margin-bottom:12px;">Stránku se nepodařilo načíst</div>'
+            + '<button type="button" style="padding:8px 18px;cursor:pointer;" '
+            + 'onclick="window.location.reload()">Zkusit znovu</button></div>';
+        }
+      }
+      finishBar();
+    }
     document.body.addEventListener('htmx:afterSwap', finishBar);
-    document.body.addEventListener('htmx:responseError', finishBar);
-    document.body.addEventListener('htmx:sendError', finishBar);
+    document.body.addEventListener('htmx:responseError', navError);
+    document.body.addEventListener('htmx:sendError', navError);
   })();
 
   /* Close sheets on navigation (HTMX) — instant, no animation needed */

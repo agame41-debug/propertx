@@ -4,7 +4,7 @@
 {% block content %}
 
 {% if flash %}
-<div class="notify {% if flash.level == 'error' %}notify-error{% elif flash.level == 'info' %}notify-info{% else %}notify-success{% endif %}" style="margin-bottom:var(--space-lg);">
+<div class="notify {% if flash.level == 'error' %}notify-error{% elif flash.level == 'info' %}notify-info{% else %}notify-success{% endif %}" style="margin-bottom:var(--space-lg);" data-flash="1">
   <div style="flex:1;">
     <div style="font-weight:600;">{{ flash.message }}</div>
     {% if flash.detail %}
@@ -398,8 +398,13 @@ function _applyFilters() {
     }
   });
 
+  // Keep data-copy in sync with the rendered value — click-to-copy reads
+  // dataset.copy, which would otherwise keep the unfiltered server total.
   var kpiPayout = document.getElementById('kpi-payout');
-  if (kpiPayout) kpiPayout.innerHTML = _formatNumber(totalPayout) + ' Kč';
+  if (kpiPayout) {
+    kpiPayout.innerHTML = _formatNumber(totalPayout) + ' Kč';
+    kpiPayout.dataset.copy = totalPayout.toFixed(2);
+  }
 
   var kpiPayoutSub = document.getElementById('kpi-payout-sub');
   if (kpiPayoutSub) kpiPayoutSub.textContent = 'platformy → rentero';
@@ -411,10 +416,14 @@ function _applyFilters() {
     if (delta > 0) deltaHtml = ' <span class="kpi-delta kpi-delta-pos">+' + delta + '</span>';
     else if (delta < 0) deltaHtml = ' <span class="kpi-delta kpi-delta-neg">' + delta + '</span>';
     kpiRez.innerHTML = totalRez + deltaHtml;
+    kpiRez.dataset.copy = String(totalRez);
   }
 
   var kpiClientPayout = document.getElementById('kpi-client-payout');
-  if (kpiClientPayout) kpiClientPayout.innerHTML = _formatNumber(totalClientPayout) + ' Kč';
+  if (kpiClientPayout) {
+    kpiClientPayout.innerHTML = _formatNumber(totalClientPayout) + ' Kč';
+    kpiClientPayout.dataset.copy = totalClientPayout.toFixed(2);
+  }
 
   // Bilance DPH — standalone card. On the default unfiltered view ("Vše", no
   // search) keep the complete server total; for any active filter recompute over
@@ -431,6 +440,7 @@ function _applyFilters() {
     kpiVatBalance.innerHTML = (vatRefund ? '+' : '−') + ' '
       + _formatNumber(Math.abs(vatBal)) + ' Kč';
     kpiVatBalance.style.color = vatRefund ? 'var(--color-green)' : 'var(--color-red)';
+    kpiVatBalance.dataset.copy = Math.abs(vatBal).toFixed(2);
   }
   if (kpiVatOutput) kpiVatOutput.textContent = '−' + _formatNumber(vatOut);
   if (kpiVatInput)  kpiVatInput.textContent  = '+' + _formatNumber(vatIn);
@@ -446,7 +456,10 @@ function _applyFilters() {
     totalModelFee += parseFloat(row.dataset.modelFee) || 0;
   });
   var kpiProfit = document.getElementById('kpi-profit');
-  if (kpiProfit) kpiProfit.innerHTML = _formatNumber(totalFee) + ' Kč';
+  if (kpiProfit) {
+    kpiProfit.innerHTML = _formatNumber(totalFee) + ' Kč';
+    kpiProfit.dataset.copy = totalFee.toFixed(2);
+  }
   var kpiProfitModel = document.getElementById('kpi-profit-model');
   if (kpiProfitModel) kpiProfitModel.textContent = _formatNumber(totalFee + totalModelFee);
 }

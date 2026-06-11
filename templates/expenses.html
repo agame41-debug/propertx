@@ -5,7 +5,7 @@
 
 {# Flash #}
 {% if flash %}
-<div class="notify {% if flash.level == 'error' %}notify-error{% else %}notify-success{% endif %}" style="margin-bottom:16px;">
+<div class="notify {% if flash.level == 'error' %}notify-error{% else %}notify-success{% endif %}" style="margin-bottom:16px;" data-flash="1">
   <div style="flex:1;font-weight:600;">{{ flash.message }}</div>
 </div>
 {% endif %}

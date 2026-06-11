@@ -571,6 +571,20 @@ def import_uploaded_source(
             "duplicate_of_source_file_id": stored["duplicate_of_source_file_id"],
         }
         if source_type == "checkin" and not stored["is_duplicate"]:
+            # Legacy (pre-Birth-Date) headers parse to zero rows silently.
+            # The boot-time migration that deactivates such files now runs
+            # once per process, so catch fresh uploads here instead.
+            from report.checkin import _decode_source_content, checkin_header_is_supported
+            first_line = next(
+                (line.strip("﻿") for line in _decode_source_content(content).splitlines() if line.strip()),
+                "",
+            )
+            if not checkin_header_is_supported(first_line):
+                conn.execute(
+                    "UPDATE source_files SET is_active = 0 WHERE id = ?",
+                    (int(stored["source_file_id"]),),
+                )
+                summary["legacy_checkin_deactivated"] = True
             source = _source_blob(original_name, content)
             properties = _load_properties_for_matching(conn)
             guest_rows = load_checkin_guest_rows([source])

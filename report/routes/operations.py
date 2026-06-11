@@ -284,6 +284,56 @@ def register(app, state) -> None:
         if slug not in props:
             raise HTTPException(404, "Objekt nenalezen")
 
+        # ── Validate ALL numeric inputs up front ──────────────────────────
+        # A typo ("15%%", "0,1.5") must reject the WHOLE save with a clear
+        # error. The old try/except-pass pattern silently kept the previous
+        # value while flashing success — and the next regen computed money
+        # with a rate the user believed they had changed.
+        invalid_fields: list[str] = []
+
+        def _parse_optional_float(raw: str, label: str) -> float | None:
+            text = (raw or "").strip()
+            if not text:
+                return None
+            try:
+                return float(text.replace(",", "."))
+            except ValueError:
+                invalid_fields.append(label)
+                return None
+
+        listing_id_val: int | None = None
+        if listing_id.strip():
+            try:
+                listing_id_val = int(listing_id.strip())
+            except ValueError:
+                invalid_fields.append("Listing ID")
+
+        balicky_val = _parse_optional_float(balicky_per_person, "Balíčky / osoba")
+        city_tax_val = _parse_optional_float(city_tax_rate, "City tax")
+        vat_val = _parse_optional_float(vat_rate, "Sazba DPH")
+
+        commission_val: float | None = None
+        if rentero_commission.strip():
+            try:
+                commission_val = float(
+                    rentero_commission.replace(",", ".").replace("%", "").strip()
+                ) / 100
+            except ValueError:
+                invalid_fields.append("Provize Rentero")
+            else:
+                if not (0 <= commission_val <= 1):
+                    invalid_fields.append("Provize Rentero (mimo rozsah 0–100 %)")
+                    commission_val = None
+
+        if invalid_fields:
+            state["_set_flash"](
+                request,
+                "error",
+                "Konfigurace NEBYLA uložena — neplatné číselné hodnoty: "
+                + ", ".join(invalid_fields) + ".",
+            )
+            return RedirectResponse(f"/clients/{slug}", status_code=303)
+
         state["save_client"](
             conn,
             {
@@ -305,22 +355,16 @@ def register(app, state) -> None:
         updated_prop["listing_nickname"] = listing_nickname.strip() or updated_prop.get("listing_nickname", "")
         updated_prop["active"] = bool(active)
 
-        if listing_id.strip():
-            try:
-                updated_prop["listing_id"] = int(listing_id.strip())
-            except ValueError:
-                pass
+        if listing_id_val is not None:
+            updated_prop["listing_id"] = listing_id_val
 
-        for field_name, raw_value in (
-            ("balicky_per_person", balicky_per_person),
-            ("city_tax_rate", city_tax_rate),
-            ("vat_rate", vat_rate),
+        for field_name, parsed_value in (
+            ("balicky_per_person", balicky_val),
+            ("city_tax_rate", city_tax_val),
+            ("vat_rate", vat_val),
         ):
-            if raw_value.strip():
-                try:
-                    updated_prop[field_name] = float(raw_value.replace(",", ".").strip())
-                except ValueError:
-                    pass
+            if parsed_value is not None:
+                updated_prop[field_name] = parsed_value
 
         channels = json.loads(json.dumps(updated_prop.get("channels") or {}))
         channels.setdefault("hostify", {})
@@ -340,13 +384,8 @@ def register(app, state) -> None:
         channels["booking"]["property_id"] = booking_property_id.strip()
         updated_prop["channels"] = channels
 
-        if rentero_commission:
-            try:
-                rate = float(rentero_commission.replace(",", ".").replace("%", "").strip()) / 100
-            except ValueError:
-                rate = None
-            if rate is not None and 0 <= rate <= 1:
-                updated_prop["rentero_commission"] = rate
+        if commission_val is not None:
+            updated_prop["rentero_commission"] = commission_val
 
         if client_type in ("rentero", "klient", "z_klient"):
             updated_prop["client_type"] = client_type
@@ -393,20 +432,13 @@ def register(app, state) -> None:
         }
         if client_type in ("rentero", "klient", "z_klient"):
             profile_changes["client_type"] = client_type
-        for _fld, _raw in (("city_tax_rate", city_tax_rate),
-                           ("balicky_per_person", balicky_per_person),
-                           ("vat_rate", vat_rate)):
-            if _raw.strip():
-                try:
-                    profile_changes[_fld] = float(_raw.replace(",", ".").strip())
-                except ValueError:
-                    pass
-        if rentero_commission.strip():
-            try:
-                profile_changes["rentero_commission"] = float(
-                    rentero_commission.replace(",", ".").replace("%", "").strip()) / 100
-            except ValueError:
-                pass
+        for _fld, _val in (("city_tax_rate", city_tax_val),
+                           ("balicky_per_person", balicky_val),
+                           ("vat_rate", vat_val)):
+            if _val is not None:
+                profile_changes[_fld] = _val
+        if commission_val is not None:
+            profile_changes["rentero_commission"] = commission_val
 
         if _scope == "month_only":
             state["set_profile_this_month_only"](conn, slug, anchor_y, anchor_m, profile_changes)

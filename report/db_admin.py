@@ -475,6 +475,12 @@ def normalize_override_value(field: str, value) -> str:
 
 
 def create_override_event(conn: sqlite3.Connection, data: dict) -> dict:
+    # DB-level backstop: the route layer checks the lock too, but overrides
+    # are applied to report_rows at READ time, so a bypassing caller would
+    # silently change a locked month's displayed numbers without a regen.
+    _assert_report_month_mutable(
+        conn, str(data["slug"]), int(data["year"]), int(data["month"])
+    )
     now = _now()
     field = str(data["field"])
     new_value = normalize_override_value(field, data.get("new_value") or "")
@@ -525,6 +531,14 @@ def revert_override_event(
     *,
     reverted_by: str = "admin",
 ) -> None:
+    event = conn.execute(
+        "SELECT slug, year, month FROM override_events WHERE id = ?",
+        (int(event_id),),
+    ).fetchone()
+    if event:
+        _assert_report_month_mutable(
+            conn, event["slug"], event["year"], event["month"]
+        )
     conn.execute(
         """UPDATE override_events
            SET is_active = 0, reverted_at = ?, reverted_by = ?

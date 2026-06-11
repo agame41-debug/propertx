@@ -68,9 +68,15 @@
         });
       }
       var t = parseInt(banner.getAttribute('data-auto-dismiss-ms') || '0', 10);
+      // Flash banners (session messages after a POST) auto-hide after 8s;
+      // errors and persistent notifications (locked-month warnings etc.) stay.
+      if (!t && banner.dataset.flash && !banner.classList.contains('notify-error')) t = 8000;
       if (t > 0) {
         setTimeout(function() {
-          if (banner.isConnected) banner.remove();
+          if (!banner.isConnected) return;
+          banner.style.transition = 'opacity 0.4s ease';
+          banner.style.opacity = '0';
+          setTimeout(function() { banner.remove(); }, 400);
         }, t);
       }
       banner.dataset.dismissInit = '1';
@@ -78,6 +84,11 @@
   }
 
   document.addEventListener('DOMContentLoaded', function() {
+    initDismissibleBanners(document);
+  });
+  // Banners arriving via HTMX navigation need (re-)initialization too —
+  // DOMContentLoaded fires only once per full page load.
+  document.addEventListener('htmx:afterSwap', function() {
     initDismissibleBanners(document);
   });
 
@@ -570,11 +581,20 @@ TableEnhanced.prototype._applySort = function() {
     return;
   }
   var col = this.state.sort, dir = this.state.sortDir;
+  function cellVal(c) {
+    if (!c) return '';
+    if (c.dataset.val !== undefined) {
+      // Non-numeric data-val (ISO dates in /bank) must fall back to the
+      // raw string — +val gives NaN and NaN comparators don't sort at all.
+      // Number(), not parseFloat(): parseFloat('2026-05-03') would be 2026.
+      var n = Number(c.dataset.val);
+      return isNaN(n) ? c.dataset.val : n;
+    }
+    return c.textContent.trim();
+  }
   blocks.sort(function(a, b) {
-    var ac = a.row.querySelector('[data-col="' + col + '"]');
-    var bc = b.row.querySelector('[data-col="' + col + '"]');
-    var av = ac ? (ac.dataset.val !== undefined ? +ac.dataset.val : ac.textContent.trim()) : '';
-    var bv = bc ? (bc.dataset.val !== undefined ? +bc.dataset.val : bc.textContent.trim()) : '';
+    var av = cellVal(a.row.querySelector('[data-col="' + col + '"]'));
+    var bv = cellVal(b.row.querySelector('[data-col="' + col + '"]'));
     var cmp = (typeof av === 'number' && typeof bv === 'number') ?
       av - bv : String(av).localeCompare(String(bv), 'cs');
     return dir === 'desc' ? -cmp : cmp;
@@ -777,12 +797,24 @@ var FloatingPanel = (function() {
   }
 
   function _hide() {
-    _panel.classList.add('fp-exiting');
-    _panel.addEventListener('animationend', function onEnd() {
+    // animationend never fires when the exit animation is disabled
+    // (prefers-reduced-motion sets `.fp-exiting { animation: none; }`),
+    // which left the panel impossible to close — finish via a fallback
+    // timer slightly longer than the 200ms animation.
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      _panel.removeEventListener('animationend', finish);
+      // _show() strips fp-exiting — if the panel was reopened while the
+      // exit was in flight, the stale timer must not hide it again.
+      if (!_panel.classList.contains('fp-exiting')) return;
       _panel.style.display = 'none';
       _panel.classList.remove('fp-exiting');
-      _panel.removeEventListener('animationend', onEnd);
-    });
+    }
+    _panel.classList.add('fp-exiting');
+    _panel.addEventListener('animationend', finish);
+    setTimeout(finish, 250);
   }
 
   // ── Snap to viewport edges ─────────────────────────────────────────
@@ -914,11 +946,13 @@ var FloatingPanel = (function() {
         channelDot = '<span style="width:6px;height:6px;border-radius:50%;background:#0053b4;flex-shrink:0;display:inline-block;"></span>';
       }
 
+      // span, not <button>: nested buttons are invalid HTML and some parsers
+      // hoist the inner one out of the tab, breaking the close target.
       btn.innerHTML = channelDot
         + '<span class="fp-tab-label">' + _esc(tab.title) + '</span>'
-        + '<button class="fp-tab-close" data-close="' + _esc(key) + '" title="Zavřít tab">'
+        + '<span class="fp-tab-close" role="button" tabindex="0" data-close="' + _esc(key) + '" title="Zavřít tab">'
         + '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">'
-        + '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+        + '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>';
 
       btn.addEventListener('click', function(e) {
         if (e.target.closest('.fp-tab-close')) {
@@ -992,12 +1026,53 @@ var FloatingPanel = (function() {
   }
 
   // ── Summary tab ────────────────────────────────────────────────────
+  function _panelUrl(tab) {
+    var url = '/reservation/' + encodeURIComponent(tab.code) + '/panel';
+    if (tab.year && tab.month) url += '?year=' + tab.year + '&month=' + tab.month;
+    return url;
+  }
+
+  function _fetchTabContent(tab) {
+    var key = _tabKey(tab);
+    if (_tabContent[key]) return Promise.resolve(_tabContent[key]);
+    return fetch(_panelUrl(tab), { credentials: 'same-origin' })
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function(html) {
+        _tabContent[key] = html;
+        return html;
+      });
+  }
+
   function _renderSummary() {
     if (_state.tabs.length === 0) {
       _content.innerHTML = '<div class="fp-summary-empty">\u017d\xe1dn\xe9 otev\u0159en\xe9 rezervace.</div>';
       return;
     }
 
+    // Tab CONTENT lives only in memory — after a page reload the restored
+    // tabs have no HTML yet and the summary would silently sum a subset.
+    // Fetch every missing tab first, then render.
+    var missing = _state.tabs.filter(function(t) { return !_tabContent[_tabKey(t)]; });
+    if (missing.length) {
+      _content.innerHTML = '<div class="fp-loading">'
+        + '<svg class="fp-spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+        + '<path stroke-linecap="round" d="M12 2a10 10 0 010 20A10 10 0 0112 2" opacity=".25"/>'
+        + '<path stroke-linecap="round" d="M12 2a10 10 0 0110 10"/></svg>'
+        + 'Načítám rezervace…</div>';
+      Promise.all(missing.map(function(t) {
+        return _fetchTabContent(t).catch(function() { return null; });
+      })).then(function() {
+        if (_state.activeTab === '__summary__') _renderSummaryNow();
+      });
+      return;
+    }
+    _renderSummaryNow();
+  }
+
+  function _renderSummaryNow() {
     var totals = { nights: 0, payout: 0, ubytovani: 0, priprava: 0, citytax: 0, provize: 0, count: 0 };
     _state.tabs.forEach(function(tab) {
       var html = _tabContent[_tabKey(tab)];
@@ -1029,7 +1104,13 @@ var FloatingPanel = (function() {
       + '<div class="fp-summary-item"><span class="fp-summary-label">P\u0159\xedprava pokoje</span><span class="fp-summary-value">' + _fmt(totals.priprava) + '</span></div>'
       + '<div class="fp-summary-item"><span class="fp-summary-label">City tax</span><span class="fp-summary-value">' + _fmt(totals.citytax) + '</span></div>'
       + '<div class="fp-summary-item"><span class="fp-summary-label">Provize</span><span class="fp-summary-value">' + _fmt(totals.provize) + '</span></div>'
-      + '</div>';
+      + '</div>'
+      // Only possible when a prefetch failed — never undercount silently.
+      + (totals.count < _state.tabs.length
+          ? '<div style="padding:8px 14px;font-size:12px;color:var(--color-red);">Nepodařilo se načíst '
+            + (_state.tabs.length - totals.count) + ' z ' + _state.tabs.length
+            + ' rezervací — souhrn je neúplný.</div>'
+          : '');
   }
 
   // ── Open / close tabs ──────────────────────────────────────────────
@@ -1061,8 +1142,8 @@ var FloatingPanel = (function() {
     // Fallback: match by confirmation_code alone (form onsubmit passes bare code)
     if (idx === -1) idx = _state.tabs.findIndex(function(t) { return t.code === code; });
     if (idx === -1) return;
-    _state.tabs.splice(idx, 1);
-    delete _tabContent[code];
+    var removed = _state.tabs.splice(idx, 1)[0];
+    delete _tabContent[removed ? _tabKey(removed) : code];
 
     if (_state.tabs.length === 0) {
       _state.activeTab = null;
@@ -1175,7 +1256,15 @@ var FloatingPanel = (function() {
       body: data,
       credentials: 'same-origin',
       redirect: 'follow',
-    }).then(function() {
+    }).then(function(r) {
+      // fetch only rejects on network failure — a 403/423/500 response
+      // must NOT render the green checkmark (the server did nothing).
+      if (!r.ok) {
+        var msg = 'HTTP ' + r.status;
+        if (r.status === 423) msg = 'Měsíc je uzamčen (423)';
+        else if (r.status === 403) msg = 'Nemáte oprávnění (403)';
+        throw new Error(msg);
+      }
       _content.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;padding:32px;">'
         + '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="oklch(0.82 0.16 155)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">'
         + '<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
@@ -1183,7 +1272,8 @@ var FloatingPanel = (function() {
       setTimeout(function() { closeTab(code); window.location.reload(); }, 1200);
     }).catch(function(err) {
       _content.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;padding:32px;">'
-        + '<span style="font-size:13px;color:var(--red);">Chyba: ' + _esc(err.message) + '</span></div>';
+        + '<span style="font-size:13px;color:var(--red);">Akce se nezdařila: ' + _esc(err.message) + '</span>'
+        + '<button type="button" style="font-size:12px;padding:6px 14px;cursor:pointer;" onclick="window.location.reload()">Obnovit stránku</button></div>';
     });
   }
 
@@ -1420,35 +1510,7 @@ document.addEventListener('DOMContentLoaded', FloatingPanel.init);
   else paused = true;
 })();
 
-/* ─── Flash banner dismiss + auto-hide ──────────────────────────────── */
-(function() {
-  if (window._RenteroDismissInit) return;
-  window._RenteroDismissInit = true;
-
-  function setupDismiss() {
-    document.querySelectorAll('.notify').forEach(function(el) {
-      if (el.dataset.dismissReady) return;
-      el.dataset.dismissReady = '1';
-      el.style.position = 'relative';
-      // Add close button
-      var btn = document.createElement('button');
-      btn.innerHTML = '&times;';
-      btn.style.cssText = 'position:absolute;top:8px;right:12px;background:none;border:none;font-size:18px;cursor:pointer;color:inherit;opacity:0.5;line-height:1;padding:0;';
-      btn.onmouseenter = function() { btn.style.opacity = '1'; };
-      btn.onmouseleave = function() { btn.style.opacity = '0.5'; };
-      btn.onclick = function(e) { e.preventDefault(); el.style.display = 'none'; };
-      el.appendChild(btn);
-      // Auto-dismiss non-error banners after 8s
-      if (!el.classList.contains('notify-error')) {
-        setTimeout(function() {
-          el.style.transition = 'opacity 0.4s ease';
-          el.style.opacity = '0';
-          setTimeout(function() { el.style.display = 'none'; }, 400);
-        }, 8000);
-      }
-    });
-  }
-  document.addEventListener('DOMContentLoaded', setupDismiss);
-  document.body.addEventListener('htmx:afterSwap', setupDismiss);
-})();
+/* Flash banner dismiss + auto-hide lives in the "Dismissible Notifications"
+   block near the top of this file — the second IIFE that used to sit here
+   shared its _RenteroDismissInit guard and therefore never executed. */
 </script>

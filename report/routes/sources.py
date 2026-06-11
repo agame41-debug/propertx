@@ -148,6 +148,25 @@ def register(app, state) -> None:
         if not row:
             raise HTTPException(404, "Source file not found")
         state["set_source_file_active"](conn, file_id, True)
+        if row["source_type"] == "checkin":
+            # Re-activating a legacy (pre-Birth-Date) checkin file would
+            # silently contribute zero rows — the boot-time deactivation
+            # migration runs once per process, so re-check here.
+            from report.db import _deactivate_legacy_checkin_source_files
+            _deactivate_legacy_checkin_source_files(conn)
+            refreshed = state["get_source_file"](conn, file_id)
+            if refreshed and not refreshed["is_active"]:
+                state["_set_flash"](
+                    request,
+                    "error",
+                    f"Soubor '{row['original_name']}' má zastaralý formát hlavičky "
+                    "(chybí sloupec Birth Date) — parser ho neumí načíst, "
+                    "soubor zůstává neaktivní.",
+                )
+                return RedirectResponse(
+                    state["_sources_redirect"](source_type or row["source_type"]),
+                    status_code=303,
+                )
         impact_result = state["_apply_source_file_state_change_impacts"](
             conn,
             row,

@@ -487,3 +487,20 @@ def test_stale_running_bulk_generation_run_is_expired_when_pid_is_gone():
         assert latest["current_slug"] == ""
     finally:
         conn.close()
+
+
+def test_pid_is_alive_is_a_safe_probe():
+    """Liveness check must not signal/kill the probed process (Windows
+    os.kill(pid, 0) goes through GenerateConsoleCtrlEvent — replaced by an
+    OpenProcess query) and must report exited processes as dead."""
+    import os
+    import subprocess
+    import sys
+
+    from report.db_months import _pid_is_alive
+
+    assert _pid_is_alive(os.getpid()) is True
+
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    proc.wait()
+    assert _pid_is_alive(proc.pid) is False

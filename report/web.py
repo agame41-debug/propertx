@@ -40,7 +40,6 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from report.config import (
@@ -57,7 +56,7 @@ from report.hostify_inventory import sync_hostify_inventory
 from report.source_registry import SOURCE_TYPES, import_uploaded_source, validate_source_type
 from report.summary import build_report_summary
 from report import web_support as _web_support
-from report.engine import run_generation_background
+from report.engine import generate_report_in_process, run_generation_background
 from report.db_object_profiles import (
     set_profile_from_month_onward,
     set_profile_this_month_only,
@@ -208,9 +207,10 @@ def _enforce_single_worker() -> None:
     Multiple workers would race on report_rows writes, send N parallel
     requests to Hostify, and split cnb._rate_cache across processes.
 
-    Detection relies on uvicorn's WEB_CONCURRENCY / UVICORN_NUM_WORKERS
-    env vars (set by the launcher) or a count of sibling uvicorn workers
-    sharing this binding. We only block on values we recognize as >1.
+    Two layers: the env-var check below catches launcher-configured
+    workers, and _acquire_single_instance_lock() (called from lifespan)
+    catches everything else — including `uvicorn --workers N`, which does
+    NOT set these env vars in its children.
     """
     for var in ("WEB_CONCURRENCY", "UVICORN_NUM_WORKERS"):
         raw = os.environ.get(var, "").strip()
@@ -221,10 +221,89 @@ def _enforce_single_worker() -> None:
             )
 
 
+def _acquire_single_instance_lock():
+    """OS-level guarantee of one web process per DB: an exclusive lock on
+    cache/web.lock. A second process (e.g. `uvicorn --workers 4`, or a
+    manually started duplicate instance) fails fast instead of silently
+    racing on SQLite writes and double-running the Hostify sync loop.
+
+    Skipped under RENTERO_ALLOW_INSECURE_DEFAULTS=1 — in dev/test the
+    TestClient's lifespan legitimately runs alongside a dev server.
+
+    Returns the open file handle (keep it referenced — the lock lives as
+    long as the handle) or None when skipped.
+    """
+    if os.environ.get("RENTERO_ALLOW_INSECURE_DEFAULTS") == "1":
+        return None
+    lock_dir = os.path.dirname(os.path.abspath(_DB_PATH))
+    os.makedirs(lock_dir, exist_ok=True)
+    lock_path = os.path.join(lock_dir, "web.lock")
+    handle = open(lock_path, "a+b")
+    try:
+        if os.name == "nt":
+            import msvcrt
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        handle.close()
+        raise RuntimeError(
+            f"Another Rentero web process already holds {lock_path}. "
+            "Exactly one web process per DB is allowed (sync loop + regen "
+            "threads assume it). Stop the other instance first."
+        ) from exc
+    return handle
+
+
+def _release_single_instance_lock(handle) -> None:
+    if handle is None:
+        return
+    try:
+        if os.name == "nt":
+            import msvcrt
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+    finally:
+        handle.close()
+
+
+# ── Regeneration off the event loop ─────────────────────────────────────────
+#
+# All route handlers are `async def` and therefore run ON the event loop of
+# the single uvicorn worker. A synchronous generate_report_in_process call
+# (seconds of CSV parsing + bank matching) used to freeze the whole UI for
+# every user until it finished. Mutation handlers now go through
+# _run_regen_async: the engine runs in a worker thread while the loop keeps
+# serving requests. "Exactly one regeneration at a time" is guaranteed by
+# the engine itself (engine._generation_serial_lock), shared by ALL callers.
+
+
+def _run_regen_blocking(conn, slug, year, month, config, **kwargs):
+    """Engine call for worker/daemon threads. The bare-name lookup of
+    generate_report_in_process is intentional — tests monkeypatch the module
+    attribute and must keep working."""
+    return generate_report_in_process(conn, slug, year, month, config, **kwargs)
+
+
+async def _run_regen_async(conn, slug, year, month, config, **kwargs):
+    """Await a regeneration without blocking the event loop."""
+    return await asyncio.to_thread(
+        _run_regen_blocking, conn, slug, year, month, config, **kwargs
+    )
+
+
 @asynccontextmanager
 async def _app_lifespan(_app: FastAPI):
     _validate_web_runtime_config()
     _enforce_single_worker()
+    _instance_lock = _acquire_single_instance_lock()
 
     # L3 integrity audit — run once per app boot. Must NOT block startup;
     # any failure is logged and swallowed so the app still serves traffic.
@@ -272,6 +351,7 @@ async def _app_lifespan(_app: FastAPI):
             await _bg_task
         except asyncio.CancelledError:
             pass
+        _release_single_instance_lock(_instance_lock)
 
 
 app = FastAPI(title="Rentero", lifespan=_app_lifespan)
@@ -281,37 +361,10 @@ app.add_middleware(
 )
 
 
-class HTMXPartialMiddleware(BaseHTTPMiddleware):
-    """When HTMX requests a boosted page, strip the shell and return only <main> content."""
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        is_htmx_boost = (
-            request.headers.get("HX-Request") == "true"
-            and request.headers.get("HX-Boosted") == "true"
-            and response.headers.get("content-type", "").startswith("text/html")
-        )
-        if not is_htmx_boost:
-            return response
-        # Read body from streaming response
-        body_chunks = []
-        async for chunk in response.body_iterator:
-            if isinstance(chunk, bytes):
-                body_chunks.append(chunk)
-            else:
-                body_chunks.append(chunk.encode("utf-8"))
-        body = b"".join(body_chunks).decode("utf-8")
-        import re as _re
-        m = _re.search(r'<main[^>]*id="content"[^>]*>(.*)</main>', body, _re.DOTALL)
-        if m:
-            inner = m.group(1)
-            tm = _re.search(r'<title>(.*?)</title>', body)
-            title_tag = f'<title>{tm.group(1)}</title>' if tm else ''
-            new_body = title_tag + inner
-            return HTMLResponse(content=new_body, status_code=response.status_code)
-        return HTMLResponse(content=body, status_code=response.status_code)
-
-
-app.add_middleware(HTMXPartialMiddleware)
+# NOTE: the former HTMXPartialMiddleware was removed: base.html itself
+# renders only <div id="page-body"> for HX requests (is_htmx flag), so the
+# middleware's <main id="content"> regex never matched — it just buffered
+# every boosted response body for nothing.
 
 # Static files (favicon, etc.)
 _STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
@@ -627,14 +680,18 @@ def _apply_import_impacts(
 
         def _run_sequential():
             import sqlite3 as _sqlite3
-            from report.engine import generate_report_in_process
+            import time as _time
             from report.config import load_runtime_config
             _conn = _sqlite3.connect(db_path, timeout=30)
             _conn.row_factory = _sqlite3.Row
             _cfg = load_runtime_config(_CONFIG_PATH, db_conn=_conn)
             for _slug, _year, _month in jobs:
                 try:
-                    generate_report_in_process(_conn, _slug, _year, _month, _cfg)
+                    # Engine's serial lock guarantees one generation at a
+                    # time; the sleep yields it between iterations so an
+                    # interactive regen doesn't starve behind this batch.
+                    _run_regen_blocking(_conn, _slug, _year, _month, _cfg)
+                    _time.sleep(0.25)
                 except Exception as exc:
                     _logger.warning("Import-triggered regen failed for %s %d/%d: %s", _slug, _month, _year, exc)
             _conn.close()
@@ -703,14 +760,17 @@ def _apply_object_config_change_impacts(conn, slug, *, config):
 
         def _run_sequential():
             import sqlite3 as _sqlite3
-            from report.engine import generate_report_in_process
+            import time as _time
             from report.config import load_runtime_config
             _conn = _sqlite3.connect(db_path, timeout=30)
             _conn.row_factory = _sqlite3.Row
             _cfg = load_runtime_config(_CONFIG_PATH, db_conn=_conn)
             for _slug, _year, _month in jobs:
                 try:
-                    generate_report_in_process(_conn, _slug, _year, _month, _cfg)
+                    # See the import-impacts twin above: serialized by the
+                    # engine lock, sleep yields it to interactive regens.
+                    _run_regen_blocking(_conn, _slug, _year, _month, _cfg)
+                    _time.sleep(0.25)
                 except Exception as exc:
                     _logger.warning(
                         "Config-change regen failed for %s %d/%d: %s",

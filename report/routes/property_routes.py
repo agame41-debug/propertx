@@ -228,7 +228,7 @@ def register(app, state) -> None:
             },
         )
         try:
-            state["generate_report_in_process"](conn, property_slug, year, month, config)
+            await state["_run_regen_async"](conn, property_slug, year, month, config)
         except Exception:
             state["mark_report_month_stale"](conn, property_slug, year, month)
         referer = request.headers.get("referer", "/expenses")
@@ -293,7 +293,7 @@ def register(app, state) -> None:
             },
         )
         try:
-            state["generate_report_in_process"](conn, property_slug, year, month, config)
+            await state["_run_regen_async"](conn, property_slug, year, month, config)
         except Exception:
             state["mark_report_month_stale"](conn, property_slug, year, month)
         referer = request.headers.get("referer", "/expenses")
@@ -322,7 +322,7 @@ def register(app, state) -> None:
             state["add_template_skip"](conn, int(expense["template_id"]), exp_year, exp_month)
         state["delete_expense"](conn, expense_id)
         try:
-            state["generate_report_in_process"](conn, prop_slug, exp_year, exp_month, config)
+            await state["_run_regen_async"](conn, prop_slug, exp_year, exp_month, config)
         except Exception:
             state["mark_report_month_stale"](conn, prop_slug, exp_year, exp_month)
         referer = request.headers.get("referer", "/expenses")
@@ -376,7 +376,7 @@ def register(app, state) -> None:
         state["_ensure_month_open"](conn, property_slug, year, month)
         try:
             state["materialize_templates_for_month"](conn, property_slug, year, month)
-            state["generate_report_in_process"](conn, property_slug, year, month, config)
+            await state["_run_regen_async"](conn, property_slug, year, month, config)
         except Exception:
             state["mark_report_month_stale"](conn, property_slug, year, month)
         state["_set_flash"](request, "success", "Pravidelný výdaj byl uložen.")
@@ -398,7 +398,7 @@ def register(app, state) -> None:
         state["delete_expense_template"](conn, template_id)
         if property_slug and year and month:
             try:
-                state["generate_report_in_process"](conn, property_slug, year, month, config)
+                await state["_run_regen_async"](conn, property_slug, year, month, config)
             except Exception:
                 pass
         state["_set_flash"](request, "success", "Pravidelný výdaj byl smazán.")
@@ -564,12 +564,19 @@ def register(app, state) -> None:
             actor=state["_get_actor_username"](request),
         )
         try:
-            state["generate_report_in_process"](conn, slug, year, month, config)
+            await state["_run_regen_async"](conn, slug, year, month, config)
         except Exception:
-            # Unlock has already succeeded; surface the regen failure in
-            # logs so the operator can chase it manually.
+            # Unlock has already succeeded; mark the month STALE so the UI
+            # shows "data newer than report" instead of silently serving the
+            # pre-unlock rows.
             logger.exception(
                 "Post-unlock regen failed for %s/%d/%d", slug, year, month,
+            )
+            state["mark_report_month_stale"](conn, slug, year, month)
+            state["_set_flash"](
+                request, "error",
+                "Měsíc byl odemčen, ale přepočet selhal — měsíc označen jako "
+                "zastaralý. Zkuste report vygenerovat znovu.",
             )
         return RedirectResponse(f"/property/{slug}/{year}/{month}", status_code=303)
 
@@ -621,7 +628,7 @@ def register(app, state) -> None:
             },
         )
         try:
-            state["generate_report_in_process"](conn, slug, year, month, config)
+            await state["_run_regen_async"](conn, slug, year, month, config)
             state["_set_flash"](request, "success", "Úprava byla uložena.")
         except Exception:
             logger.exception(
@@ -653,7 +660,7 @@ def register(app, state) -> None:
         state["_ensure_month_open"](conn, slug, year, month)
         state["revert_override_event"](conn, event_id, reverted_by=state["_get_actor_username"](request))
         try:
-            state["generate_report_in_process"](conn, slug, year, month, config)
+            await state["_run_regen_async"](conn, slug, year, month, config)
             state["_set_flash"](request, "success", "Hodnota byla obnovena na původní.")
         except Exception:
             logger.exception(
@@ -690,6 +697,10 @@ def register(app, state) -> None:
             raise HTTPException(400, "Neplatný cílový měsíc")
         if target_year == year and target_month == month:
             raise HTTPException(400, "Cílový měsíc je stejný jako zdrojový")
+        # Target must be open too: the engine silently skips locked months,
+        # so a move into a locked month would vanish from the source report
+        # without ever appearing in the target one.
+        state["_ensure_month_open"](conn, slug, target_year, target_month)
         rows = state["get_report_rows"](conn, slug=slug, year=year, month=month)
         row = next((r for r in rows if r.get("confirmation_code") == code), None)
         if row is None:
@@ -719,7 +730,7 @@ def register(app, state) -> None:
         months_to_regen = sorted({(year, month), (target_year, target_month)})
         for _y, _m in months_to_regen:
             try:
-                state["generate_report_in_process"](conn, slug, _y, _m, config)
+                await state["_run_regen_async"](conn, slug, _y, _m, config)
             except Exception:
                 state["mark_report_month_stale"](conn, slug, _y, _m)
         state["_set_flash"](request, "success",
@@ -743,6 +754,14 @@ def register(app, state) -> None:
         assignment = state["get_assignment_for_code"](
             conn, slug, code, original_year=year, original_month=month,
         )
+        if assignment:
+            # Both affected months must be open: a locked one would skip its
+            # regen and the reservation would stay in (or vanish from) it.
+            for _ty, _tm in {
+                (assignment["target_year"], assignment["target_month"]),
+                (assignment["original_year"], assignment["original_month"]),
+            } - {(year, month)}:
+                state["_ensure_month_open"](conn, slug, _ty, _tm)
         actor = state["_get_actor_username"](request)
         state["revert_reservation_month_assignment"](
             conn, slug, code,
@@ -755,7 +774,7 @@ def register(app, state) -> None:
         # Regenerate in chronological order so past rows exist for adjustments
         for _y, _m in sorted(months_to_regen):
             try:
-                state["generate_report_in_process"](conn, slug, _y, _m, config)
+                await state["_run_regen_async"](conn, slug, _y, _m, config)
             except Exception:
                 state["mark_report_month_stale"](conn, slug, _y, _m)
         state["_set_flash"](request, "success", "Přesun byl vrácen zpět.")
@@ -783,7 +802,7 @@ def register(app, state) -> None:
             "actor": state["_get_actor_username"](request),
         })
         try:
-            state["generate_report_in_process"](conn, slug, year, month, config)
+            await state["_run_regen_async"](conn, slug, year, month, config)
         except Exception:
             state["mark_report_month_stale"](conn, slug, year, month)
         state["_set_flash"](request, "success", "Rezervace byla vyřazena z výpočtu.")
@@ -807,7 +826,7 @@ def register(app, state) -> None:
             conn, slug, code, actor=state["_get_actor_username"](request)
         )
         try:
-            state["generate_report_in_process"](conn, slug, year, month, config)
+            await state["_run_regen_async"](conn, slug, year, month, config)
         except Exception:
             state["mark_report_month_stale"](conn, slug, year, month)
         state["_set_flash"](request, "success", "Rezervace byla vrácena do výpočtu.")
@@ -840,7 +859,7 @@ def register(app, state) -> None:
             actor=state["_get_actor_username"](request),
         )
         try:
-            state["generate_report_in_process"](conn, slug, year, month, config)
+            await state["_run_regen_async"](conn, slug, year, month, config)
         except Exception:
             state["mark_report_month_stale"](conn, slug, year, month)
         state["_set_flash"](request, "success", "Transakce byla oddělena.")
@@ -864,7 +883,7 @@ def register(app, state) -> None:
         base_code = _re.sub(r"__(SP|ADJ|AC)\d*$", "", code)
         state["delete_split_transaction"](conn, slug, base_code, batch_ref.strip())
         try:
-            state["generate_report_in_process"](conn, slug, year, month, config)
+            await state["_run_regen_async"](conn, slug, year, month, config)
         except Exception:
             state["mark_report_month_stale"](conn, slug, year, month)
         state["_set_flash"](request, "success", "Transakce byla vrácena do hlavní rezervace.")

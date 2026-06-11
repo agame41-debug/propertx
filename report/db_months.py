@@ -66,6 +66,30 @@ def _pid_is_alive(pid: int | None) -> bool:
         return False
     if candidate <= 0:
         return False
+    if os.name == "nt":
+        # os.kill(pid, 0) is NOT a safe liveness probe on Windows: signal 0
+        # maps to CTRL_C_EVENT and goes through GenerateConsoleCtrlEvent,
+        # which can interrupt a live console process group (e.g. a running
+        # bulk_generation_runner). Query the process handle instead; Windows
+        # has no zombie semantics, so this answers liveness completely.
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        ERROR_ACCESS_DENIED = 5
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, candidate
+        )
+        if not handle:
+            # Access denied → the process exists but we may not open it.
+            return kernel32.GetLastError() == ERROR_ACCESS_DENIED
+        try:
+            exit_code = ctypes.c_ulong()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return False
+            return exit_code.value == STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
     try:
         os.kill(candidate, 0)
     except ProcessLookupError:
