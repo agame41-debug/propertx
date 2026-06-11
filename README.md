@@ -243,7 +243,7 @@ tests/                   pytest suite
 - Closed month (`LOCKED`) je read-only, dokud není explicitně unlocknut.
 - Marriott rezervace dnes přicházejí z Hostify jako source `HVMB`, v UI se ale zobrazují jako `Marriott`.
 - Marriott / jiné non-Airbnb non-Booking Hostify rezervace se zahrnou do reportu přes Hostify aliases a zatím standardně končí jako `CHYBÍ_V_CSV`, dokud pro ně neexistuje dedikovaný CSV import.
-- `report_objects.client_type` rozlišuje tři typy: `rentero` (vlastní objekty), `klient` (standardní klient), `z_klient` (3% odměna z payoutu, výplata = cena_ubytování + city_tax).
+- `report_objects.client_type` rozlišuje tři typy: `rentero` (vlastní objekty), `klient` (standardní klient), `z_klient` (3% odměna z payoutu, výplata = cena_ubytování + city_tax − 3% odměna).
 - AirCover (`__AC`) řádky: zachovávají původní znaménko, dostávají `_no_fees` režim (bez city_tax, úklid, balíčky), podléhají striktnímu payout-date window placement.
 - "Vyrovnání z řešení" = adjustment (`__ADJ`), "Výplata jako výsledek řešení" = AirCover (`__AC`).
 - Bank match ownership: stejná bankovní transakce nemůže být DORAZILO ve dvou různých měsících. `payout_batch_bank_matches` obsahuje `slug`, `year`, `month` pro per-month scoping.

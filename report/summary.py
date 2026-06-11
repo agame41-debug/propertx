@@ -65,7 +65,10 @@ def build_report_summary(
     )
 
     if client_type == "z_klient":
-        # Z Klient: odmena = 3% of gross payout, client gets cena_ubyt + city_tax
+        # Z Klient: odměna = 3 % of gross payout. Výplata klientovi is NET of
+        # the odměna: (cena_ubytování + city_tax) − 3 % payout — canonical
+        # rule confirmed 2026-06-10; the dashboard SQL mirrors it and
+        # tests/test_dashboard_engine_reconciliation.py keeps both in sync.
         rentero_commission_rate = 0.03
         rentero_fee_czk = _r(gross_payout_czk * rentero_commission_rate)
         vat_rentero_fee_czk = 0.0

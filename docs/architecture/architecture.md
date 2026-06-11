@@ -131,7 +131,7 @@ Three property ownership/billing types:
 |---|---|---|
 | `rentero` | N/A (own property) | N/A |
 | `klient` | standard fee calculation | standard payout |
-| `z_klient` | 3% of gross payout | cena_ubytování + city_tax |
+| `z_klient` | 3% of gross payout | cena_ubytování + city_tax − odměna (3%) |
 
 The type is stored on `report_objects.client_type` and editable via the "Typ objektu" dropdown on the client config page. Dashboard KPIs adapt: "Výplata klientům" excludes Rentero properties; "Zisk Rentero" uses cena_ubytování for rentero, rentero_fee for klient/z_klient.
 

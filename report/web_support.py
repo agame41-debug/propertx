@@ -517,21 +517,34 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
 
     # 2. Aggregates from report_rows via SQL json_extract — replaces N×M loop
     #    JOIN report_objects to get per-property commission for client payout calc
+    #
+    # NOTE: this duplicates the money math of report/summary.py in SQL for
+    # speed. tests/test_dashboard_engine_reconciliation.py generates real
+    # months through the engine and asserts both paths agree — any rule
+    # change here or in summary/calculator must keep that test green.
+    #
+    # Excluded rows (is_excluded — AirCover, manual exclusions) must not
+    # count toward any money sum or status count, mirroring summary.py and
+    # attach_mock_status (EXCLUDED has precedence over problem statuses).
+    not_excl = "COALESCE(CAST(json_extract(r.data, '$.is_excluded') AS INTEGER), 0) = 0"
     agg_rows = conn.execute(
         f"""SELECT r.slug, r.year, r.month,
                 COUNT(*) as rows_count,
-                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.payout_czk') AS REAL)), 0), 2) as payout_sum_czk,
-                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)), 0), 2) as cena_ubytovani_sum_czk,
-                ROUND(COALESCE(SUM(CAST(json_extract(r.data, '$.provize_czk') AS REAL)), 0), 2) as provize_sum_czk,
+                ROUND(COALESCE(SUM(CASE WHEN {not_excl} THEN CAST(json_extract(r.data, '$.payout_czk') AS REAL) END), 0), 2) as payout_sum_czk,
+                ROUND(COALESCE(SUM(CASE WHEN {not_excl} THEN CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL) END), 0), 2) as cena_ubytovani_sum_czk,
+                ROUND(COALESCE(SUM(CASE WHEN {not_excl} THEN CAST(json_extract(r.data, '$.provize_czk') AS REAL) END), 0), 2) as provize_sum_czk,
                 ROUND(COALESCE(SUM(CASE
+                    WHEN NOT ({not_excl}) THEN 0
                     WHEN COALESCE(o.client_type, 'rentero') = 'z_klient' THEN
                         CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)
                         + COALESCE(CAST(json_extract(r.data, '$.city_tax_czk') AS REAL), 0)
+                        - COALESCE(CAST(json_extract(r.data, '$.payout_czk') AS REAL), 0) * 0.03
                     ELSE
                         CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)
                         * (1.0 - COALESCE(o.rentero_commission, 0.15) * (1.0 + COALESCE(o.vat_rate, 0.21)))
                 END), 0), 2) as client_payout_sum_czk,
                 ROUND(COALESCE(SUM(CASE
+                    WHEN NOT ({not_excl}) THEN 0
                     WHEN COALESCE(o.client_type, 'rentero') = 'rentero' THEN 0
                     WHEN COALESCE(o.client_type, 'rentero') = 'z_klient' THEN
                         CAST(json_extract(r.data, '$.payout_czk') AS REAL) * 0.03
@@ -540,20 +553,23 @@ def _build_dashboard_maps(conn, properties: list[dict], months: list[tuple[int, 
                         * COALESCE(o.rentero_commission, 0.15) * (1.0 + COALESCE(o.vat_rate, 0.21))
                 END), 0), 2) as rentero_fee_sum_czk,
                 ROUND(COALESCE(SUM(CASE
+                    WHEN NOT ({not_excl}) THEN 0
                     WHEN COALESCE(o.client_type, 'rentero') = 'rentero' THEN
                         CAST(json_extract(r.data, '$.cena_ubytovani_czk') AS REAL)
                         * COALESCE(o.rentero_commission, 0.15) * (1.0 + COALESCE(o.vat_rate, 0.21))
                     ELSE 0
                 END), 0), 2) as model_rentero_fee_sum_czk,
-                SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'MATCHED'
+                SUM(CASE WHEN {not_excl}
+                         AND json_extract(r.data, '$.verification_status') = 'MATCHED'
                          AND (NOT json_extract(r.data, '$.tax_verification_required')
                               OR (COALESCE(CAST(json_extract(r.data, '$.checkin_missing_age_guests') AS INTEGER), 0) = 0
                                   AND json_extract(r.data, '$.checkin_verified')))
                     THEN 1 ELSE 0 END) as matched,
-                SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'ROZDÍL' THEN 1 ELSE 0 END) as rozdil,
-                SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'CHYBÍ_V_CSV' THEN 1 ELSE 0 END) as chybi_csv,
-                SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'CHYBÍ_V_HOSTIFY' THEN 1 ELSE 0 END) as chybi_hostify,
-                SUM(CASE WHEN json_extract(r.data, '$.verification_status') = 'MATCHED'
+                SUM(CASE WHEN {not_excl} AND json_extract(r.data, '$.verification_status') = 'ROZDÍL' THEN 1 ELSE 0 END) as rozdil,
+                SUM(CASE WHEN {not_excl} AND json_extract(r.data, '$.verification_status') = 'CHYBÍ_V_CSV' THEN 1 ELSE 0 END) as chybi_csv,
+                SUM(CASE WHEN {not_excl} AND json_extract(r.data, '$.verification_status') = 'CHYBÍ_V_HOSTIFY' THEN 1 ELSE 0 END) as chybi_hostify,
+                SUM(CASE WHEN {not_excl}
+                         AND json_extract(r.data, '$.verification_status') = 'MATCHED'
                          AND json_extract(r.data, '$.tax_verification_required')
                          AND (COALESCE(CAST(json_extract(r.data, '$.checkin_missing_age_guests') AS INTEGER), 0) > 0
                               OR NOT json_extract(r.data, '$.checkin_verified'))
