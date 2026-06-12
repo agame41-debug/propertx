@@ -67,9 +67,23 @@ class HostifySyncTask:
         if own_conn:
             conn = get_connection(self._db_path)
         try:
-            config = self._config
-            if not config:
+            # Reload config from the DB every run. The task caches a config
+            # snapshot taken at app startup, but alias / rate edits made
+            # afterwards (e.g. /inventory "Synchronizovat", /clients) live only
+            # in the DB until the next restart. Regenerating with the stale
+            # snapshot re-orphans renamed Hostify listings and silently reverts
+            # those edits the next day (CHYBÍ_V_HOSTIFY almost everywhere).
+            # Fall back to the cached snapshot only if the fresh load fails.
+            try:
                 config = load_runtime_config(self._config_path, db_conn=conn)
+            except Exception as exc:
+                log.warning(
+                    "Hostify sync: config reload failed, using cached snapshot: %s",
+                    exc,
+                )
+                config = self._config
+            if not config:
+                config = self._config
 
             target_months = compute_sync_months(reference_date=reference_date)
             log.info("Hostify sync starting for months: %s", target_months)

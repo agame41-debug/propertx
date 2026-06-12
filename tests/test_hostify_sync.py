@@ -140,6 +140,59 @@ def test_hostify_sync_continues_when_orphan_detection_fails(monkeypatch, caplog)
         "expected a warning about orphan detection failure"
 
 
+def test_hostify_sync_reloads_config_from_db_not_stale_cache(monkeypatch):
+    """Regression: the daily sync must reload config from the DB each run.
+
+    The task caches a config snapshot from app startup. If an operator edits
+    aliases afterwards (e.g. /inventory "Synchronizovat" after a Hostify
+    rename) without a restart, the edits live only in the DB. Regenerating
+    with the stale snapshot re-orphans the renamed listings and reverts the
+    fix the next day (CHYBÍ_V_HOSTIFY almost everywhere). The regen must run
+    with the DB-current config, not the cached one.
+    """
+    from report.db import get_connection
+    from report.config import sync_json_config_to_db
+
+    conn = get_connection(":memory:")
+    # DB holds the CURRENT (post-rename) nickname.
+    sync_json_config_to_db(conn, {"properties": {"test": {
+        "listing_id": 1, "listing_nickname": "New Name", "display_name": "Test",
+        "active": True, "channels": {
+            "hostify": {"listing_names": ["New Name"]},
+            "airbnb": {"listing_names": []}, "booking": {}},
+    }}})
+
+    # The task was built at startup with a STALE snapshot (old nickname only).
+    stale_config = {"properties": {"test": {
+        "listing_id": 1, "listing_nickname": "Old Name", "display_name": "Test",
+        "active": True, "channels": {
+            "hostify": {"listing_names": ["Old Name"]},
+            "airbnb": {"listing_names": []}, "booking": {}},
+    }}}
+
+    monkeypatch.setattr("report.hostify_sync.fetch_raw_reservations_for_period", lambda *a, **kw: [])
+    monkeypatch.setattr("report.hostify_sync.save_hostify_reservations", lambda *a: None)
+    monkeypatch.setattr("report.hostify_sync.normalize_reservations_for_snapshot", lambda x: x)
+    monkeypatch.setattr("report.hostify_sync.get_report_month_state",
+                        lambda *a: {"status": "OPEN", "last_generated_at": "2026-04-01"})
+
+    captured = {}
+
+    def fake_generate(conn, slug, year, month, config, **kw):
+        captured["config"] = config
+        return {"rows_count": 0}
+
+    monkeypatch.setattr("report.hostify_sync.generate_report_in_process", fake_generate)
+
+    task = HostifySyncTask(db_path=":memory:", config=stale_config, config_path=None)
+    task._sync_once(conn=conn, reference_date=date(2026, 4, 6))
+    conn.close()
+
+    assert captured, "regen never ran"
+    assert captured["config"]["properties"]["test"]["listing_nickname"] == "New Name", \
+        "sync regenerated with the stale cached config instead of the DB-current one"
+
+
 def test_hostify_sync_task_skips_locked_months(monkeypatch):
     regenerated = []
 
